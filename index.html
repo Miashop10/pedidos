@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Miashop · Compras</title>
+<title>Miashop · Sistema de Pedidos</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -12,16 +12,16 @@
 <style>
 :root{
   --bg:#f5f4f1; --card:#ffffff; --ink:#1c1b19; --mut:#6b675f; --line:#e4e1da; --soft:#efede8;
-  --acc:#c2185b; --acc-soft:#fbe6ee; --ok:#1f7a4d; --ok-soft:#e3f3ea; --warn:#a15c00; --warn-soft:#fdf0dc; --bad:#b3261e; --bad-soft:#fbe4e2;
+  --acc:#F18634; --acc-h:#E2721A; --acc-ink:#B5540B; --acc-soft:#FDEEDF; --ok:#1f7a4d; --ok-soft:#e3f3ea; --warn:#a15c00; --warn-soft:#fdf0dc; --bad:#b3261e; --bad-soft:#fbe4e2;
   --r:10px; --sh:0 1px 2px rgba(0,0,0,.05),0 4px 14px rgba(0,0,0,.04);
 }
 @media (prefers-color-scheme: dark){ :root{
   --bg:#161514; --card:#1f1e1c; --ink:#eeebe5; --mut:#a29d94; --line:#33312d; --soft:#292825;
-  --acc:#f06292; --acc-soft:#3a1f2a; --ok:#5fc495; --ok-soft:#173326; --warn:#f0b35a; --warn-soft:#3a2b14; --bad:#f2847b; --bad-soft:#3d1c1a; --sh:none; } }
+  --acc:#F18634; --acc-h:#F59A50; --acc-ink:#F7A863; --acc-soft:#3A2614; --ok:#5fc495; --ok-soft:#173326; --warn:#f0b35a; --warn-soft:#3a2b14; --bad:#f2847b; --bad-soft:#3d1c1a; --sh:none; } }
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
 button,input,select,textarea{font:inherit;color:inherit}
-a{color:var(--acc)}
+a{color:var(--acc-ink)}
 .hide{display:none!important}
 /* topo */
 header{position:sticky;top:0;z-index:20;background:var(--card);border-bottom:1px solid var(--line)}
@@ -30,7 +30,7 @@ header{position:sticky;top:0;z-index:20;background:var(--card);border-bottom:1px
 .brand span{color:var(--acc)}
 nav{display:flex;gap:2px;flex-wrap:wrap}
 nav button{background:none;border:0;padding:8px 12px;border-radius:8px;cursor:pointer;color:var(--mut);font-weight:600}
-nav button.on{background:var(--acc-soft);color:var(--acc)}
+nav button.on{background:var(--acc-soft);color:var(--acc-ink)}
 nav button:hover{color:var(--ink)}
 .sp{flex:1}
 .who{color:var(--mut);font-size:12px;display:flex;gap:10px;align-items:center}
@@ -38,7 +38,8 @@ nav button:hover{color:var(--ink)}
 .filtros input[type=search]{flex:1;min-width:220px}
 input,select,textarea{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;outline:none}
 input:focus,select:focus,textarea:focus{border-color:var(--acc)}
-.btn{background:var(--acc);color:#fff;border:0;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer;white-space:nowrap}
+.btn{background:var(--acc);color:#fff;text-shadow:0 1px 0 rgba(0,0,0,.12);border:0;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer;white-space:nowrap}
+.btn:not(.sec):not(.ghost):not(.danger):hover{background:var(--acc-h)}
 .btn.sec{background:var(--soft);color:var(--ink)}
 .btn.ghost{background:none;color:var(--mut);padding:6px 8px}
 .btn.danger{background:var(--bad-soft);color:var(--bad)}
@@ -65,7 +66,7 @@ td.desc{white-space:normal;min-width:220px;max-width:340px}
 .thumb{width:38px;height:38px;border-radius:6px;object-fit:cover;background:var(--soft);display:block}
 .ph{width:38px;height:38px;border-radius:6px;background:var(--soft);display:grid;place-items:center;color:var(--mut);font-size:10px}
 .tag{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700}
-.t-ok{background:var(--ok-soft);color:var(--ok)} .t-warn{background:var(--warn-soft);color:var(--warn)} .t-bad{background:var(--bad-soft);color:var(--bad)} .t-acc{background:var(--acc-soft);color:var(--acc)} .t-mut{background:var(--soft);color:var(--mut)}
+.t-ok{background:var(--ok-soft);color:var(--ok)} .t-warn{background:var(--warn-soft);color:var(--warn)} .t-bad{background:var(--bad-soft);color:var(--bad)} .t-acc{background:var(--acc-soft);color:var(--acc-ink)} .t-mut{background:var(--soft);color:var(--mut)}
 .bar{height:8px;background:var(--soft);border-radius:99px;overflow:hidden;min-width:70px}
 .bar i{display:block;height:100%;background:var(--acc)}
 .bar.ok i{background:var(--ok)}
@@ -75,6 +76,10 @@ td.desc{white-space:normal;min-width:220px;max-width:340px}
 .hbar .tr b{position:absolute;left:0;top:0;bottom:0;background:var(--acc);opacity:.85}
 .legend{display:flex;gap:14px;color:var(--mut);font-size:12px;margin-top:6px}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.seg{display:inline-flex;gap:4px;background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:4px;margin-bottom:18px;flex-wrap:wrap}
+.seg button{border:0;background:none;padding:8px 16px;border-radius:7px;font-weight:700;color:var(--mut);cursor:pointer}
+.seg button.on{background:var(--acc);color:#fff;text-shadow:0 1px 0 rgba(0,0,0,.12)}
+.seg button:not(.on):hover{color:var(--ink);background:var(--card)}
 .drop{border:2px dashed var(--line);border-radius:var(--r);padding:28px;text-align:center;cursor:pointer;background:var(--card);transition:.15s}
 .drop:hover,.drop.over{border-color:var(--acc);background:var(--acc-soft)}
 .drop b{display:block;font-size:16px;margin-bottom:4px}
@@ -100,10 +105,24 @@ td.desc{white-space:normal;min-width:220px;max-width:340px}
 #loading{position:fixed;top:0;left:0;right:0;height:3px;z-index:100;background:linear-gradient(90deg,transparent,var(--acc),transparent);background-size:200% 100%;animation:ld 1s linear infinite}
 @keyframes ld{from{background-position:200% 0}to{background-position:-200% 0}}
 /* login */
-.login{min-height:100vh;display:grid;place-items:center;padding:20px}
-.login .card{width:100%;max-width:380px;padding:28px}
-.login .brand{font-size:26px;margin-bottom:4px}
-.login input{width:100%;margin-top:6px}
+.login{min-height:100vh;display:grid;grid-template-columns:1.1fr 1fr;background:#fff;color:#1c1b19}
+.lg-l{position:relative;overflow:hidden;background:#FBF5EF;display:flex;flex-direction:column;justify-content:center;padding:56px 64px;border-right:1px solid #EFE6DC}
+.lg-l::before{content:"";position:absolute;width:520px;height:520px;border-radius:50%;right:-180px;top:-200px;background:radial-gradient(circle,rgba(241,134,52,.22),rgba(241,134,52,0) 70%)}
+.lg-l::after{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:linear-gradient(#F18634,#E2721A)}
+.lg-l img{width:100%;max-width:380px;position:relative}
+.lg-tit{margin:28px 0 8px;font-size:30px;font-weight:800;letter-spacing:.04em;position:relative}
+.lg-sub{color:#6b675f;margin:0 0 32px;max-width:420px;position:relative;font-size:15px}
+.lg-it{display:flex;gap:12px;align-items:center;margin:10px 0;color:#3a3833;font-weight:600;position:relative}
+.lg-it i{width:30px;height:30px;border-radius:8px;background:#fff;border:1px solid #EFE6DC;display:grid;place-items:center;font-style:normal;color:#B5540B;font-size:15px}
+.lg-rod{position:absolute;bottom:22px;left:64px;color:#a29d94;font-size:12px}
+.lg-r{display:flex;align-items:center;justify-content:center;padding:40px 24px}
+.lg-f{width:100%;max-width:360px}
+.lg-f h1{font-size:24px;margin:0 0 4px;letter-spacing:-.01em}
+.lg-f .fld{color:#6b675f}
+.lg-f input{width:100%;margin-top:6px;padding:11px 12px;background:#fff;color:#1c1b19;border-color:#e4e1da}
+.lg-f input:focus{border-color:#F18634;box-shadow:0 0 0 3px rgba(241,134,52,.18)}
+.lg-mob{display:none}
+@media(max-width:860px){ .login{grid-template-columns:1fr} .lg-l{display:none} .lg-mob{display:block} img.lg-mob{width:220px;margin:0 auto 22px} .lg-f h1{text-align:center} .lg-f .lg-s2{text-align:center} }
 .check{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--ink);font-weight:400}
 @media(max-width:640px){ header{position:static} .filtros select{width:100%} .top{padding:8px 12px} main{padding:14px 12px 60px} .filtros{padding:6px 12px 10px} .hbar{grid-template-columns:110px 1fr 90px} .kpi .v{font-size:20px} }
 </style>
@@ -114,29 +133,37 @@ td.desc{white-space:normal;min-width:220px;max-width:340px}
 
 <!-- LOGIN -->
 <section id="telaLogin" class="login hide">
-  <div class="card">
-    <div class="brand">mia<span>shop</span> · compras</div>
-    <p class="muted" style="margin:0 0 18px">Compras, vendas, estoque e retorno do investimento.</p>
-    <div class="fld">Seu nome<input id="lgNome" placeholder="Ex.: Yarede" autocomplete="name"></div>
-    <div class="fld" style="margin-top:10px">Senha<input id="lgSenha" type="password" placeholder="Senha do sistema" autocomplete="current-password"></div>
-    <div class="fld" id="lgUrlBox" style="margin-top:10px">URL do Apps Script (/exec)<input id="lgUrl" placeholder="https://script.google.com/macros/s/.../exec"></div>
-    <button class="btn" style="width:100%;margin-top:16px;padding:11px" onclick="entrar()">Entrar</button>
-    <p id="lgErro" class="bad small" style="margin:10px 0 0"></p>
+  <div class="lg-l">
+    <img class="logoMia" alt="Miashop">
+    <div class="lg-tit">SISTEMA DE PEDIDOS</div>
+    <p class="lg-sub">Compras, vendas, estoque e pedidos para as filiais em um só lugar.</p>
+    <div class="lg-it"><i>▤</i>Notas fiscais e relatórios de venda importados</div>
+    <div class="lg-it"><i>↺</i>Retorno do investimento por produto e importadora</div>
+    <div class="lg-it"><i>✓</i>Pedidos em PDF para cada CNPJ</div>
+    <div class="lg-rod">© Miashop</div>
   </div>
+  <div class="lg-r"><div class="lg-f">
+    <img class="logoMia lg-mob" alt="Miashop"><div class="lg-mob" style="text-align:center;font-weight:800;letter-spacing:.08em;margin:-12px 0 26px">SISTEMA DE PEDIDOS</div>
+    <h1>Entrar</h1>
+    <p class="lg-s2" style="color:#6b675f;margin:0 0 24px">Acesse com seu nome e a senha do sistema.</p>
+    <div class="fld">Seu nome<input id="lgNome" placeholder="Ex.: Yarede" autocomplete="name"></div>
+    <div class="fld" style="margin-top:14px">Senha<input id="lgSenha" type="password" placeholder="Senha do sistema" autocomplete="current-password"></div>
+    <div class="fld" id="lgUrlBox" style="margin-top:14px">URL do Apps Script (/exec)<input id="lgUrl" placeholder="https://script.google.com/macros/s/.../exec"></div>
+    <button class="btn" style="width:100%;margin-top:22px;padding:13px;font-size:15px" onclick="entrar()">Entrar</button>
+    <p id="lgErro" class="bad small" style="margin:12px 0 0"></p>
+  </div></div>
 </section>
 
 <!-- APP -->
 <section id="telaApp" class="hide">
 <header>
   <div class="top">
-    <div class="brand">mia<span>shop</span> · compras</div>
+    <div class="brand" style="display:flex;align-items:center;gap:10px"><img class="logoMia" alt="Miashop" style="height:38px;background:#fff;border-radius:6px;padding:3px 6px"><span style="color:var(--ink);font-size:13px;font-weight:800;letter-spacing:.08em;border-left:1px solid var(--line);padding-left:12px">SISTEMA DE PEDIDOS</span></div>
     <nav id="nav">
       <button data-v="painel" class="on">Painel</button>
       <button data-v="produtos">Produtos</button>
       <button data-v="ranking">Mais vantajosos</button>
       <button data-v="importadoras">Importadoras</button>
-      <button data-v="notas">Notas de compra</button>
-      <button data-v="relatorios">Relatórios de venda</button>
       <button data-v="importar">Importar</button>
       <button data-v="pedidos">Pedidos p/ filiais</button>
     </nav>
@@ -403,6 +430,7 @@ function api(acao, dados){
 
 /* =================== LOGIN =================== */
 function iniciar(){
+  document.querySelectorAll('.logoMia').forEach(i=>i.src=LOGO_MIASHOP);
   S.url = API_URL || LS.get('mc_url') || '';
   document.getElementById('lgUrlBox').classList.toggle('hide', emAppsScript() || !!API_URL);
   document.getElementById('lgUrl').value = S.url;
@@ -428,7 +456,7 @@ function abrirApp(){
   carregar();
   setInterval(()=>{ if(document.visibilityState==='visible' && !document.querySelector('.mbg') && S.view!=='importar' && S.view!=='pedidos') carregar(true); }, 180000);
 }
-function irPara(v){ S.view=v; document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v)); document.getElementById('barraFiltros').classList.toggle('hide', v==='importar'||v==='pedidos'); render(); window.scrollTo(0,0); }
+function irPara(v){ S.view=v; const navV=(v==='notas'||v==='relatorios')?'importar':v; document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===navV)); document.getElementById('barraFiltros').classList.toggle('hide', v==='importar'||v==='pedidos'); render(); window.scrollTo(0,0); }
 
 async function carregar(silencioso){
   try{ S.dados = await api('getDados'); calcular(); preencherImportadoras(); document.getElementById('whoSync').textContent='atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); render(); }
@@ -602,14 +630,14 @@ function vNotas(){
   let N=(S.dados.notas||[]).filter(n=>(!imp||n.IMPORTADORA===imp) && (!q || up(n.NUMERO).includes(q)||up(n.IMPORTADORA).includes(q)||(S.dados.compras||[]).some(c=>c.NOTA_ID===n.ID&&(up(c.CODIGO).includes(q)||up(c.DESCRICAO).includes(q)))));
   N=N.sort((a,b)=>dnum(b.DATA_EMISSAO)-dnum(a.DATA_EMISSAO));
   const tot=N.reduce((s,n)=>s+(+n.CUSTO_TOTAL||0),0);
-  return `<div class="toolbar"><div><h2>Notas de compra</h2><p class="sub" style="margin:0">${N.length} notas · custo total ${fR(tot)}</p></div><div class="sp"></div><button class="btn" onclick="irPara('importar')">+ Importar notas</button></div>
+  return subImp('notas')+`<div class="toolbar"><div><h2>Notas de compra</h2><p class="sub" style="margin:0">${N.length} notas · custo total ${fR(tot)}</p></div><div class="sp"></div><button class="btn" onclick="irPara('importar')">+ Importar notas</button></div>
   <div class="tw"><table><thead><tr><th>Emissão</th><th>NF</th><th>Importadora</th><th class="n">Itens</th><th class="n">Peças</th><th class="n">Produtos</th><th class="n">IPI</th><th class="n">Total NF</th><th class="n">Custo lançado</th><th>Origem</th><th>Importada</th><th></th></tr></thead>
   <tbody>${N.map(n=>`<tr class="clk" onclick="abrirNota('${n.ID}')"><td>${esc(n.DATA_EMISSAO)}</td><td><b>${esc(n.NUMERO)}</b></td><td>${esc(n.IMPORTADORA)}</td><td class="n">${n.QTD_ITENS}</td><td class="n">${fN(+n.QTD_PECAS)}</td><td class="n">${fR(+n.VALOR_PRODUTOS)}</td><td class="n">${fR(+n.VALOR_IPI)}</td><td class="n">${fR(+n.VALOR_TOTAL)}</td><td class="n"><b>${fR(+n.CUSTO_TOTAL)}</b></td><td><span class="tag t-mut">${esc(n.ORIGEM)}</span></td><td class="small muted">${esc(n.IMPORTADO_EM)}<br>${esc(n.USUARIO)}</td>
   <td>${n.ARQUIVO_URL?`<a href="${esc(n.ARQUIVO_URL)}" target="_blank" onclick="event.stopPropagation()">arquivo</a>`:''}</td></tr>`).join('')||'<tr><td colspan="12" class="muted">Nenhuma nota importada.</td></tr>'}</tbody></table></div>`;
 }
 function vRelatorios(){
   const R=(S.dados.relatorios||[]).slice().sort((a,b)=>dnum(b.DATA_FINAL)-dnum(a.DATA_FINAL));
-  return `<div class="toolbar"><div><h2>Relatórios de venda</h2><p class="sub" style="margin:0">${R.length} relatórios · ${fN(S.dados.diasCobertos)} dias cobertos. Importe um relatório por dia (ou por período) — o sistema avisa se o período já foi importado.</p></div><div class="sp"></div><button class="btn" onclick="irPara('importar')">+ Importar vendas</button></div>
+  return subImp('relatorios')+`<div class="toolbar"><div><h2>Relatórios de venda</h2><p class="sub" style="margin:0">${R.length} relatórios · ${fN(S.dados.diasCobertos)} dias cobertos. Importe um relatório por dia (ou por período) — o sistema avisa se o período já foi importado.</p></div><div class="sp"></div><button class="btn" onclick="irPara('importar')">+ Importar vendas</button></div>
   <div class="tw"><table><thead><tr><th>Período</th><th>Filial</th><th class="n">Linhas</th><th class="n">Peças</th><th class="n">Valor</th><th>Arquivo</th><th>Importado</th><th></th></tr></thead>
   <tbody>${R.map(r=>`<tr><td><b>${esc(r.DATA_INICIAL)}${r.DATA_FINAL!==r.DATA_INICIAL?' a '+esc(r.DATA_FINAL):''}</b></td><td>${esc(r.FILIAL)}</td><td class="n">${fN(+r.QTD_LINHAS)}</td><td class="n">${fN(+r.QTD_TOTAL)}</td><td class="n">${fR(+r.VALOR_TOTAL)}</td><td class="small">${esc(r.ARQUIVO)}</td><td class="small muted">${esc(r.IMPORTADO_EM)} · ${esc(r.USUARIO)}</td>
   <td><button class="btn danger" onclick="excluirRelatorio('${r.ID}','${esc(r.DATA_INICIAL)}')">Excluir</button></td></tr>`).join('')||'<tr><td colspan="8" class="muted">Nenhum relatório importado.</td></tr>'}</tbody></table></div>`;
@@ -687,8 +715,10 @@ function exportarProdutos(){
 }
 
 /* =================== IMPORTAÇÃO =================== */
+function subImp(at){ const b=(v,l)=>`<button class="${v===at?'on':''}" onclick="irPara('${v}')">${l}</button>`;
+  return `<div class="seg">${b('importar','Importar arquivos')}${b('notas','Notas de compra')}${b('relatorios','Relatórios de venda')}</div>`; }
 function vImportar(){
-  return `<h2>Importar</h2><p class="sub">Arraste vários arquivos de uma vez. Confira a prévia antes de salvar — tudo pode ser editado.</p>
+  return subImp('importar')+`<h2>Importar</h2><p class="sub">Arraste vários arquivos de uma vez. Confira a prévia antes de salvar — tudo pode ser editado.</p>
   <div class="grid two">
     <div><div class="drop" id="dropNF"><b>Notas fiscais de compra</b><small>PDF (DANFE), XML da NF-e ou Excel/CSV<br>Puxa código, nome, quantidade, custo e importadora</small><input type="file" id="inNF" multiple accept=".pdf,.xml,.xlsx,.xls,.csv" class="hide"></div></div>
     <div><div class="drop" id="dropVD"><b>Relatório de vendas</b><small>PDF do Shop Control (Vendas - Normal) ou Excel/CSV<br>Puxa código, nome, quantidade vendida e valor</small><input type="file" id="inVD" multiple accept=".pdf,.xlsx,.xls,.csv" class="hide"></div></div>
