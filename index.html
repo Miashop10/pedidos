@@ -858,7 +858,7 @@ function vPedidos(){
   const imps=[...new Set([...(S.dados.compras||[]).map(c=>c.IMPORTADORA),...(S.dados.pedidos||[]).map(p=>p.IMPORTADORA)].filter(Boolean))].sort();
   const F=PD.form; if(!F.data) F.data=hojeBR();
   const peds=(S.dados.pedidos||[]).slice().sort((a,b)=>(+b.NUMERO)-(+a.NUMERO));
-  return `<div class="toolbar"><div><h2>Pedidos para as filiais</h2><p class="sub" style="margin:0">Importe a planilha do pedido (código, quantidades embaixo do número de cada filial e valor unitário no fim da linha). O sistema gera um PDF para cada filial.</p></div><div class="sp"></div>
+  return `<div class="toolbar"><div><h2>Pedidos para as filiais</h2><p class="sub" style="margin:0">Importe a planilha do pedido (código, quantidades embaixo do número de cada filial e valor unitário no fim da linha). O sistema gera um único PDF com o pedido de cada filial em páginas separadas.</p></div><div class="sp"></div>
     <button class="btn sec" onclick="abrirFiliais()">Filiais e CNPJs</button></div>
   <div class="card" style="margin-bottom:14px">
     <div class="row">
@@ -872,7 +872,7 @@ function vPedidos(){
   <h3 style="margin:22px 0 8px">Pedidos gerados</h3>
   <div class="tw"><table><thead><tr><th class="n">Nº</th><th>Data</th><th>Importadora</th><th>Prazo</th><th class="n">Filiais</th><th class="n">Peças</th><th class="n">Valor</th><th>Criado</th><th></th></tr></thead>
   <tbody>${peds.map(p=>`<tr><td class="n"><b>${esc(p.NUMERO)}</b></td><td>${esc(p.DATA)}</td><td>${esc(p.IMPORTADORA)}</td><td>${esc(p.PRAZO)}</td><td class="n">${p.QTD_FILIAIS}</td><td class="n">${fN(+p.QTD_PECAS)}</td><td class="n">${fR(+p.VALOR_TOTAL)}</td><td class="small muted">${esc(p.CRIADO_EM)} · ${esc(p.USUARIO)}</td>
-    <td><button class="btn sec" onclick="baixarPedidoSalvo('${p.ID}')">Baixar PDFs</button> ${p.PASTA_PDFS_URL?`<a class="btn ghost" href="${esc(p.PASTA_PDFS_URL)}" target="_blank">Drive</a>`:''}${p.ARQUIVO_URL?`<a class="btn ghost" href="${esc(p.ARQUIVO_URL)}" target="_blank">Excel</a>`:''} <button class="btn danger" onclick="excluirPedido('${p.ID}',${+p.NUMERO})">Excluir</button></td></tr>`).join('')||'<tr><td colspan="9" class="muted">Nenhum pedido gerado ainda.</td></tr>'}</tbody></table></div>`;
+    <td><button class="btn sec" onclick="baixarPedidoSalvo('${p.ID}')">Baixar PDF</button> ${p.PASTA_PDFS_URL?`<a class="btn ghost" href="${esc(p.PASTA_PDFS_URL)}" target="_blank">Drive</a>`:''}${p.ARQUIVO_URL?`<a class="btn ghost" href="${esc(p.ARQUIVO_URL)}" target="_blank">Excel</a>`:''} <button class="btn danger" onclick="excluirPedido('${p.ID}',${+p.NUMERO})">Excluir</button></td></tr>`).join('')||'<tr><td colspan="9" class="muted">Nenhum pedido gerado ainda.</td></tr>'}</tbody></table></div>`;
 }
 function ligarPedidos(){
   const D=document.getElementById('dropPD'), I=document.getElementById('inPD'); if(!D) return;
@@ -919,8 +919,9 @@ const LOGO_MIASHOP='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAArwAAADQCAYAAA
 function logoPadrao(){ return LOGO_MIASHOP; }
 function logoAtual(){ return logoPadrao(); }
 function medidasImg(dataUrl){ return new Promise(res=>{ const i=new Image(); i.onload=()=>res({w:i.width,h:i.height}); i.onerror=()=>res({w:4,h:1}); i.src=dataUrl; }); }
-async function pdfFilial(ped, filial, itens, logo, dims){
-  const { jsPDF } = window.jspdf; const doc=new jsPDF({unit:'mm',format:'a4'});
+async function pdfFilial(ped, filial, itens, logo, dims, docExistente){
+  const { jsPDF } = window.jspdf; const doc=docExistente||new jsPDF({unit:'mm',format:'a4'});
+  if(docExistente) doc.addPage(); const pIni=doc.getNumberOfPages();
   const FM=filiaisMap(); const f=FM[filial]||{}; const W=210, M=14; const LAR='#F18634';
   // logo
   const lh=16, lw=Math.min(70, lh*dims.w/dims.h); try{ doc.addImage(logo, logo.indexOf('image/png')>0?'PNG':'JPEG', M, 12, lw, lw*dims.h/dims.w); }catch(e){}
@@ -945,8 +946,8 @@ async function pdfFilial(ped, filial, itens, logo, dims){
     columnStyles:{0:{cellWidth:12,halign:'center'},1:{fontStyle:'bold'},2:{cellWidth:30,halign:'right'},3:{cellWidth:38,halign:'right'},4:{cellWidth:42,halign:'right'}},
     didParseCell:d=>{ if((d.section==='foot'||d.section==='head')&&[2,3,4].includes(d.column.index)) d.cell.styles.halign='right'; } });
   let yf=doc.lastAutoTable.finalY+8;
-  const n=doc.getNumberOfPages();
-  for(let i=1;i<=n;i++){ doc.setPage(i); doc.setFontSize(8); doc.setTextColor(140); doc.setFont('helvetica','normal');
+  const pFim=doc.getNumberOfPages(), n=pFim-pIni+1;
+  for(let pg=pIni;pg<=pFim;pg++){ const i=pg-pIni+1; doc.setPage(pg); doc.setFontSize(8); doc.setTextColor(140); doc.setFont('helvetica','normal');
     doc.text(`Miashop · Pedido ${ped.numero||'PRÉVIA'} · CNPJ ${f.CNPJ||'—'} · gerado em ${new Date().toLocaleString('pt-BR')} por ${S.usuario}`, M, 289); doc.text(`${i}/${n}`, W-M, 289, {align:'right'}); }
   return doc;
 }
@@ -955,13 +956,13 @@ async function previaPdfFilial(filial){
   const itens=itensDoPedido(PD.atual).filter(i=>i.filial===filial); const logo=logoAtual(); const dims=await medidasImg(logo);
   const doc=await pdfFilial({...PD.form,numero:null},filial,itens,logo,dims); window.open(doc.output('bloburl'),'_blank');
 }
-async function gerarZip(ped,itens,salvarDrive){
-  const logo=logoAtual(); const dims=await medidasImg(logo); const zip=new JSZip(); const arquivos=[];
-  for(const g of resumoFiliais(itens)){ const doc=await pdfFilial(ped,g.filial,g.itens,logo,dims); const nome=nomePdf(ped,g.filial);
-    const b64=doc.output('datauristring').split(',')[1]; zip.file(nome,b64,{base64:true}); arquivos.push({nome,base64:b64}); }
-  const blob=await zip.generateAsync({type:'blob'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-  a.download=`Pedido ${ped.numero} - ${String(ped.importadora||'').substr(0,40)}.zip`; document.body.appendChild(a); a.click(); a.remove();
-  if(salvarDrive && ped.id){ try{ await api('salvarPdfsPedido',{id:ped.id,arquivos}); toast('PDFs salvos no Google Drive'); }catch(e){ toast('PDFs baixados, mas não salvaram no Drive: '+e.message,6000); } }
+async function gerarZip(ped,itens,salvarDrive){ // gera UM único PDF com o pedido de todas as filiais (cada filial começa em página nova)
+  const logo=logoAtual(); const dims=await medidasImg(logo); let doc=null;
+  for(const g of resumoFiliais(itens)){ doc=await pdfFilial(ped,g.filial,g.itens,logo,dims,doc); }
+  if(!doc) return;
+  const nome=`Pedido ${ped.numero} - ${String(ped.importadora||'').replace(/[\\/:*?"<>|]/g,'').substr(0,40)}.pdf`;
+  doc.save(nome);
+  if(salvarDrive && ped.id){ try{ await api('salvarPdfsPedido',{id:ped.id,arquivos:[{nome,base64:doc.output('datauristring').split(',')[1]}]}); toast('PDF salvo no Google Drive'); }catch(e){ toast('PDF baixado, mas não salvou no Drive: '+e.message,6000); } }
 }
 async function transformarPedido(){
   const r=PD.atual, F=PD.form; if(!r) return;
@@ -975,7 +976,7 @@ async function transformarPedido(){
     if(r.arquivo){ d.arquivoBase64=await b64Arquivo(r.arquivo); d.arquivoNome=r.arquivo.name; d.arquivoMime=r.arquivo.type; }
     const s=await api('salvarPedido',d);
     await gerarZip({id:s.id,numero:s.numero,importadora:d.importadora,prazo:d.prazo,data:d.data,obs:d.obs},itens,true);
-    toast(`Pedido ${s.numero} gerado: ${resumoFiliais(itens).length} PDFs`,5000);
+    toast(`Pedido ${s.numero} gerado: 1 PDF com ${resumoFiliais(itens).length} filial(is)`,5000);
     PD.atual=null; PD.form={importadora:'',prazo:'',data:'',obs:''}; await carregar(true);
   }catch(e){ toast('Erro: '+e.message,6000); bt.disabled=false; bt.textContent='Transformar em pedido'; }
 }
