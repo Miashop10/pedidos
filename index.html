@@ -352,7 +352,7 @@ function parsePedidoMatriz(rows, numsFiliais){
   var hi=-1, best=0;
   for(var r=0;r<Math.min(rows.length,40);r++){ var row=rows[r]||[]; var vis={};
     row.forEach(function(v){ var n=intCabecalho(v); if(n&&known[n]) vis[n]=1; }); var c=Object.keys(vis).length; if(c>best){best=c;hi=r;} }
-  if(hi<0||best<2) return {erro:'Não encontrei a linha com os números das filiais (ex.: 19, 9, 7, 3...).'};
+  if(hi<0||best<1) return {erro:'Não encontrei a linha com o número da(s) filial(is) cadastrada(s) (ex.: Código | 4 | Valor).'};
   var head=rows[hi]||[]; var filCols=[];
   head.forEach(function(v,i){ var n=intCabecalho(v); if(n) filCols.push({col:i,num:n,conhecida:!!known[n]}); });
   // descarta colunas numéricas soltas antes da primeira filial conhecida (ex.: nº de linha)
@@ -379,7 +379,11 @@ function parsePedidoMatriz(rows, numsFiliais){
   // coluna do valor unitário: à direita das filiais, a mais à direita com números
   var depois=[]; for(var c2=lastFil+1;c2<ncol;c2++) depois.push({c:c2,n:cnt(c2,function(v){return numCel(v)!=null;})});
   var maxD=Math.max.apply(null,depois.map(function(d){return d.n;}).concat([0]));
-  var cand=depois.filter(function(d){return d.n>0 && d.n>=maxD*0.5;}); var priceCol=cand.length?cand[cand.length-1].c:-1;
+  var cand=depois.filter(function(d){return d.n>0 && d.n>=maxD*0.5;});
+  // ignora colunas de total (ex.: "Valor Total") e prefere a coluna nomeada como valor/preço unitário
+  var semTotal=cand.filter(function(d){ return !/TOTAL/.test(headTxt(d.c)); }); if(semTotal.length) cand=semTotal;
+  var nomeadas=cand.filter(function(d){ return /VALOR|PRECO|VLR|CUSTO|UNIT/.test(headTxt(d.c)); }); if(nomeadas.length) cand=nomeadas;
+  var priceCol=cand.length?cand[cand.length-1].c:-1;
   // planilha com colunas "Valor" antes das filiais (ex.: Valor | Desconto | Valor | Desconto | Valor): usa o último "Valor"
   if(priceCol<0){ var vals=antes.filter(function(a){ return /^(VALOR|PRECO|VLR|CUSTO)/.test(headTxt(a.c)) && cnt(a.c,function(v){return numCel(v)!=null;})>0; }); if(vals.length) priceCol=vals[vals.length-1].c; }
   var produtos=[], avisos=[];
