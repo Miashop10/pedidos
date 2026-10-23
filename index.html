@@ -350,7 +350,12 @@ function intCabecalho(v){ if(v==null||v==='') return null; var s=String(v).trim(
 function parsePedidoMatriz(rows, numsFiliais){
   var known={}; (numsFiliais||[]).forEach(function(n){ known[String(n)]=1; });
   var hi=-1, best=0;
-  for(var r=0;r<Math.min(rows.length,40);r++){ var row=rows[r]||[]; var vis={};
+  // 1º: a linha de cabeçalho é a que tem "Código" (ou Cód/Ref/SKU) e pelo menos um número de filial
+  for(var r0=0;r0<Math.min(rows.length,40) && hi<0;r0++){ var row0=rows[r0]||[];
+    var temCod=row0.some(function(v){ return typeof v==='string' && /^(COD|CODIGO|COD\.?|COD PROD|REF|REFERENCIA|SKU)\b/.test(normTxt(v).trim()); });
+    var temNum=row0.some(function(v){ var n=intCabecalho(v); return n&&known[n]; });
+    if(temCod && temNum){ hi=r0; best=1; } }
+  if(hi<0) for(var r=0;r<Math.min(rows.length,40);r++){ var row=rows[r]||[]; var vis={};
     row.forEach(function(v){ var n=intCabecalho(v); if(n&&known[n]) vis[n]=1; }); var c=Object.keys(vis).length; if(c>best){best=c;hi=r;} }
   if(hi<0||best<1) return {erro:'Não encontrei a linha com o número da(s) filial(is) cadastrada(s) (ex.: Código | 4 | Valor).'};
   var head=rows[hi]||[]; var filCols=[];
@@ -384,8 +389,11 @@ function parsePedidoMatriz(rows, numsFiliais){
   var semTotal=cand.filter(function(d){ return !/TOTAL/.test(headTxt(d.c)); }); if(semTotal.length) cand=semTotal;
   var nomeadas=cand.filter(function(d){ return /VALOR|PRECO|VLR|CUSTO|UNIT/.test(headTxt(d.c)); }); if(nomeadas.length) cand=nomeadas;
   var priceCol=cand.length?cand[cand.length-1].c:-1;
+  // regra principal: a PRIMEIRA coluna chamada "Valor Unidade" (ou Valor Unitário / Preço Unitário) é o valor unitário
+  var colUn=-1; for(var cu=0;cu<ncol;cu++){ var hcu=headTxt(cu).replace(/\s+/g,' ').trim(); if(/^(VALOR|VLR|PRECO|PRECO) ?(DA |DE )?(UNIDADE|UNITARIO|UNIT\.?|UN\.?)$/.test(hcu)){ colUn=cu; break; } }
+  if(colUn>=0) priceCol=colUn;
   // planilha com colunas "Valor" antes das filiais (ex.: Valor | Desconto | Valor | Desconto | Valor): usa o último "Valor"
-  if(priceCol<0){ var vals=antes.filter(function(a){ return /^(VALOR|PRECO|VLR|CUSTO)/.test(headTxt(a.c)) && cnt(a.c,function(v){return numCel(v)!=null;})>0; }); if(vals.length) priceCol=vals[vals.length-1].c; }
+  if(priceCol<0 || (colUn<0 && !cand.length)){ var vals=antes.filter(function(a){ return /^(VALOR|PRECO|VLR|CUSTO)/.test(headTxt(a.c)) && cnt(a.c,function(v){return numCel(v)!=null;})>0; }); if(vals.length) priceCol=vals[vals.length-1].c; }
   var produtos=[], avisos=[];
   data.forEach(function(r,ix){ r=r||[];
     var cod=codeCol>=0?String(r[codeCol]==null?'':r[codeCol]).trim():''; if(!cod||/^TOTA/i.test(cod)) return;
@@ -870,9 +878,10 @@ function vPedidos(){
     <div id="pdPrev"></div>
   </div>
   <h3 style="margin:22px 0 8px">Pedidos gerados</h3>
-  <div class="tw"><table><thead><tr><th class="n">Nº</th><th>Data</th><th>Importadora</th><th>Prazo</th><th class="n">Filiais</th><th class="n">Peças</th><th class="n">Valor</th><th>Criado</th><th></th></tr></thead>
+  <div class="tw"><table><thead><tr><th class="n">Nº</th><th>Data</th><th>Importadora</th><th>Prazo</th><th class="n">Filiais</th><th class="n">Peças</th><th class="n">Valor</th><th>Criado</th><th>Obs</th><th></th></tr></thead>
   <tbody>${peds.map(p=>`<tr><td class="n"><b>${esc(p.NUMERO)}</b></td><td>${esc(p.DATA)}</td><td>${esc(p.IMPORTADORA)}</td><td>${esc(p.PRAZO)}</td><td class="n">${p.QTD_FILIAIS}</td><td class="n">${fN(+p.QTD_PECAS)}</td><td class="n">${fR(+p.VALOR_TOTAL)}</td><td class="small muted">${esc(p.CRIADO_EM)} · ${esc(p.USUARIO)}</td>
-    <td><button class="btn sec" onclick="baixarPedidoSalvo('${p.ID}')">Baixar PDF</button> ${p.PASTA_PDFS_URL?`<a class="btn ghost" href="${esc(p.PASTA_PDFS_URL)}" target="_blank">Drive</a>`:''}${p.ARQUIVO_URL?`<a class="btn ghost" href="${esc(p.ARQUIVO_URL)}" target="_blank">Excel</a>`:''} <button class="btn danger" onclick="excluirPedido('${p.ID}',${+p.NUMERO})">Excluir</button></td></tr>`).join('')||'<tr><td colspan="9" class="muted">Nenhum pedido gerado ainda.</td></tr>'}</tbody></table></div>`;
+    <td><input value="${esc(p.OBS||'')}" placeholder="Escreva uma obs…" style="min-width:220px" onchange="salvarObsPedido('${p.ID}',this)"></td>
+    <td style="white-space:nowrap"><button class="btn sec" onclick="verPedidoSalvo('${p.ID}')">Visualizar PDF</button> <button class="btn sec" onclick="baixarPedidoSalvo('${p.ID}')">Baixar PDF</button> ${p.PASTA_PDFS_URL?`<a class="btn ghost" href="${esc(p.PASTA_PDFS_URL)}" target="_blank">Drive</a>`:''}${p.ARQUIVO_URL?`<a class="btn ghost" href="${esc(p.ARQUIVO_URL)}" target="_blank">Excel</a>`:''} <button class="btn danger" onclick="excluirPedido('${p.ID}',${+p.NUMERO})">Excluir</button></td></tr>`).join('')||'<tr><td colspan="10" class="muted">Nenhum pedido gerado ainda.</td></tr>'}</tbody></table></div>`;
 }
 function ligarPedidos(){
   const D=document.getElementById('dropPD'), I=document.getElementById('inPD'); if(!D) return;
@@ -956,11 +965,14 @@ async function previaPdfFilial(filial){
   const itens=itensDoPedido(PD.atual).filter(i=>i.filial===filial); const logo=logoAtual(); const dims=await medidasImg(logo);
   const doc=await pdfFilial({...PD.form,numero:null},filial,itens,logo,dims); window.open(doc.output('bloburl'),'_blank');
 }
-async function gerarZip(ped,itens,salvarDrive){ // gera UM único PDF com o pedido de todas as filiais (cada filial começa em página nova)
+async function montarPdfUnico(ped,itens){ // UM único PDF com o pedido de todas as filiais (cada filial começa em página nova)
   const logo=logoAtual(); const dims=await medidasImg(logo); let doc=null;
   for(const g of resumoFiliais(itens)){ doc=await pdfFilial(ped,g.filial,g.itens,logo,dims,doc); }
-  if(!doc) return;
   const nome=`Pedido ${ped.numero} - ${String(ped.importadora||'').replace(/[\\/:*?"<>|]/g,'').substr(0,40)}.pdf`;
+  return {doc,nome};
+}
+async function gerarZip(ped,itens,salvarDrive){
+  const {doc,nome}=await montarPdfUnico(ped,itens); if(!doc) return;
   doc.save(nome);
   if(salvarDrive && ped.id){ try{ await api('salvarPdfsPedido',{id:ped.id,arquivos:[{nome,base64:doc.output('datauristring').split(',')[1]}]}); toast('PDF salvo no Google Drive'); }catch(e){ toast('PDF baixado, mas não salvou no Drive: '+e.message,6000); } }
 }
@@ -980,10 +992,28 @@ async function transformarPedido(){
     PD.atual=null; PD.form={importadora:'',prazo:'',data:'',obs:''}; await carregar(true);
   }catch(e){ toast('Erro: '+e.message,6000); bt.disabled=false; bt.textContent='Transformar em pedido'; }
 }
+async function itensPedidoSalvo(id){
+  const its=await api('pedidoItens',{id});
+  return its.map(i=>({filial:String(i.FILIAL),cnpj:i.CNPJ,codigo:i.CODIGO,descricao:i.DESCRICAO,quantidade:+i.QUANTIDADE,valorUnit:+i.VALOR_UNIT}));
+}
+async function verPedidoSalvo(id){
+  const p=(S.dados.pedidos||[]).find(x=>x.ID===id); if(!p) return;
+  modal(`<div class="mh"><h3>Pedido ${esc(p.NUMERO)} · ${esc(p.IMPORTADORA)}</h3><span id="pvAcoes"></span><button class="btn ghost" onclick="fecharModal()">✕</button></div>
+    <div id="pvBox" style="height:78vh;display:grid;place-items:center;background:var(--soft);border-radius:10px" class="muted">Gerando PDF…</div>`);
+  try{ const itens=await itensPedidoSalvo(id);
+    const {doc,nome}=await montarPdfUnico({id,numero:p.NUMERO,importadora:p.IMPORTADORA,prazo:p.PRAZO,data:p.DATA},itens);
+    const url=doc.output('bloburl'); const box=document.getElementById('pvBox'); if(!box) return;
+    box.outerHTML=`<iframe src="${url}" title="${esc(nome)}" style="width:100%;height:78vh;border:1px solid var(--line);border-radius:10px;background:#fff"></iframe>`;
+    document.getElementById('pvAcoes').innerHTML=`<a class="btn ghost" href="${url}" target="_blank">Abrir em nova aba</a> <button class="btn" onclick="baixarPedidoSalvo('${id}')">Baixar PDF</button>`;
+  }catch(e){ const box=document.getElementById('pvBox'); if(box) box.textContent='Erro: '+e.message; }
+}
+async function salvarObsPedido(id,inp){
+  const p=(S.dados.pedidos||[]).find(x=>x.ID===id);
+  try{ await api('salvarObsPedido',{id,obs:inp.value}); if(p) p.OBS=inp.value; toast('Obs salva'); }catch(e){ toast('Erro ao salvar obs: '+e.message,6000); }
+}
 async function baixarPedidoSalvo(id){
   const p=(S.dados.pedidos||[]).find(x=>x.ID===id); if(!p) return;
-  try{ const its=await api('pedidoItens',{id});
-    const itens=its.map(i=>({filial:String(i.FILIAL),cnpj:i.CNPJ,codigo:i.CODIGO,descricao:i.DESCRICAO,quantidade:+i.QUANTIDADE,valorUnit:+i.VALOR_UNIT}));
+  try{ const itens=await itensPedidoSalvo(id);
     await gerarZip({id,numero:p.NUMERO,importadora:p.IMPORTADORA,prazo:p.PRAZO,data:p.DATA,obs:p.OBS},itens,!p.PASTA_PDFS_URL);
     if(!p.PASTA_PDFS_URL) carregar(true);
   }catch(e){ toast('Erro: '+e.message,6000); }
