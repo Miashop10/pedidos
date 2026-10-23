@@ -965,10 +965,16 @@ async function previaPdfFilial(filial){
   const itens=itensDoPedido(PD.atual).filter(i=>i.filial===filial); const logo=logoAtual(); const dims=await medidasImg(logo);
   const doc=await pdfFilial({...PD.form,numero:null},filial,itens,logo,dims); window.open(doc.output('bloburl'),'_blank');
 }
+function nomeArquivoPedido(ped){ // ex.: "INTERPONTE 23.10.26.pdf"
+  const forn=String(ped.importadora||'PEDIDO').toUpperCase().replace(/[\\/:*?"<>|]/g,'').replace(/\s+/g,' ').trim();
+  const m=String(ped.data||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  const d=m? m[1].padStart(2,'0')+'.'+m[2].padStart(2,'0')+'.'+m[3].slice(-2) : hojeBR().replace(/\//g,'.').replace(/\.(\d{2})(\d{2})$/,'.$2');
+  return forn+' '+d+'.pdf';
+}
 async function montarPdfUnico(ped,itens){ // UM único PDF com o pedido de todas as filiais (cada filial começa em página nova)
   const logo=logoAtual(); const dims=await medidasImg(logo); let doc=null;
   for(const g of resumoFiliais(itens)){ doc=await pdfFilial(ped,g.filial,g.itens,logo,dims,doc); }
-  const nome=`Pedido ${ped.numero} - ${String(ped.importadora||'').replace(/[\\/:*?"<>|]/g,'').substr(0,40)}.pdf`;
+  const nome=nomeArquivoPedido(ped);
   return {doc,nome};
 }
 async function gerarZip(ped,itens,salvarDrive){
