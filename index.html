@@ -368,12 +368,14 @@ function parsePedidoMatriz(rows, numsFiliais){
   var ncol=Math.max.apply(null,[head.length].concat(data.map(function(r){return (r||[]).length;})));
   function cnt(col,fn){ var c=0; data.forEach(function(r){ if(fn((r||[])[col])) c++; }); return c; }
   var naoVazio=function(v){return v!==''&&v!=null&&String(v).trim()!=='';};
+  var headTxt=function(i){ return normTxt(head[i]); };
+  // coluna "VENDA" = preço de venda (não entra no pedido; só no PDF de VENDA)
+  var vendaCol=-1; for(var cv=0;cv<ncol;cv++){ if(/^(VENDA|PRECO DE VENDA|PRECO VENDA|VALOR DE VENDA|VALOR VENDA|PV)$/.test(headTxt(cv).replace(/\s+/g,' ').trim())){ vendaCol=cv; break; } }
   // coluna do código: primeira coluna antes das filiais com bastante preenchimento
   var codeCol=-1, descCol=-1;
-  var antes=[]; for(var c=0;c<firstFil;c++) antes.push({c:c,n:cnt(c,naoVazio),len:0});
+  var antes=[]; for(var c=0;c<firstFil;c++) if(c!==vendaCol) antes.push({c:c,n:cnt(c,naoVazio),len:0});
   antes.forEach(function(a){ var t=0,k=0; data.forEach(function(r){ var v=(r||[])[a.c]; if(naoVazio(v)){ t+=String(v).length; k++; } }); a.len=k?t/k:0; });
   var maxN=Math.max.apply(null,antes.map(function(a){return a.n;}).concat([0]));
-  var headTxt=function(i){ return normTxt(head[i]); };
   var porNome=antes.filter(function(a){ return /COD|REF|SKU/.test(headTxt(a.c)); })[0];
   codeCol = porNome ? porNome.c : (antes.filter(function(a){ return a.n>=maxN*0.6 && a.n>0; })[0]||{c:-1}).c;
   if(codeCol<0 && firstFil>0) codeCol=0;
@@ -382,7 +384,7 @@ function parsePedidoMatriz(rows, numsFiliais){
   var dNome=descs.filter(function(a){ return /DESC|PROD|NOME|ITEM/.test(headTxt(a.c)); })[0];
   if(dNome) descCol=dNome.c; else if(descs.length){ descs.sort(function(a,b){return b.len-a.len;}); if(descs[0].len>6) descCol=descs[0].c; }
   // coluna do valor unitário: à direita das filiais, a mais à direita com números
-  var depois=[]; for(var c2=lastFil+1;c2<ncol;c2++) depois.push({c:c2,n:cnt(c2,function(v){return numCel(v)!=null;})});
+  var depois=[]; for(var c2=lastFil+1;c2<ncol;c2++) if(c2!==vendaCol) depois.push({c:c2,n:cnt(c2,function(v){return numCel(v)!=null;})});
   var maxD=Math.max.apply(null,depois.map(function(d){return d.n;}).concat([0]));
   var cand=depois.filter(function(d){return d.n>0 && d.n>=maxD*0.5;});
   // ignora colunas de total (ex.: "Valor Total") e prefere a coluna nomeada como valor/preço unitário
@@ -400,13 +402,14 @@ function parsePedidoMatriz(rows, numsFiliais){
     var vu=null;
     if(priceCol>=0) vu=numCel(r[priceCol]);
     if(vu!=null) vu=Math.round(vu*100)/100;
-    if(vu==null){ for(var k=r.length-1;k>lastFil;k--){ var x=numCel(r[k]); if(x!=null){vu=x;break;} } }
+    if(vu==null){ for(var k=r.length-1;k>lastFil;k--){ if(k===vendaCol) continue; var x=numCel(r[k]); if(x!=null){vu=x;break;} } }
     var q={}, tem=false; filCols.forEach(function(f){ var x=numCel(r[f.col]); if(x){ q[f.num]=(q[f.num]||0)+x; tem=true; } });
     if(!tem) return;
     if(vu==null){ vu=0; avisos.push('Código '+cod+' sem valor unitário.'); }
-    produtos.push({codigo:cod,descricao:descCol>=0?String(r[descCol]==null?'':r[descCol]).trim():'',valorUnit:vu,qtds:q}); });
+    var pv=vendaCol>=0?numCel(r[vendaCol]):null; if(pv!=null) pv=Math.round(pv*100)/100;
+    produtos.push({codigo:cod,descricao:descCol>=0?String(r[descCol]==null?'':r[descCol]).trim():'',valorUnit:vu,venda:pv,qtds:q}); });
   filCols.filter(function(f){return !f.conhecida;}).forEach(function(f){ var q=produtos.reduce(function(s,p){return s+(p.qtds[f.num]||0);},0); if(q>0) avisos.push('Filial '+f.num+' não está cadastrada (sem CNPJ) e tem '+q+' peça(s) neste pedido — cadastre em Filiais e CNPJs.'); });
-  return {header:hi,filiais:filCols.map(function(f){return f.num;}),codeCol:codeCol,descCol:descCol,priceCol:priceCol,produtos:produtos,avisos:avisos};
+  return {header:hi,filiais:filCols.map(function(f){return f.num;}),codeCol:codeCol,descCol:descCol,priceCol:priceCol,vendaCol:vendaCol,produtos:produtos,avisos:avisos};
 }
 
 if(typeof module!=='undefined') module.exports={numBR:numBR,parseDanfe:parseDanfe,parseVendas:parseVendas,linhasPlanilha:linhasPlanilha,groupLines:groupLines,parsePedidoMatriz:parsePedidoMatriz};
@@ -881,7 +884,7 @@ function vPedidos(){
   <div class="tw"><table><thead><tr><th class="n">Nº</th><th>Data</th><th>Importadora</th><th>Prazo</th><th class="n">Filiais</th><th class="n">Peças</th><th class="n">Valor</th><th>Criado</th><th>Obs</th><th></th></tr></thead>
   <tbody>${peds.map(p=>`<tr><td class="n"><b>${esc(p.NUMERO)}</b></td><td>${esc(p.DATA)}</td><td>${esc(p.IMPORTADORA)}</td><td>${esc(p.PRAZO)}</td><td class="n">${p.QTD_FILIAIS}</td><td class="n">${fN(+p.QTD_PECAS)}</td><td class="n">${fR(+p.VALOR_TOTAL)}</td><td class="small muted">${esc(p.CRIADO_EM)} · ${esc(p.USUARIO)}</td>
     <td><input value="${esc(p.OBS||'')}" placeholder="Escreva uma obs…" style="min-width:220px" onchange="salvarObsPedido('${p.ID}',this)"></td>
-    <td style="white-space:nowrap"><button class="btn sec" onclick="verPedidoSalvo('${p.ID}')">Visualizar PDF</button> <button class="btn sec" onclick="baixarPedidoSalvo('${p.ID}')">Baixar PDF</button> ${p.PASTA_PDFS_URL?`<a class="btn ghost" href="${esc(p.PASTA_PDFS_URL)}" target="_blank">Drive</a>`:''}${p.ARQUIVO_URL?`<a class="btn ghost" href="${esc(p.ARQUIVO_URL)}" target="_blank">Excel</a>`:''} <button class="btn danger" onclick="excluirPedido('${p.ID}',${+p.NUMERO})">Excluir</button></td></tr>`).join('')||'<tr><td colspan="10" class="muted">Nenhum pedido gerado ainda.</td></tr>'}</tbody></table></div>`;
+    <td style="white-space:nowrap"><button class="btn sec" onclick="verPedidoSalvo('${p.ID}')">Visualizar PDF</button> <button class="btn sec" onclick="baixarPedidoSalvo('${p.ID}')">Baixar PDF</button> <button class="btn" onclick="vendaPedidoSalvo('${p.ID}')">VENDA</button> ${p.PASTA_PDFS_URL?`<a class="btn ghost" href="${esc(p.PASTA_PDFS_URL)}" target="_blank">Drive</a>`:''}${p.ARQUIVO_URL?`<a class="btn ghost" href="${esc(p.ARQUIVO_URL)}" target="_blank">Excel</a>`:''} <button class="btn danger" onclick="excluirPedido('${p.ID}',${+p.NUMERO})">Excluir</button></td></tr>`).join('')||'<tr><td colspan="10" class="muted">Nenhum pedido gerado ainda.</td></tr>'}</tbody></table></div>`;
 }
 function ligarPedidos(){
   const D=document.getElementById('dropPD'), I=document.getElementById('inPD'); if(!D) return;
@@ -900,7 +903,7 @@ async function lerPedido(f){
 }
 function itensDoPedido(r){ // matriz -> linhas por filial
   const FM=filiaisMap(); const out=[];
-  r.produtos.forEach(p=>Object.keys(p.qtds).forEach(n=>{ const q=+p.qtds[n]||0; if(q>0) out.push({filial:n,cnpj:FM[n]?FM[n].CNPJ:'',codigo:p.codigo,descricao:p.descricao,quantidade:q,valorUnit:+p.valorUnit||0}); }));
+  r.produtos.forEach(p=>Object.keys(p.qtds).forEach(n=>{ const q=+p.qtds[n]||0; if(q>0) out.push({filial:n,cnpj:FM[n]?FM[n].CNPJ:'',codigo:p.codigo,descricao:p.descricao,quantidade:q,valorUnit:+p.valorUnit||0,venda:(p.venda==null||p.venda==='')?null:+p.venda}); }));
   return out;
 }
 function resumoFiliais(itens){ const g={}; itens.forEach(i=>{ const o=g[i.filial]||(g[i.filial]={filial:i.filial,cnpj:i.cnpj,itens:[],pecas:0,valor:0}); o.itens.push(i); o.pecas+=i.quantidade; o.valor+=i.quantidade*i.valorUnit; }); return Object.values(g).sort((a,b)=>ordemFilial(a.filial,b.filial)); }
@@ -910,16 +913,17 @@ function desenharPrevPedido(){
   const tot=res.reduce((s,x)=>s+x.valor,0), pc=res.reduce((s,x)=>s+x.pecas,0);
   const fil=r.filiais.slice().filter((v,i,a)=>a.indexOf(v)===i);
   el.innerHTML=`<div class="mh" style="margin-top:16px"><h3>Prévia · <span class="muted small">${esc(r.nome)}</span></h3>
-    <button class="btn ghost" onclick="PD.atual=null;desenharPrevPedido()">descartar</button><button class="btn" id="btTransf" onclick="transformarPedido()">Transformar em pedido</button></div>
+    <button class="btn ghost" onclick="PD.atual=null;desenharPrevPedido()">descartar</button><button class="btn sec" onclick="vendaPrevia()" title="PDF igual ao pedido, com a coluna do preço de venda">VENDA</button> <button class="btn" id="btTransf" onclick="transformarPedido()">Transformar em pedido</button></div>
   ${r.avisos.length?`<div class="card" style="background:var(--warn-soft);border-color:transparent;color:var(--warn);margin-bottom:10px">${r.avisos.map(esc).join('<br>')}</div>`:''}
   <p class="small muted" style="margin:0 0 8px">${r.produtos.length} produtos · ${res.length} filiais · ${fN(pc)} peças · <b>${fR(tot)}</b></p>
   <div class="tw" style="margin-bottom:12px"><table><thead><tr><th>Filial</th><th>CNPJ</th><th>Razão social</th><th class="n">Itens</th><th class="n">Peças</th><th class="n">Valor</th><th></th></tr></thead><tbody>
   ${res.map(x=>`<tr><td><b>${esc(x.filial)}</b>${FM[x.filial]&&FM[x.filial].NOME_LOJA?' · '+esc(FM[x.filial].NOME_LOJA):''}</td><td>${esc(x.cnpj)||'<span class="bad">sem CNPJ</span>'}</td><td>${esc(FM[x.filial]?FM[x.filial].RAZAO_SOCIAL:'')}</td><td class="n">${x.itens.length}</td><td class="n">${fN(x.pecas)}</td><td class="n">${fR(x.valor)}</td>
     <td><button class="btn ghost" onclick="previaPdfFilial('${esc(x.filial)}')">ver PDF</button></td></tr>`).join('')}</tbody></table></div>
-  <div class="tw prev" style="max-height:420px"><table><thead><tr><th>Código</th><th>Descrição</th><th class="n">Valor un.</th>${fil.map(n=>`<th class="n">${esc(n)}</th>`).join('')}<th class="n">Total pç</th><th class="n">Total R$</th></tr></thead><tbody>
+  <div class="tw prev" style="max-height:420px"><table><thead><tr><th>Código</th><th>Descrição</th><th class="n">Valor un.</th><th class="n">Venda</th>${fil.map(n=>`<th class="n">${esc(n)}</th>`).join('')}<th class="n">Total pç</th><th class="n">Total R$</th></tr></thead><tbody>
   ${r.produtos.map((p,ix)=>{ const q=Object.values(p.qtds).reduce((s,v)=>s+v,0); return `<tr><td><b>${esc(p.codigo)}</b></td>
     <td><input value="${esc(p.descricao)}" style="min-width:260px" placeholder="(sem descrição)" onchange="PD.atual.produtos[${ix}].descricao=this.value"></td>
     <td class="n"><input class="n" value="${fN(p.valorUnit,2)}" onchange="PD.atual.produtos[${ix}].valorUnit=numBR(this.value);desenharPrevPedido()"></td>
+    <td class="n"><input class="n" value="${p.venda==null?'':fN(p.venda,2)}" placeholder="—" onchange="PD.atual.produtos[${ix}].venda=this.value.trim()?numBR(this.value):null"></td>
     ${fil.map(n=>`<td class="n">${p.qtds[n]?fN(p.qtds[n]):'<span class="muted">·</span>'}</td>`).join('')}<td class="n"><b>${fN(q)}</b></td><td class="n">${fR(q*p.valorUnit)}</td></tr>`; }).join('')}</tbody></table></div>`;
 }
 
@@ -946,14 +950,15 @@ async function pdfFilial(ped, filial, itens, logo, dims, docExistente){
   const y2=bloco(M+94,40,88,'FATURAR E ENTREGAR PARA',[f.RAZAO_SOCIAL||'MIASHOP', 'CNPJ '+(f.CNPJ||'—'), f.NOME_LOJA?('Loja: '+f.NOME_LOJA):'', f.ENDERECO||'', f.CIDADE_UF||'']);
   let y=Math.max(y1,y2)+3;
   y=bloco(M,y,180,'PRAZO ACORDADO',[ped.prazo||'—'])+2;
-  const linhas=itens.slice().sort((a,b)=>String(a.codigo).localeCompare(String(b.codigo),'pt-BR')).map((i,k)=>[k+1,i.codigo,fN(i.quantidade),fR(i.valorUnit),fR(i.quantidade*i.valorUnit)]);
+  const cv=!!ped.comVenda; // PDF de VENDA: coluna extra com o preço de venda, antes do total
+  const linhas=itens.slice().sort((a,b)=>String(a.codigo).localeCompare(String(b.codigo),'pt-BR')).map((i,k)=>cv?[k+1,i.codigo,fN(i.quantidade),fR(i.valorUnit),i.venda==null?'—':fR(i.venda),fR(i.quantidade*i.valorUnit)]:[k+1,i.codigo,fN(i.quantidade),fR(i.valorUnit),fR(i.quantidade*i.valorUnit)]);
   const pecas=itens.reduce((s,i)=>s+i.quantidade,0), total=itens.reduce((s,i)=>s+i.quantidade*i.valorUnit,0);
-  doc.autoTable({ startY:y+2, head:[['#','Código','Qtd','Valor un.','Total']], body:linhas,
-    foot:[['','Total',fN(pecas),'',fR(total)]], showFoot:'lastPage', theme:'grid', margin:{left:M,right:M},
+  doc.autoTable({ startY:y+2, head:[cv?['#','Código','Qtd','Valor un.','Venda','Total']:['#','Código','Qtd','Valor un.','Total']], body:linhas,
+    foot:[cv?['','Total',fN(pecas),'','',fR(total)]:['','Total',fN(pecas),'',fR(total)]], showFoot:'lastPage', theme:'grid', margin:{left:M,right:M},
     styles:{fontSize:9,cellPadding:2,lineColor:[225,222,215],lineWidth:0.2,textColor:20},
     headStyles:{fillColor:[28,27,25],textColor:255,fontStyle:'bold'}, footStyles:{fillColor:[253,240,228],textColor:20,fontStyle:'bold'},
-    columnStyles:{0:{cellWidth:12,halign:'center'},1:{fontStyle:'bold'},2:{cellWidth:30,halign:'right'},3:{cellWidth:38,halign:'right'},4:{cellWidth:42,halign:'right'}},
-    didParseCell:d=>{ if((d.section==='foot'||d.section==='head')&&[2,3,4].includes(d.column.index)) d.cell.styles.halign='right'; } });
+    columnStyles:cv?{0:{cellWidth:12,halign:'center'},1:{fontStyle:'bold'},2:{cellWidth:24,halign:'right'},3:{cellWidth:32,halign:'right'},4:{cellWidth:32,halign:'right',fontStyle:'bold',textColor:[181,84,11]},5:{cellWidth:38,halign:'right'}}:{0:{cellWidth:12,halign:'center'},1:{fontStyle:'bold'},2:{cellWidth:30,halign:'right'},3:{cellWidth:38,halign:'right'},4:{cellWidth:42,halign:'right'}},
+    didParseCell:d=>{ if((d.section==='foot'||d.section==='head')&&(cv?[2,3,4,5]:[2,3,4]).includes(d.column.index)) d.cell.styles.halign='right'; } });
   let yf=doc.lastAutoTable.finalY+8;
   const pFim=doc.getNumberOfPages(), n=pFim-pIni+1;
   for(let pg=pIni;pg<=pFim;pg++){ const i=pg-pIni+1; doc.setPage(pg); doc.setFontSize(8); doc.setTextColor(140); doc.setFont('helvetica','normal');
@@ -969,7 +974,7 @@ function nomeArquivoPedido(ped){ // ex.: "INTERPONTE 23.10.26.pdf"
   const forn=String(ped.importadora||'PEDIDO').toUpperCase().replace(/[\\/:*?"<>|]/g,'').replace(/\s+/g,' ').trim();
   const m=String(ped.data||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
   const d=m? m[1].padStart(2,'0')+'.'+m[2].padStart(2,'0')+'.'+m[3].slice(-2) : hojeBR().replace(/\//g,'.').replace(/\.(\d{2})(\d{2})$/,'.$2');
-  return forn+' '+d+'.pdf';
+  return forn+' '+d+(ped.comVenda?' VENDA':'')+'.pdf';
 }
 async function montarPdfUnico(ped,itens){ // UM único PDF com o pedido de todas as filiais (cada filial começa em página nova)
   const logo=logoAtual(); const dims=await medidasImg(logo); let doc=null;
@@ -1000,7 +1005,7 @@ async function transformarPedido(){
 }
 async function itensPedidoSalvo(id){
   const its=await api('pedidoItens',{id});
-  return its.map(i=>({filial:String(i.FILIAL),cnpj:i.CNPJ,codigo:i.CODIGO,descricao:i.DESCRICAO,quantidade:+i.QUANTIDADE,valorUnit:+i.VALOR_UNIT}));
+  return its.map(i=>({filial:String(i.FILIAL),cnpj:i.CNPJ,codigo:i.CODIGO,descricao:i.DESCRICAO,quantidade:+i.QUANTIDADE,valorUnit:+i.VALOR_UNIT,venda:(i.PRECO_VENDA===''||i.PRECO_VENDA==null)?null:+i.PRECO_VENDA}));
 }
 async function verPedidoSalvo(id){
   const p=(S.dados.pedidos||[]).find(x=>x.ID===id); if(!p) return;
@@ -1022,6 +1027,24 @@ async function baixarPedidoSalvo(id){
   try{ const itens=await itensPedidoSalvo(id);
     await gerarZip({id,numero:p.NUMERO,importadora:p.IMPORTADORA,prazo:p.PRAZO,data:p.DATA,obs:p.OBS},itens,!p.PASTA_PDFS_URL);
     if(!p.PASTA_PDFS_URL) carregar(true);
+  }catch(e){ toast('Erro: '+e.message,6000); }
+}
+async function baixarPdfVenda(ped,itens){
+  const semPv=new Set(itens.filter(i=>i.venda==null).map(i=>i.codigo));
+  const {doc,nome}=await montarPdfUnico({...ped,comVenda:true},itens); if(!doc) return;
+  doc.save(nome);
+  if(semPv.size) toast(semPv.size+' código(s) sem preço de venda na planilha (aparece —)',6000);
+}
+async function vendaPrevia(){
+  const r=PD.atual, F=PD.form; if(!r) return;
+  if(!r.produtos.some(p=>p.venda!=null)){ toast('A planilha não tem a coluna VENDA (ou está vazia)',6000); }
+  try{ await baixarPdfVenda({numero:null,importadora:F.importadora.trim(),prazo:F.prazo.trim(),data:F.data},itensDoPedido(r)); }catch(e){ toast('Erro: '+e.message,6000); }
+}
+async function vendaPedidoSalvo(id){
+  const p=(S.dados.pedidos||[]).find(x=>x.ID===id); if(!p) return;
+  try{ const itens=await itensPedidoSalvo(id);
+    if(!itens.some(i=>i.venda!=null)){ toast('Este pedido foi gerado sem a coluna VENDA na planilha',6000); }
+    await baixarPdfVenda({id,numero:p.NUMERO,importadora:p.IMPORTADORA,prazo:p.PRAZO,data:p.DATA},itens);
   }catch(e){ toast('Erro: '+e.message,6000); }
 }
 async function excluirPedido(id,n){ if(!confirm('Excluir o pedido '+n+'? (os PDFs já salvos no Drive continuam lá)')) return; try{ await api('excluirPedido',{id}); toast('Pedido excluído'); carregar(); }catch(e){ toast('Erro: '+e.message,5000); } }
