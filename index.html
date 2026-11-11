@@ -25,7 +25,7 @@ a{color:var(--acc-ink)}
 .hide{display:none!important}
 /* topo */
 header{position:sticky;top:0;z-index:20;background:var(--card);border-bottom:1px solid var(--line)}
-.top{display:flex;align-items:center;gap:16px;padding:10px 20px;max-width:1500px;margin:0 auto;flex-wrap:wrap}
+.top{display:flex;align-items:center;gap:16px;padding:10px 20px;max-width:1920px;margin:0 auto;flex-wrap:wrap}
 .brand{font-weight:800;letter-spacing:-.02em;font-size:18px}
 .brand span{color:var(--acc)}
 nav{display:flex;gap:2px;flex-wrap:wrap}
@@ -34,7 +34,7 @@ nav button.on{background:var(--acc-soft);color:var(--acc-ink)}
 nav button:hover{color:var(--ink)}
 .sp{flex:1}
 .who{color:var(--mut);font-size:12px;display:flex;gap:10px;align-items:center}
-.filtros{display:flex;gap:10px;padding:8px 20px 12px;max-width:1500px;margin:0 auto;flex-wrap:wrap;align-items:center}
+.filtros{display:flex;gap:10px;padding:8px 20px 12px;max-width:1920px;margin:0 auto;flex-wrap:wrap;align-items:center}
 .filtros input[type=search]{flex:1;min-width:220px}
 input,select,textarea{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;outline:none}
 input:focus,select:focus,textarea:focus{border-color:var(--acc)}
@@ -42,9 +42,15 @@ input:focus,select:focus,textarea:focus{border-color:var(--acc)}
 .btn:not(.sec):not(.ghost):not(.danger):hover{background:var(--acc-h)}
 .btn.sec{background:var(--soft);color:var(--ink)}
 .btn.ghost{background:none;color:var(--mut);padding:6px 8px}
+.sugbox{display:none;position:absolute;left:0;right:0;top:100%;margin-top:4px;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.12);z-index:30;max-height:320px;overflow:auto;color:var(--ink);font-weight:400}
+.sugbox .sug{display:flex;justify-content:space-between;gap:12px;padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--line)}
+.sugbox .sug:last-child{border-bottom:0}
+.sugbox .sug.on,.sugbox .sug:hover{background:var(--acc-soft)}
+tfoot td{border-top:2px solid var(--line)}
+.btn.sm{padding:5px 9px;font-size:12px;border-radius:7px}
 .btn.danger{background:var(--bad-soft);color:var(--bad)}
 .btn:disabled{opacity:.5;cursor:default}
-main{max-width:1500px;margin:0 auto;padding:18px 20px 60px}
+main{max-width:1920px;margin:0 auto;padding:18px 20px 60px}
 h2{font-size:20px;margin:0 0 4px;letter-spacing:-.01em}
 .sub{color:var(--mut);margin:0 0 16px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh);padding:16px}
@@ -549,7 +555,12 @@ function render(){
   const v=S.view; const m=document.getElementById('main');
   m.innerHTML = v==='painel'?vPainel(): v==='produtos'?vProdutos(): v==='ranking'?vRanking(): v==='importadoras'?vImportadoras(): v==='notas'?vNotas(): v==='relatorios'?vRelatorios(): v==='pedidos'?vPedidos(): vImportar();
   if(v==='importar') ligarImportar(); if(v==='pedidos') ligarPedidos();
+  ajustarTabelas();
 }
+/* zoom automático: encolhe a tabela para caber na largura da tela (sem rolar para os lados) */
+function ajustarTabelas(raiz){ (raiz||document).querySelectorAll('.tw > table').forEach(t=>{ t.style.zoom=''; const w=t.parentElement.clientWidth, sw=t.scrollWidth;
+  if(sw>w+2 && w>0){ const z=Math.max(0.6, (w-2)/sw); t.style.zoom=z.toFixed(3); } }); }
+let _rz; window.addEventListener('resize',()=>{ clearTimeout(_rz); _rz=setTimeout(()=>ajustarTabelas(),150); });
 function kpi(l,v,d,cls){ return `<div class="card kpi"><div class="l">${l}</div><div class="v ${cls||''}">${v}</div>${d?`<div class="d">${d}</div>`:''}</div>`; }
 function bar(frac,ok){ const w=Math.max(0,Math.min(1,frac||0))*100; return `<div class="bar ${ok?'ok':''}"><i style="width:${w}%"></i></div>`; }
 function foto(p){ return p.foto?`<img class="thumb" loading="lazy" src="${esc(p.foto)}" onerror="this.outerHTML='<div class=ph>foto</div>'">`:'<div class="ph">sem foto</div>'; }
@@ -659,7 +670,7 @@ function vRelatorios(){
 }
 
 /* =================== MODAIS =================== */
-function modal(html){ fecharModal(); const d=document.createElement('div'); d.className='mbg'; d.innerHTML=`<div class="modal">${html}</div>`; d.addEventListener('mousedown',e=>{ if(e.target===d) fecharModal(); }); document.body.appendChild(d); return d; }
+function modal(html){ fecharModal(); const d=document.createElement('div'); d.className='mbg'; d.innerHTML=`<div class="modal">${html}</div>`; d.addEventListener('mousedown',e=>{ if(e.target===d) fecharModal(); }); document.body.appendChild(d); setTimeout(()=>ajustarTabelas(d),0); return d; }
 function fecharModal(){ document.querySelectorAll('.mbg').forEach(m=>m.remove()); }
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') fecharModal(); });
 
@@ -791,7 +802,7 @@ function custosNota(nf){
 function desenharFila(){
   const el=document.getElementById('fila'); if(!el) return;
   if(!S.fila.length){ el.innerHTML=''; return; }
-  el.innerHTML = S.fila.map(x=> x.tipo==='nf' ? cardNota(x) : cardVenda(x)).join('');
+  el.innerHTML = S.fila.map(x=> x.tipo==='nf' ? cardNota(x) : cardVenda(x)).join(''); ajustarTabelas(el);
 }
 function cardNota(nf){
   const custo=custosNota(nf); const soma=nf.itens.reduce((s,i)=>s+(+i.valorTotal||0),0); const ipi=nf.itens.reduce((s,i)=>s+(+i.valorIPI||0),0);
@@ -864,16 +875,55 @@ function filiaisMap(){ const m={}; (S.dados&&S.dados.filiais||[]).forEach(f=>{ m
 function ordemFilial(a,b){ return (+a)-(+b); }
 function descPorCodigo(cod){ const p=P.find(x=>x.k===up(cod)); return p?p.descricao:''; }
 
+const PF={q:'',imp:'',de:'',ate:'',obs:''};
+function isoData(br){ const m=String(br||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); return m? m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0') : ''; }
+const semAc=t=>up(t).normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+function impsPedidos(){ const m={}; (S.dados.pedidos||[]).forEach(p=>{ const n=String(p.IMPORTADORA||'').trim(); if(!n) return; const k=up(n); const o=m[k]||(m[k]={nome:n,qtd:0,ult:''}); o.qtd++; const d=isoData(p.DATA); if(d>o.ult) o.ult=d; }); return Object.values(m).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')); }
+function pedidosFiltrados(){
+  const q=semAc(PF.q).trim();
+  return (S.dados.pedidos||[]).filter(p=>{
+    if(PF.imp && up(p.IMPORTADORA)!==up(PF.imp)) return false;
+    const d=isoData(p.DATA); if(PF.de && (!d||d<PF.de)) return false; if(PF.ate && (!d||d>PF.ate)) return false;
+    if(PF.obs==='com' && !String(p.OBS||'').trim()) return false; if(PF.obs==='sem' && String(p.OBS||'').trim()) return false;
+    if(q){ const alvo=semAc([p.NUMERO,p.DATA,p.IMPORTADORA,p.PRAZO,p.OBS,p.USUARIO,fR(+p.VALOR_TOTAL),fN(+p.VALOR_TOTAL,2)].join(' ')); if(!q.split(/\s+/).every(t=>alvo.includes(t))) return false; }
+    return true; }).sort((a,b)=>(+b.NUMERO)-(+a.NUMERO));
+}
+function listaPedidosHTML(){
+  const peds=pedidosFiltrados(); const tot=peds.reduce((s,p)=>({n:s.n+1,pc:s.pc+(+p.QTD_PECAS||0),v:s.v+(+p.VALOR_TOTAL||0)}),{n:0,pc:0,v:0});
+  const filtrando=PF.q||PF.imp||PF.de||PF.ate||PF.obs;
+  return `<thead><tr><th class="n">Nº</th><th>Data</th><th>Importadora</th><th>Prazo</th><th class="n">Filiais</th><th class="n">Peças</th><th class="n">Valor</th><th>Criado</th><th>Obs</th><th></th></tr></thead>
+  <tbody>${peds.map(p=>`<tr><td class="n"><b>${esc(p.NUMERO)}</b></td><td>${esc(p.DATA)}</td><td style="white-space:normal;min-width:140px">${esc(p.IMPORTADORA)}</td><td style="white-space:normal;min-width:90px">${esc(p.PRAZO)}</td><td class="n">${p.QTD_FILIAIS}</td><td class="n">${fN(+p.QTD_PECAS)}</td><td class="n">${fR(+p.VALOR_TOTAL)}</td><td class="small muted" style="white-space:normal;min-width:110px">${esc(p.CRIADO_EM)}<br>${esc(p.USUARIO)}</td>
+    <td><input value="${esc(p.OBS||'')}" placeholder="Escreva uma obs…" style="width:180px" onchange="salvarObsPedido('${p.ID}',this)"></td>
+    <td style="white-space:nowrap"><button class="btn sec sm" onclick="verPedidoSalvo('${p.ID}')">Visualizar PDF</button> <button class="btn sec sm" onclick="baixarPedidoSalvo('${p.ID}')">Baixar PDF</button> <button class="btn sm" onclick="vendaPedidoSalvo('${p.ID}')">VENDA</button> ${p.PASTA_PDFS_URL?`<a class="btn ghost sm" href="${esc(p.PASTA_PDFS_URL)}" target="_blank">Drive</a>`:''}${p.ARQUIVO_URL?`<a class="btn ghost sm" href="${esc(p.ARQUIVO_URL)}" target="_blank">Excel</a>`:''} <button class="btn danger sm" onclick="excluirPedido('${p.ID}',${+p.NUMERO})">Excluir</button></td></tr>`).join('')||`<tr><td colspan="10" class="muted">${(S.dados.pedidos||[]).length?'Nenhum pedido encontrado com esses filtros.':'Nenhum pedido gerado ainda.'}</td></tr>`}</tbody>
+  <tfoot><tr style="background:var(--acc-soft);font-weight:800"><td colspan="5">${filtrando?'TOTAL DO FILTRO':'TOTAL GERAL'} · ${tot.n} pedido(s)${PF.imp?' · '+esc(PF.imp):''}</td><td class="n">${fN(tot.pc)}</td><td class="n">${fR(tot.v)}</td><td colspan="3"></td></tr></tfoot>`;
+}
+function atualizarListaPedidos(){ const t=document.getElementById('tbPedidos'); if(!t) return; t.innerHTML=listaPedidosHTML(); ajustarTabelas(t.parentElement.parentElement); }
+
+/* autocompletar da importadora: enquanto digita, mostra as importadoras de pedidos anteriores */
+function sugerirImportadora(inp){
+  const box=document.getElementById('pdImpSug'); if(!box) return; const q=semAc(inp.value).trim();
+  let L=impsPedidos(); const extras=[...new Set((S.dados.compras||[]).map(c=>String(c.IMPORTADORA||'').trim()).filter(Boolean))].filter(n=>!L.some(x=>up(x.nome)===up(n))).map(n=>({nome:n,qtd:0,ult:''}));
+  L=L.concat(extras).filter(i=>!q || semAc(i.nome).includes(q)).sort((a,b)=>(b.qtd>0)-(a.qtd>0)||(semAc(b.nome).startsWith(q))-(semAc(a.nome).startsWith(q))||(b.ult||'').localeCompare(a.ult||'')||a.nome.localeCompare(b.nome,'pt-BR')).slice(0,10);
+  if(!L.length || (L.length===1 && up(L[0].nome)===up(inp.value))){ box.innerHTML=''; box.style.display='none'; return; }
+  box.innerHTML=L.map((i,k)=>`<div class="sug${k===0?' on':''}" data-v="${esc(i.nome)}" onmousedown="event.preventDefault();escolherImportadora(this.dataset.v)"><b>${esc(i.nome)}</b><span class="muted small">${i.qtd?i.qtd+' pedido(s) · último '+(i.ult?i.ult.split('-').reverse().join('/'):''):'das notas de compra'}</span></div>`).join('');
+  box.style.display='block';
+}
+function escolherImportadora(v){ const inp=document.getElementById('pdImp'); inp.value=v; PD.form.importadora=v; const b=document.getElementById('pdImpSug'); if(b) b.style.display='none'; document.getElementById('pdPrazo').focus(); }
+function teclaImportadora(e){
+  const box=document.getElementById('pdImpSug'); if(!box||box.style.display!=='block') return; const it=[...box.querySelectorAll('.sug')]; let k=it.findIndex(x=>x.classList.contains('on'));
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){ e.preventDefault(); if(k>=0) it[k].classList.remove('on'); k=(k+(e.key==='ArrowDown'?1:-1)+it.length)%it.length; it[k].classList.add('on'); it[k].scrollIntoView({block:'nearest'}); }
+  else if(e.key==='Enter'||e.key==='Tab'){ if(k>=0 && it[k]){ e.preventDefault(); escolherImportadora(it[k].dataset.v); } }
+  else if(e.key==='Escape'){ box.style.display='none'; }
+}
 function vPedidos(){
   if(!S.dados) return '<p class="muted">Carregando…</p>';
   const imps=[...new Set([...(S.dados.compras||[]).map(c=>c.IMPORTADORA),...(S.dados.pedidos||[]).map(p=>p.IMPORTADORA)].filter(Boolean))].sort();
   const F=PD.form; if(!F.data) F.data=hojeBR();
-  const peds=(S.dados.pedidos||[]).slice().sort((a,b)=>(+b.NUMERO)-(+a.NUMERO));
-  return `<div class="toolbar"><div><h2>Pedidos para as filiais</h2><p class="sub" style="margin:0">Importe a planilha do pedido (código, quantidades embaixo do número de cada filial e valor unitário no fim da linha). O sistema gera um único PDF com o pedido de cada filial em páginas separadas.</p></div><div class="sp"></div>
+  return `<div class="toolbar"><div><h2>Pedidos para as filiais</h2><p class="sub" style="margin:0">Importe a planilha do pedido (código, quantidade embaixo do número de cada filial e valor na coluna "Valor Unidade"). O sistema gera um único PDF com o pedido de cada filial em páginas separadas.</p></div><div class="sp"></div>
     <button class="btn sec" onclick="abrirFiliais()">Filiais e CNPJs</button></div>
   <div class="card" style="margin-bottom:14px">
     <div class="row">
-      <div class="fld" style="flex:2;min-width:240px">Importadora (para quem vai o pedido)<input id="pdImp" list="pdImps" value="${esc(F.importadora)}" oninput="PD.form.importadora=this.value" placeholder="Ex.: CLINK COMERCIO DE IMPORTACAO E EXPORTACAO LTDA"><datalist id="pdImps">${imps.map(i=>`<option value="${esc(i)}">`).join('')}</datalist></div>
+      <div class="fld" style="flex:2;min-width:240px">Importadora (para quem vai o pedido)<div style="position:relative"><input id="pdImp" autocomplete="off" value="${esc(F.importadora)}" oninput="PD.form.importadora=this.value;sugerirImportadora(this)" onfocus="sugerirImportadora(this)" onblur="setTimeout(()=>{const b=document.getElementById('pdImpSug');if(b)b.style.display='none'},150)" onkeydown="teclaImportadora(event)" placeholder="Comece a digitar… ex.: INTERPONTE" style="width:100%"><div id="pdImpSug" class="sugbox"></div></div></div>
       <div class="fld" style="flex:1;min-width:200px">Prazo acordado<input id="pdPrazo" value="${esc(F.prazo)}" oninput="PD.form.prazo=this.value" placeholder="Ex.: 30/60/90 dias"></div>
       <div class="fld">Data do pedido<input id="pdData" value="${esc(F.data)}" oninput="PD.form.data=this.value" style="width:120px"></div>
     </div>
@@ -881,10 +931,15 @@ function vPedidos(){
     <div id="pdPrev"></div>
   </div>
   <h3 style="margin:22px 0 8px">Pedidos gerados</h3>
-  <div class="tw"><table><thead><tr><th class="n">Nº</th><th>Data</th><th>Importadora</th><th>Prazo</th><th class="n">Filiais</th><th class="n">Peças</th><th class="n">Valor</th><th>Criado</th><th>Obs</th><th></th></tr></thead>
-  <tbody>${peds.map(p=>`<tr><td class="n"><b>${esc(p.NUMERO)}</b></td><td>${esc(p.DATA)}</td><td>${esc(p.IMPORTADORA)}</td><td>${esc(p.PRAZO)}</td><td class="n">${p.QTD_FILIAIS}</td><td class="n">${fN(+p.QTD_PECAS)}</td><td class="n">${fR(+p.VALOR_TOTAL)}</td><td class="small muted">${esc(p.CRIADO_EM)} · ${esc(p.USUARIO)}</td>
-    <td><input value="${esc(p.OBS||'')}" placeholder="Escreva uma obs…" style="min-width:220px" onchange="salvarObsPedido('${p.ID}',this)"></td>
-    <td style="white-space:nowrap"><button class="btn sec" onclick="verPedidoSalvo('${p.ID}')">Visualizar PDF</button> <button class="btn sec" onclick="baixarPedidoSalvo('${p.ID}')">Baixar PDF</button> <button class="btn" onclick="vendaPedidoSalvo('${p.ID}')">VENDA</button> ${p.PASTA_PDFS_URL?`<a class="btn ghost" href="${esc(p.PASTA_PDFS_URL)}" target="_blank">Drive</a>`:''}${p.ARQUIVO_URL?`<a class="btn ghost" href="${esc(p.ARQUIVO_URL)}" target="_blank">Excel</a>`:''} <button class="btn danger" onclick="excluirPedido('${p.ID}',${+p.NUMERO})">Excluir</button></td></tr>`).join('')||'<tr><td colspan="10" class="muted">Nenhum pedido gerado ainda.</td></tr>'}</tbody></table></div>`;
+  <div class="row" style="margin-bottom:10px">
+    <div class="fld" style="flex:2;min-width:220px">Buscar<input type="search" id="pfQ" value="${esc(PF.q)}" placeholder="Nº, importadora, prazo, obs, usuário, valor…" oninput="PF.q=this.value;atualizarListaPedidos()"></div>
+    <div class="fld" style="flex:1;min-width:200px">Importadora<select id="pfImp" onchange="PF.imp=this.value;atualizarListaPedidos()"><option value="">Todas</option>${impsPedidos().map(i=>`<option ${i.nome===PF.imp?'selected':''}>${esc(i.nome)}</option>`).join('')}</select></div>
+    <div class="fld">De<input type="date" id="pfDe" value="${PF.de}" onchange="PF.de=this.value;atualizarListaPedidos()"></div>
+    <div class="fld">Até<input type="date" id="pfAte" value="${PF.ate}" onchange="PF.ate=this.value;atualizarListaPedidos()"></div>
+    <div class="fld">Obs<select id="pfObs" onchange="PF.obs=this.value;atualizarListaPedidos()"><option value="">Todos</option><option value="com" ${PF.obs==='com'?'selected':''}>Com obs</option><option value="sem" ${PF.obs==='sem'?'selected':''}>Sem obs</option></select></div>
+    <button class="btn ghost" onclick="Object.assign(PF,{q:'',imp:'',de:'',ate:'',obs:''});render()">limpar filtros</button>
+  </div>
+  <div class="tw"><table id="tbPedidos">${listaPedidosHTML()}</table></div>`;
 }
 function ligarPedidos(){
   const D=document.getElementById('dropPD'), I=document.getElementById('inPD'); if(!D) return;
