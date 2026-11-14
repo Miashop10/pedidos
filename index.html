@@ -59,6 +59,9 @@ tfoot td{border-top:2px solid var(--line)}
 .sl-head h2{margin:0;font-size:18px}
 .sl-form{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;padding:10px 12px;margin-bottom:8px}
 .sl-edit{border-color:var(--acc);box-shadow:0 0 0 3px var(--acc-soft)}
+.sl-banner{flex:1 1 100%;background:var(--acc-soft);color:var(--acc-ink);border-radius:8px;padding:6px 10px;font-size:12.5px;margin-bottom:2px}
+.pisca{animation:pisca 1.1s ease}
+@keyframes pisca{0%,40%{box-shadow:0 0 0 6px rgba(241,134,52,.55)}100%{box-shadow:0 0 0 3px var(--acc-soft)}}
 .sf{display:flex;flex-direction:column;gap:2px;font-size:10.5px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.03em;min-width:0}
 .sf input,.sf select{height:32px;padding:4px 8px;font-size:13px;text-transform:none;letter-spacing:0;font-weight:400;width:100%}
 .w-forn{flex:2 1 170px}.w-fil{flex:1.4 1 130px}.w-dt{flex:0 0 128px}.w-nf{flex:0 0 84px}.w-val{flex:1 1 104px}.w-calc{flex:0 0 86px}.w-ok{flex:0 0 auto;align-items:center}
@@ -99,16 +102,22 @@ td.ell{max-width:200px;overflow:hidden;text-overflow:ellipsis}
 tr.lg-ok td{background:var(--ok-soft)}
 tr.lg-ok td:first-child{box-shadow:inset 3px 0 var(--ok)}
 tr.lg-ed td{background:var(--acc-soft)}
-.ib{border:0;background:none;cursor:pointer;color:var(--mut);font-size:13px;padding:1px 6px;border-radius:6px;line-height:1.4}
+.ib{border:0;background:none;cursor:pointer;color:var(--mut);font-size:12px;font-weight:600;padding:2px 7px;border-radius:6px;line-height:1.4}
 .ib:hover{background:var(--soft);color:var(--ink)}.ib.del:hover{color:var(--bad);background:var(--bad-soft)}
 .rr-kpis{grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:10px}
+.rr-mat td:first-child,.rr-mat th:first-child{position:sticky;left:0;z-index:1}
+.rr-mat tbody tr>td:first-child{background:var(--card)}
+.rr-mat thead th:first-child{background:var(--soft)}
+.rr-mat tr.rr-fil.on>td:first-child{background:var(--acc-soft)}
+.rr-mat tfoot td:first-child{background:var(--acc-soft)}
 .rr-k{padding:10px 14px}.rr-k .v{font-size:20px}
 .rr-h{font-size:14px;margin:16px 0 6px}
 tr.rr-fil.on td{background:var(--acc-soft)}
 .rr-car{display:inline-block;width:16px;color:var(--acc-ink)}
 tr.rr-sub>td{padding:4px 8px 10px 26px;background:var(--soft)}
 tr.rr-sub table{background:var(--card);border:1px solid var(--line);border-radius:8px;overflow:hidden}
-tr.rr-sub tfoot td{background:var(--soft)}
+tr.rr-sub tfoot td{background:var(--card)!important;position:static}
+tr.rr-sub td{position:static!important}
 @media(max-width:800px){.rr-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .btn.sm{padding:5px 9px;font-size:12px;border-radius:7px}
 .btn.danger{background:var(--bad-soft);color:var(--bad)}
@@ -1207,7 +1216,7 @@ function calcNorm(v){ // devolve o cálculo padronizado ou null se inválido
   const r=Math.round(n*1000)/1000; return r===1?'NC':'X'+String(r).replace('.',',');
 }
 const fatorDe = c => { const k=calcNorm(c); if(!k||k==='NC'||k==='BONIF') return 1; return parseFloat(k.slice(1).replace(',','.')); };
-const LG = { edit:null, f:{q:'',forn:'',fil:'',rec:'',calc:'',bol:'',de:'',ate:''}, sort:{k:'criado',d:-1} }; // padrão: último lançamento primeiro
+const LG = { edit:null, f:{q:''}, sort:{k:'criado',d:-1} }; // padrão: último lançamento primeiro
 const isoBR = br => { const m=String(br||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); return m? m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0') : ''; };
 const brISO = iso => { const m=String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m? m[3]+'/'+m[2]+'/'+m[1] : ''; };
 const semAcento = t => up(t).normalize('NFD').replace(/[\u0300-\u036f]/g,'');
@@ -1235,7 +1244,8 @@ function acLigar(inp,tipo,proximo){
     box.querySelectorAll('.sug').forEach(d=>d.onmousedown=e=>{ e.preventDefault(); escolher(d.dataset.v); });
     box.style.display='block'; };
   const escolher=v=>{ inp.value=v; box.style.display='none'; if(proximo) document.getElementById(proximo).focus(); };
-  inp.oninput=mostrar; inp.onfocus=mostrar; inp.onblur=()=>setTimeout(()=>box.style.display='none',150);
+  // sugestões só aparecem ao digitar (não ao focar), para não cobrirem a lista de lançamentos
+  inp.oninput=mostrar; inp.onblur=()=>setTimeout(()=>box.style.display='none',150);
   inp.onkeydown=e=>{ if(box.style.display!=='block') return; const it=[...box.querySelectorAll('.sug')]; let k=it.findIndex(x=>x.classList.contains('on'));
     if(e.key==='ArrowDown'||e.key==='ArrowUp'){ e.preventDefault(); if(k>=0) it[k].classList.remove('on'); k=(k+(e.key==='ArrowDown'?1:-1)+it.length)%it.length; it[k].classList.add('on'); it[k].scrollIntoView({block:'nearest'}); }
     else if((e.key==='Enter'||e.key==='Tab') && k>=0){ e.preventDefault(); escolher(it[k].dataset.v); }
@@ -1251,6 +1261,7 @@ function vLogistica(){
   return `<div class="slim">
   <div class="sl-head"><h2>Controle de Logística</h2><span class="muted small">Cálculo = valor da NF × fator (NC = nota cheia · X2, X3, X4… qualquer número · BONIF = bonificado, sem boletos). Linha verde = boletos OK.</span><span class="sp"></span><button class="btn sm" onclick="document.getElementById('lgInXls').click()" title="FORNECEDOR | FILIAL | DT CHEGADA | NOTA FISCAL | DT LANÇAMENTO | VALOR NF | CÁLCULO | RECEBIDO | BOLETOS | BOLETOS | OBS">⬆ Importar planilha Excel</button><input type="file" id="lgInXls" accept=".xlsx,.xls,.csv" class="hide" onchange="if(this.files[0]) lgLerPlanilha(this.files[0]); this.value=''"></div>
   <div class="card sl-form${ed?' sl-edit':''}" id="lgForm">
+    ${ed?`<div class="sl-banner">✎ EDITANDO: <b>${esc(r.FORNECEDOR)}</b>${r.NOTA_FISCAL?' · NF '+esc(r.NOTA_FISCAL):''} — altere os campos e clique em <b>Salvar</b></div>`:''}
     ${f('Fornecedor',`<div class="acw"><input id="lgForn" autocomplete="off" value="${esc(r.FORNECEDOR||'')}" placeholder="Digite…"><div class="sugbox"></div></div>`,'w-forn')}
     ${f('Filial',`<div class="acw"><input id="lgFil" autocomplete="off" value="${esc(r.FILIAL||'')}" placeholder="Digite…"><div class="sugbox"></div></div>`,'w-fil')}
     ${f('Chegada',`<input type="date" id="lgCheg" value="${isoBR(r.DATA_CHEGADA)}">`,'w-dt')}
@@ -1259,22 +1270,14 @@ function vLogistica(){
     ${f('Valor NF',`<input id="lgValor" inputmode="decimal" value="${r.VALOR_NF!==undefined&&r.VALOR_NF!==''?fN(+r.VALOR_NF,2):''}" placeholder="0,00" oninput="lgPrevCalc()">`,'w-val')}
     ${f('Cálculo',`<input id="lgCalc" list="lgCalcLista" value="${esc(r.CALCULO||'NC')}" autocomplete="off" title="NC, BONIF ou X + qualquer número (X2, X4, X7,5…)" oninput="lgPrevCalc()" onfocus="this.select()" onblur="const c=calcNorm(this.value); if(c) this.value=c; lgPrevCalc()"><datalist id="lgCalcLista">${CALCULOS.map(([c])=>`<option value="${c}">`).join('')}</datalist>`,'w-calc')}
     ${f('Calculado',`<div id="lgCalcVal" class="lg-calc">—</div>`,'w-val')}
-    ${f('Recebido',okBtn('lgRec',r.RECEBIDO==='SIM','SIM'),'w-ok')}
     ${f('Bol. especial',okBtn('lgBolEsp',isOK(r.BOLETO_PARTE_ESPECIAL),'OK'),'w-ok')}
     ${f('Bol. NF',okBtn('lgBolNF',isOK(r.BOLETOS_PARTE_NF),'OK'),'w-ok')}
     ${f('Obs',`<input id="lgObs" value="${esc(r.OBS||'')}" placeholder="Observações…">`,'w-obs')}
     <div class="sf w-act">${ed?'<button class="btn ghost sm" onclick="LG.edit=null;render()">cancelar</button>':''}<button class="btn" id="lgSalvar" onclick="lgSalvar()">${ed?'Salvar':'+ Adicionar'}</button></div>
   </div>
   <div class="sl-filtros">
-    <input type="search" class="w-q" value="${esc(F.q)}" placeholder="Buscar fornecedor, filial, NF, valor…" oninput="LG.f.q=this.value;lgAtualizar()">
-    <select onchange="LG.f.forn=this.value;lgAtualizar()"><option value="">Fornecedor: todos</option>${nomesLog('FORNECEDOR').filter(n=>usoNome('FORNECEDOR',n)).map(n=>`<option ${n===F.forn?'selected':''}>${esc(n)}</option>`).join('')}</select>
-    <select onchange="LG.f.fil=this.value;lgAtualizar()"><option value="">Filial: todas</option>${nomesLog('FILIAL').filter(n=>usoNome('FILIAL',n)).map(n=>`<option ${n===F.fil?'selected':''}>${esc(n)}</option>`).join('')}</select>
-    <select onchange="LG.f.rec=this.value;lgAtualizar()"><option value="">Recebido: todos</option><option value="SIM" ${F.rec==='SIM'?'selected':''}>Recebido: sim</option><option value="NÃO" ${F.rec==='NÃO'?'selected':''}>Recebido: não</option></select>
-    <select onchange="LG.f.bol=this.value;lgAtualizar()"><option value="">Boletos: todos</option><option value="ok" ${F.bol==='ok'?'selected':''}>Boletos: OK (verde)</option><option value="pend" ${F.bol==='pend'?'selected':''}>Boletos: pendentes</option></select>
-    <select onchange="LG.f.calc=this.value;lgAtualizar()"><option value="">Cálculo: todos</option>${[...new Set((S.dados.logistica||[]).map(r=>r.CALCULO).filter(Boolean))].sort((a,b)=>(a==='BONIF')-(b==='BONIF')||fatorDe(a)-fatorDe(b)).map(c=>`<option value="${c}" ${c===F.calc?'selected':''}>Cálculo: ${c}</option>`).join('')}</select>
-    <span class="muted small">chegada</span><input type="date" value="${F.de}" onchange="LG.f.de=this.value;lgAtualizar()" title="Chegada de"><span class="muted small">a</span><input type="date" value="${F.ate}" onchange="LG.f.ate=this.value;lgAtualizar()" title="Chegada até">
-    <button class="btn ghost sm" onclick="LG.f={q:'',forn:'',fil:'',rec:'',calc:'',bol:'',de:'',ate:''};LG.sort={k:'criado',d:-1};render()">limpar</button>
-    <button class="btn sec sm" onclick="lgExportar()">Excel</button>
+    <input type="search" class="w-q" style="flex:1 1 auto;max-width:520px" value="${esc(F.q)}" placeholder="Buscar fornecedor, filial, NF, data, cálculo, obs, valor…" oninput="LG.f.q=this.value;lgAtualizar()">
+    <span class="sp"></span><button class="btn sec sm" onclick="lgExportar()">Excel</button>
   </div>
   <div class="tw sl-tab"><table id="tbLog">${lgTabela()}</table></div>
   </div>`;
@@ -1309,117 +1312,130 @@ function lgTabela(){
   const F=LG.f, filtrando=F.q||F.forn||F.fil||F.rec||F.calc||F.bol||F.de||F.ate;
   const th=(k,l,c)=>`<th class="${c||''}" onclick="lgOrdenar('${k}')">${l}${LG.sort.k===k?(LG.sort.d>0?' ▲':' ▼'):''}</th>`;
   const chip=(id,campo,on,lbl,off)=>`<button class="okb sm${on?' on':''}" onclick="lgAlternar('${id}','${campo}')" title="Clique para alterar">${on?lbl:off}</button>`;
-  return `<thead><tr>${th('forn','Fornecedor')}${th('fil','Filial')}${th('chegada','Chegada')}${th('nf','NF')}${th('lanc','Lançamento')}${th('vnf','Valor NF','n')}${th('calc','Cálc.','c')}${th('vcalc','Calculado','n')}${th('rec','Receb.','c')}${th('besp','Bol. especial','c')}${th('bnf','Bol. NF','c')}${th('obs','Obs')}<th></th></tr></thead>
-  <tbody>${L.map(r=>{ const q=lgQuitado(r); return `<tr class="${q?'lg-ok':''}${LG.edit&&LG.edit.ID===r.ID?' lg-ed':''}">
+  return `<thead><tr>${th('forn','Fornecedor')}${th('fil','Filial')}${th('chegada','Chegada')}${th('nf','NF')}${th('lanc','Lançamento')}${th('vnf','Valor NF','n')}${th('calc','Cálc.','c')}${th('vcalc','Calculado','n')}${th('besp','Bol. especial','c')}${th('bnf','Bol. NF','c')}${th('obs','Obs')}<th></th></tr></thead>
+  <tbody>${L.map(r=>{ const q=lgQuitado(r); return `<tr class="${q?'lg-ok':''}${LG.edit&&String(LG.edit.ID)===String(r.ID)?' lg-ed':''}" data-id="${esc(r.ID)}" ondblclick="if(!event.target.closest('button,input')) lgEditar(this.dataset.id)">
     <td class="ell" title="${esc(r.FORNECEDOR)}"><b>${esc(r.FORNECEDOR)}</b></td><td class="ell" title="${esc(r.FILIAL)}">${esc(r.FILIAL)}</td>
     <td>${esc(r.DATA_CHEGADA)}</td><td>${esc(r.NOTA_FISCAL)}</td><td>${esc(r.DATA_LANCAMENTO)}</td>
     <td class="n">${fR(+r.VALOR_NF)}</td><td class="c">${esc(r.CALCULO)}</td>
     <td class="n" title="${+r.VALOR_PARTE_ESPECIAL?'Parte especial: '+fR(+r.VALOR_PARTE_ESPECIAL):''}"><b>${fR(+r.VALOR_CALCULADO)}</b></td>
-    <td class="c">${chip(r.ID,'RECEBIDO',r.RECEBIDO==='SIM','SIM','NÃO')}</td>
     ${r.CALCULO==='BONIF'?'<td class="c" colspan="2"><span class="tag t-ok" title="Bonificado pelo fornecedor: sem boletos">BONIFICADO</span></td>':`<td class="c">${r.CALCULO==='NC'&&!isOK(r.BOLETO_PARTE_ESPECIAL)?'<span class="muted small">—</span>':chip(r.ID,'BOLETO_PARTE_ESPECIAL',isOK(r.BOLETO_PARTE_ESPECIAL),'OK','')}</td>
     <td class="c">${chip(r.ID,'BOLETOS_PARTE_NF',isOK(r.BOLETOS_PARTE_NF),'OK','')}</td>`}
     <td class="lg-obs"><input value="${esc(r.OBS||'')}" placeholder="—" title="${esc(r.OBS||'')}" onchange="lgSalvarObs('${r.ID}',this)"></td>
-    <td class="c" style="white-space:nowrap"><button class="ib" title="Editar" onclick="lgEditar('${r.ID}')">✎</button><button class="ib del" title="Excluir" onclick="lgExcluir('${r.ID}')">✕</button></td></tr>`; }).join('')
-    ||`<tr><td colspan="13" class="muted">${(S.dados.logistica||[]).length?'Nenhum lançamento com esses filtros.':'Nenhum lançamento ainda. Preencha a linha acima.'}</td></tr>`}</tbody>
-  <tfoot><tr><td colspan="5">${filtrando?'TOTAL DO FILTRO':'TOTAL GERAL'} · ${t.n} lanç. · ${t.rec} receb. · ${t.ok} boletos OK</td><td class="n">${fR(t.nf)}</td><td></td><td class="n">${fR(t.c)}</td><td colspan="5"></td></tr></tfoot>`;
+    <td class="c" style="white-space:nowrap"><button class="ib" title="Editar" data-id="${esc(r.ID)}" onclick="lgEditar(this.dataset.id)">✎ Editar</button><button class="ib del" title="Excluir" data-id="${esc(r.ID)}" onclick="lgExcluir(this.dataset.id)">✕</button></td></tr>`; }).join('')
+    ||`<tr><td colspan="12" class="muted">${(S.dados.logistica||[]).length?'Nenhum lançamento com esses filtros.':'Nenhum lançamento ainda. Preencha a linha acima.'}</td></tr>`}</tbody>
+  <tfoot><tr><td colspan="5">${filtrando?'TOTAL DO FILTRO':'TOTAL GERAL'} · ${t.n} lanç. · ${t.ok} boletos OK</td><td class="n">${fR(t.nf)}</td><td></td><td class="n">${fR(t.c)}</td><td colspan="4"></td></tr></tfoot>`;
 }
 function lgAtualizar(){ const t=document.getElementById('tbLog'); if(!t) return; t.innerHTML=lgTabela(); ajustarTabelas(t.parentElement.parentElement); }
 
 function lgLerForm(){
   const g=id=>document.getElementById(id), on=id=>g(id).classList.contains('on');
-  return { id:LG.edit?LG.edit.ID:'', fornecedor:g('lgForn').value.trim(), filial:g('lgFil').value.trim(), dataChegada:brISO(g('lgCheg').value), notaFiscal:g('lgNF').value.trim(),
-    dataLancamento:brISO(g('lgLanc').value), valorNF:numBR(g('lgValor').value), calculo:calcNorm(g('lgCalc').value), recebido:on('lgRec'), boletoEspecial:on('lgBolEsp'), boletosNF:on('lgBolNF'), obs:g('lgObs').value.trim() };
+  return { id:LG.edit?String(LG.edit.ID):'', fornecedor:g('lgForn').value.trim(), filial:g('lgFil').value.trim(), dataChegada:brISO(g('lgCheg').value), notaFiscal:g('lgNF').value.trim(),
+    dataLancamento:brISO(g('lgLanc').value), valorNF:numBR(g('lgValor').value), calculo:calcNorm(g('lgCalc').value), recebido:LG.edit?LG.edit.RECEBIDO==='SIM':false, boletoEspecial:on('lgBolEsp'), boletosNF:on('lgBolNF'), obs:g('lgObs').value.trim() };
 }
-function lgPayload(r){ return {id:r.ID,fornecedor:r.FORNECEDOR,filial:r.FILIAL,dataChegada:r.DATA_CHEGADA,notaFiscal:r.NOTA_FISCAL,dataLancamento:r.DATA_LANCAMENTO,valorNF:+r.VALOR_NF,calculo:r.CALCULO,recebido:r.RECEBIDO==='SIM',boletoEspecial:isOK(r.BOLETO_PARTE_ESPECIAL),boletosNF:isOK(r.BOLETOS_PARTE_NF),obs:r.OBS||''}; }
+function lgPayload(r){ return {id:String(r.ID),fornecedor:r.FORNECEDOR,filial:r.FILIAL,dataChegada:r.DATA_CHEGADA,notaFiscal:r.NOTA_FISCAL,dataLancamento:r.DATA_LANCAMENTO,valorNF:+r.VALOR_NF,calculo:r.CALCULO,recebido:r.RECEBIDO==='SIM',boletoEspecial:isOK(r.BOLETO_PARTE_ESPECIAL),boletosNF:isOK(r.BOLETOS_PARTE_NF),obs:r.OBS||''}; }
 async function lgSalvar(){
   const d=lgLerForm();
   if(!d.fornecedor){ toast('Informe o fornecedor'); document.getElementById('lgForn').focus(); return; }
   if(!d.valorNF){ toast('Informe o valor da NF'); document.getElementById('lgValor').focus(); return; }
   if(!d.calculo){ toast('Cálculo inválido: use NC, BONIF ou X + número (ex.: X4)'); document.getElementById('lgCalc').focus(); return; }
-  if(d.notaFiscal){ const dup=(S.dados.logistica||[]).find(r=>r.ID!==d.id && up(r.FORNECEDOR)===up(d.fornecedor) && String(r.NOTA_FISCAL).trim()===d.notaFiscal);
+  if(d.notaFiscal){ const dup=(S.dados.logistica||[]).find(r=>String(r.ID)!==String(d.id) && up(r.FORNECEDOR)===up(d.fornecedor) && String(r.NOTA_FISCAL).trim()===d.notaFiscal);
     if(dup && !confirm(`A NF ${d.notaFiscal} de ${dup.FORNECEDOR} já está lançada (filial ${dup.FILIAL||'—'}). Lançar mesmo assim?`)) return; }
   const bt=document.getElementById('lgSalvar'); bt.disabled=true;
   try{ await api('salvarLogistica',d); toast(LG.edit?'Lançamento alterado':'Lançamento adicionado'); if(!LG.edit) LG.sort={k:'criado',d:-1}; LG.edit=null; await carregar(true); render(); setTimeout(()=>{ const f=document.getElementById('lgForn'); if(f) f.focus(); },50); }
   catch(e){ toast('Erro: '+e.message,6000); bt.disabled=false; }
 }
-function lgEditar(id){ LG.edit=(S.dados.logistica||[]).find(r=>r.ID===id)||null; render(); window.scrollTo({top:0,behavior:'smooth'}); }
-async function lgExcluir(id){ const r=(S.dados.logistica||[]).find(x=>x.ID===id); if(!confirm(`Excluir o lançamento de ${r?r.FORNECEDOR:''}${r&&r.NOTA_FISCAL?' (NF '+r.NOTA_FISCAL+')':''}?`)) return;
-  try{ await api('excluirLogistica',{id}); toast('Lançamento excluído'); if(LG.edit&&LG.edit.ID===id) LG.edit=null; await carregar(true); render(); }catch(e){ toast('Erro: '+e.message,6000); } }
+const lgAchar = id => (S.dados.logistica||[]).find(r=>String(r.ID).trim()===String(id).trim());
+function lgEditar(id){ // carrega o lançamento no formulário do topo para alterar
+  const r=lgAchar(id); if(!r){ toast('Lançamento não encontrado — clique em ↻ para atualizar',5000); return; }
+  LG.edit=r; render(); window.scrollTo(0,0);
+  const fm=document.getElementById('lgForm'); if(fm){ fm.classList.remove('pisca'); void fm.offsetWidth; fm.classList.add('pisca'); }
+  const v=document.getElementById('lgValor'); if(v) v.focus();
+  toast('Editando '+(r.FORNECEDOR||'')+(r.NOTA_FISCAL?' · NF '+r.NOTA_FISCAL:'')+' — altere e clique em Salvar',4000);
+}
+async function lgExcluir(id){ const r=lgAchar(id); if(!confirm(`Excluir o lançamento de ${r?r.FORNECEDOR:''}${r&&r.NOTA_FISCAL?' (NF '+r.NOTA_FISCAL+')':''}?`)) return;
+  try{ await api('excluirLogistica',{id}); toast('Lançamento excluído'); if(LG.edit&&String(LG.edit.ID)===String(id)) LG.edit=null; await carregar(true); render(); }catch(e){ toast('Erro: '+e.message,6000); } }
 async function lgSalvarObs(id,inp){ // obs editada direto na lista
-  const r=(S.dados.logistica||[]).find(x=>x.ID===id); if(!r) return; const antes=r.OBS; r.OBS=inp.value.trim(); inp.title=r.OBS;
+  const r=lgAchar(id); if(!r) return; const antes=r.OBS; r.OBS=inp.value.trim(); inp.title=r.OBS;
   try{ await api('salvarLogistica',lgPayload(r)); toast('Obs salva'); }catch(e){ r.OBS=antes; inp.value=antes||''; toast('Erro: '+e.message,6000); }
 }
 async function lgAlternar(id,campo){ // marca/desmarca Recebido ou boletos direto na tabela
-  const r=(S.dados.logistica||[]).find(x=>x.ID===id); if(!r) return; const antes=r[campo];
+  const r=lgAchar(id); if(!r) return; const antes=r[campo];
   r[campo] = campo==='RECEBIDO' ? (r.RECEBIDO==='SIM'?'NÃO':'SIM') : (isOK(r[campo])?'':'OK'); lgAtualizar();
   try{ await api('salvarLogistica',lgPayload(r)); }
   catch(e){ r[campo]=antes; lgAtualizar(); toast('Erro: '+e.message,6000); }
 }
 function lgExportar(){
-  const rows=lgFiltrados().map(r=>({'Fornecedor':r.FORNECEDOR,'Filial':r.FILIAL,'Data chegada':r.DATA_CHEGADA,'Nota fiscal':r.NOTA_FISCAL,'Data lançamento':r.DATA_LANCAMENTO,'Valor da NF':+r.VALOR_NF,'Cálculo':r.CALCULO,'Fator':+r.FATOR,'Valor calculado':+r.VALOR_CALCULADO,'Parte especial':+r.VALOR_PARTE_ESPECIAL,'Recebido':r.RECEBIDO,'Boleto parte especial':isOK(r.BOLETO_PARTE_ESPECIAL)?'OK':'','Boletos parte NF':isOK(r.BOLETOS_PARTE_NF)?'OK':'','Obs':r.OBS||''}));
+  const rows=lgFiltrados().map(r=>({'Fornecedor':r.FORNECEDOR,'Filial':r.FILIAL,'Data chegada':r.DATA_CHEGADA,'Nota fiscal':r.NOTA_FISCAL,'Data lançamento':r.DATA_LANCAMENTO,'Valor da NF':+r.VALOR_NF,'Cálculo':r.CALCULO,'Fator':+r.FATOR,'Valor calculado':+r.VALOR_CALCULADO,'Parte especial':+r.VALOR_PARTE_ESPECIAL,'Boleto parte especial':isOK(r.BOLETO_PARTE_ESPECIAL)?'OK':'','Boletos parte NF':isOK(r.BOLETOS_PARTE_NF)?'OK':'','Obs':r.OBS||''}));
   const ws=XLSX.utils.json_to_sheet(rows); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Logística'); XLSX.writeFile(wb,'controle-logistica-'+hojeBR().replace(/\//g,'-')+'.xlsx');
 }
 
 /* =================== RELATÓRIOS DE RECEBIMENTO =================== */
 // Valor recebido = valor da NF × cálculo (ex.: NF R$ 5.000,00 em X2 = R$ 10.000,00 recebidos)
-const RR = { f:{de:'',ate:'',forn:'',rec:''}, abertas:{} };
-function rrDados(){
-  const F=RR.f;
-  return (S.dados.logistica||[]).filter(r=>{
-    const d=isoBR(r.DATA_CHEGADA)||isoBR(r.DATA_LANCAMENTO); if(F.de && (!d||d<F.de)) return false; if(F.ate && (!d||d>F.ate)) return false;
-    if(F.forn && up(r.FORNECEDOR)!==up(F.forn)) return false; if(F.rec && r.RECEBIDO!==F.rec) return false; return true; });
-}
+// Tabela principal: filiais nas linhas × meses nas colunas (mês da data de chegada; sem chegada usa a data de lançamento)
+const RR = { f:{meses:12,forn:''}, abertas:{} };
 const rrNome = n => String(n||'').trim() || '(sem filial)';
+const MESES_ABR=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+function rrMes(r){ const d=isoBR(r.DATA_CHEGADA)||isoBR(r.DATA_LANCAMENTO); return d?d.slice(0,7):''; }
+const rrMesNome = k => k? MESES_ABR[+k.slice(5,7)-1]+'/'+k.slice(2,4) : 'sem data';
+function rrDados(){ const F=RR.f; return (S.dados.logistica||[]).filter(r=>!F.forn || up(r.FORNECEDOR)===up(F.forn)); }
+function rrColunas(L){ // meses do período escolhido (até o mês atual ou o último com dados)
+  const ms=L.map(rrMes).filter(Boolean).sort(); const hoje=new Date(); let fim=hoje.getFullYear()+'-'+String(hoje.getMonth()+1).padStart(2,'0');
+  if(ms.length && ms[ms.length-1]>fim) fim=ms[ms.length-1];
+  const ini0=ms[0]||fim; const cols=[]; let [a,m]=fim.split('-').map(Number);
+  const n=RR.f.meses||600;
+  while(cols.length<n){ const k=a+'-'+String(m).padStart(2,'0'); cols.unshift(k); if(k<=ini0 && cols.length>=Math.min(n,3)) break; m--; if(m<1){m=12;a--;} }
+  return cols;
+}
 function vRelReceb(){
   if(!S.dados) return '<p class="muted">Carregando…</p>';
   const F=RR.f;
   return `<div class="slim">
-  <div class="sl-head"><h2>Relatórios de Recebimento</h2><span class="muted small">Valor recebido = valor da NF × cálculo (NF de R$ 5.000,00 em X2 = R$ 10.000,00).</span></div>
+  <div class="sl-head"><h2>Relatórios de Recebimento</h2><span class="muted small">Recebimento de mercadorias por filial e mês · valor = NF × cálculo (NF de R$ 5.000,00 em X2 = R$ 10.000,00) · mês da data de chegada.</span></div>
   <div class="sl-filtros">
-    <span class="muted small">período (chegada)</span><input type="date" value="${F.de}" onchange="RR.f.de=this.value;rrAtualizar()"><span class="muted small">a</span><input type="date" value="${F.ate}" onchange="RR.f.ate=this.value;rrAtualizar()">
-    <select onchange="RR.f.forn=this.value;rrAtualizar()"><option value="">Fornecedor: todos</option>${nomesLog('FORNECEDOR').filter(n=>usoNome('FORNECEDOR',n)).map(n=>`<option ${n===F.forn?'selected':''}>${esc(n)}</option>`).join('')}</select>
-    <select onchange="RR.f.rec=this.value;rrAtualizar()"><option value="">Recebido: todos</option><option value="SIM" ${F.rec==='SIM'?'selected':''}>Só marcados SIM</option><option value="NÃO" ${F.rec==='NÃO'?'selected':''}>Só marcados NÃO</option></select>
-    <button class="btn ghost sm" onclick="RR.f={de:'',ate:'',forn:'',rec:''};render()">limpar</button>
-    <button class="btn sec sm" onclick="rrExportar()">Excel</button>
+    <select style="max-width:none" onchange="RR.f.meses=+this.value;rrAtualizar()">${[[3,'Últimos 3 meses'],[6,'Últimos 6 meses'],[12,'Últimos 12 meses'],[24,'Últimos 24 meses'],[0,'Todos os meses']].map(([v,l])=>`<option value="${v}" ${v===F.meses?'selected':''}>${l}</option>`).join('')}</select>
+    <select style="max-width:220px" onchange="RR.f.forn=this.value;rrAtualizar()"><option value="">Fornecedor: todos</option>${nomesLog('FORNECEDOR').filter(n=>usoNome('FORNECEDOR',n)).map(n=>`<option ${n===F.forn?'selected':''}>${esc(n)}</option>`).join('')}</select>
+    <span class="sp"></span><button class="btn sec sm" onclick="rrExportar()">Excel</button>
   </div>
   <div id="rrCorpo">${rrCorpo()}</div></div>`;
 }
 function rrAtualizar(){ const el=document.getElementById('rrCorpo'); if(!el) return; el.innerHTML=rrCorpo(); ajustarTabelas(el); }
-function rrAgrupar(L,chave){ const g={}; L.forEach(r=>{ const k=chave(r); const o=g[k]||(g[k]={nome:k,n:0,nf:0,rec:0,itens:[]}); o.n++; o.nf+=+r.VALOR_NF||0; o.rec+=+r.VALOR_CALCULADO||0; o.itens.push(r); }); return Object.values(g).sort((a,b)=>b.rec-a.rec); }
+function rrMatriz(L,cols,chave){ // {nome, m:{mes:valor}, tot, n, itens}
+  const g={}; const dentro=new Set(cols);
+  L.forEach(r=>{ const mes=rrMes(r); if(!dentro.has(mes)) return; const k=chave(r); const o=g[k]||(g[k]={nome:k,m:{},tot:0,n:0,itens:[]}); const v=+r.VALOR_CALCULADO||0; o.m[mes]=(o.m[mes]||0)+v; o.tot+=v; o.n++; o.itens.push(r); });
+  return Object.values(g).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
+}
+// todas as filiais aparecem sempre (mesmo sem valor no filtro escolhido)
+function rrTodasFiliais(lista){ const m={}; lista.forEach(o=>m[up(o.nome)]=o);
+  (S.dados.logistica||[]).forEach(r=>{ const n=rrNome(r.FILIAL); if(!m[up(n)]) m[up(n)]={nome:n,m:{},tot:0,n:0,itens:[]}; });
+  return Object.values(m).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')); }
 function rrCorpo(){
-  const L=rrDados(); const tot=L.reduce((s,r)=>({n:s.n+1,nf:s.nf+(+r.VALOR_NF||0),rec:s.rec+(+r.VALOR_CALCULADO||0)}),{n:0,nf:0,rec:0});
-  if(!L.length) return `<div class="card muted">${(S.dados.logistica||[]).length?'Nenhum lançamento no período/filtro escolhido.':'Ainda não há lançamentos no Controle de Logística.'}</div>`;
-  const filiais=rrAgrupar(L,r=>rrNome(r.FILIAL)), forns=rrAgrupar(L,r=>String(r.FORNECEDOR||'').trim()||'(sem fornecedor)');
-  const max=Math.max(...filiais.map(f=>f.rec),1);
-  const k=(l,v,d)=>`<div class="card kpi rr-k"><div class="l">${l}</div><div class="v">${v}</div>${d?`<div class="d">${d}</div>`:''}</div>`;
-  // por filial (clique abre as NFs)
-  const linhasFil=filiais.map(f=>{ const ab=RR.abertas[f.nome];
-    return `<tr class="clk rr-fil${ab?' on':''}" onclick="RR.abertas['${esc(f.nome).replace(/'/g,"\\'")}']=!RR.abertas['${esc(f.nome).replace(/'/g,"\\'")}'];rrAtualizar()">
-      <td><span class="rr-car">${ab?'▾':'▸'}</span><b>${esc(f.nome)}</b></td><td class="n">${f.n}</td><td class="n">${fR(f.nf)}</td><td class="n"><b>${fR(f.rec)}</b></td>
-      <td style="width:28%"><div style="display:flex;align-items:center;gap:8px"><div class="bar" style="flex:1"><i style="width:${f.rec/max*100}%"></i></div><span class="small muted" style="width:38px;text-align:right">${fP(tot.rec?f.rec/tot.rec:0)}</span></div></td></tr>`
-     + (ab ? `<tr class="rr-sub"><td colspan="5"><table><thead><tr><th>Fornecedor</th><th>NF</th><th>Chegada</th><th>Lançamento</th><th class="n">Valor NF</th><th class="c">Cálc.</th><th class="n">Recebido</th><th class="c">Receb.</th></tr></thead><tbody>
-        ${f.itens.slice().sort((a,b)=>(isoBR(b.DATA_CHEGADA)||'').localeCompare(isoBR(a.DATA_CHEGADA)||'')).map(r=>`<tr class="${lgQuitado(r)?'lg-ok':''}"><td>${esc(r.FORNECEDOR)}</td><td>${esc(r.NOTA_FISCAL)||'—'}</td><td>${esc(r.DATA_CHEGADA)||'—'}</td><td>${esc(r.DATA_LANCAMENTO)||'—'}</td><td class="n">${fR(+r.VALOR_NF)}</td><td class="c">${esc(r.CALCULO)}</td><td class="n"><b>${fR(+r.VALOR_CALCULADO)}</b></td><td class="c">${r.RECEBIDO==='SIM'?'<span class="tag t-ok">SIM</span>':'<span class="tag t-bad">NÃO</span>'}</td></tr>`).join('')}
-        </tbody><tfoot><tr><td colspan="4">${f.n} NF(s) recebida(s) em ${esc(f.nome)}</td><td class="n">${fR(f.nf)}</td><td></td><td class="n">${fR(f.rec)}</td><td></td></tr></tfoot></table></td></tr>` : ''); }).join('');
-  // fornecedor × filial
-  const colFil=filiais.map(f=>f.nome);
-  const mat=forns.map(fo=>{ const m={}; fo.itens.forEach(r=>{ const k=rrNome(r.FILIAL); m[k]=(m[k]||0)+(+r.VALOR_CALCULADO||0); }); return {fo,m}; });
-  return `<div class="grid rr-kpis">
-    ${k('Total recebido',fR(tot.rec),'NF × cálculo')}${k('Valor das NFs',fR(tot.nf),'notas cheias')}${k('Parte especial',fR(tot.rec-tot.nf),'recebido − NF')}${k('Notas fiscais',fN(tot.n),`${filiais.length} filial(is) · ${forns.length} fornecedor(es)`)}
-  </div>
-  <h3 class="rr-h">Recebido por filial <span class="muted small">— clique na filial para ver as NFs</span></h3>
-  <div class="tw sl-tab"><table><thead><tr><th>Filial</th><th class="n">NFs</th><th class="n">Valor NF</th><th class="n">Recebido</th><th>% do total</th></tr></thead>
-    <tbody>${linhasFil}</tbody><tfoot><tr><td>TOTAL</td><td class="n">${tot.n}</td><td class="n">${fR(tot.nf)}</td><td class="n">${fR(tot.rec)}</td><td></td></tr></tfoot></table></div>
-  <h3 class="rr-h">Recebido por fornecedor e filial</h3>
-  <div class="tw sl-tab"><table><thead><tr><th>Fornecedor</th>${colFil.map(n=>`<th class="n">${esc(n)}</th>`).join('')}<th class="n">Total</th><th class="n">NFs</th></tr></thead>
-    <tbody>${mat.map(({fo,m})=>`<tr><td><b>${esc(fo.nome)}</b></td>${colFil.map(n=>`<td class="n">${m[n]?fR(m[n]):'<span class="muted">·</span>'}</td>`).join('')}<td class="n"><b>${fR(fo.rec)}</b></td><td class="n">${fo.n}</td></tr>`).join('')}</tbody>
-    <tfoot><tr><td>TOTAL</td>${filiais.map(f=>`<td class="n">${fR(f.rec)}</td>`).join('')}<td class="n">${fR(tot.rec)}</td><td class="n">${tot.n}</td></tr></tfoot></table></div>`;
+  const L=rrDados();
+  if(!(S.dados.logistica||[]).length) return `<div class="card muted">Ainda não há lançamentos no Controle de Logística.</div>`;
+  const cols=rrColunas(L.length?L:(S.dados.logistica||[])); if(L.some(r=>!rrMes(r))) cols.push('');
+  const fil=rrTodasFiliais(rrMatriz(L,cols,r=>rrNome(r.FILIAL)));
+  const totM={}; let tot=0, n=0; fil.forEach(f=>{ cols.forEach(c=>totM[c]=(totM[c]||0)+(f.m[c]||0)); tot+=f.tot; n+=f.n; });
+  const cel=v=>v?fR(v):'<span class="muted">·</span>';
+  const qk=x=>esc(x).replace(/'/g,"\\'");
+  const head=`<th>Filial</th>${cols.map(c=>`<th class="n">${rrMesNome(c)}</th>`).join('')}<th class="n">Total</th>`;
+  const linhas=fil.map(f=>{ const ab=RR.abertas[f.nome];
+    if(!f.n) return `<tr class="rr-vazia"><td><span class="rr-car"></span>${esc(f.nome)}</td>${cols.map(()=>'<td class="n"><span class="muted">·</span></td>').join('')}<td class="n muted">—</td></tr>`;
+    return `<tr class="clk rr-fil${ab?' on':''}" onclick="RR.abertas['${qk(f.nome)}']=!RR.abertas['${qk(f.nome)}'];rrAtualizar()"><td><span class="rr-car">${ab?'▾':'▸'}</span><b>${esc(f.nome)}</b></td>${cols.map(c=>`<td class="n">${cel(f.m[c])}</td>`).join('')}<td class="n"><b>${fR(f.tot)}</b></td></tr>`
+    + (ab ? `<tr class="rr-sub"><td colspan="${cols.length+2}"><table><thead><tr><th>Mês</th><th>Fornecedor</th><th>NF</th><th>Chegada</th><th>Lançamento</th><th class="n">Valor NF</th><th class="c">Cálc.</th><th class="n">Recebido</th></tr></thead><tbody>
+        ${f.itens.slice().sort((a,b)=>rrMes(b).localeCompare(rrMes(a))||(isoBR(b.DATA_CHEGADA)||'').localeCompare(isoBR(a.DATA_CHEGADA)||'')).map(r=>`<tr class="${lgQuitado(r)?'lg-ok':''}"><td>${rrMesNome(rrMes(r))}</td><td>${esc(r.FORNECEDOR)}</td><td>${esc(r.NOTA_FISCAL)||'—'}</td><td>${esc(r.DATA_CHEGADA)||'—'}</td><td>${esc(r.DATA_LANCAMENTO)||'—'}</td><td class="n">${fR(+r.VALOR_NF)}</td><td class="c">${esc(r.CALCULO)}</td><td class="n"><b>${fR(+r.VALOR_CALCULADO)}</b></td></tr>`).join('')}
+        </tbody><tfoot><tr><td colspan="7">${f.n} NF(s) recebida(s) em ${esc(f.nome)} no período</td><td class="n">${fR(f.tot)}</td></tr></tfoot></table></td></tr>` : ''); }).join('');
+  return `<h3 class="rr-h">Recebimento por filial e mês${RR.f.forn?' · <span style="color:var(--acc-ink)">'+esc(RR.f.forn)+'</span>':''} <span class="muted small">— clique na filial para ver as NFs</span></h3>
+  <div class="tw sl-tab rr-mat"><table><thead><tr>${head}</tr></thead><tbody>${linhas}</tbody>
+    <tfoot><tr><td>TOTAL · ${n} NF(s)</td>${cols.map(c=>`<td class="n">${totM[c]?fR(totM[c]):'—'}</td>`).join('')}<td class="n">${fR(tot)}</td></tr></tfoot></table></div>`;
 }
 function rrExportar(){
-  const L=rrDados(); const wb=XLSX.utils.book_new(); const filiais=rrAgrupar(L,r=>rrNome(r.FILIAL)), forns=rrAgrupar(L,r=>String(r.FORNECEDOR||'').trim()||'(sem fornecedor)');
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(filiais.map(f=>({'Filial':f.nome,'NFs':f.n,'Valor NF':+f.nf.toFixed(2),'Recebido':+f.rec.toFixed(2)}))),'Por filial');
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(forns.map(fo=>{ const o={'Fornecedor':fo.nome}; filiais.forEach(f=>{ o[f.nome]=+fo.itens.filter(r=>rrNome(r.FILIAL)===f.nome).reduce((s,r)=>s+(+r.VALOR_CALCULADO||0),0).toFixed(2); }); o['Total']=+fo.rec.toFixed(2); o['NFs']=fo.n; return o; })),'Fornecedor x filial');
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(L.map(r=>({'Filial':rrNome(r.FILIAL),'Fornecedor':r.FORNECEDOR,'NF':r.NOTA_FISCAL,'Chegada':r.DATA_CHEGADA,'Lançamento':r.DATA_LANCAMENTO,'Valor NF':+r.VALOR_NF,'Cálculo':r.CALCULO,'Recebido (R$)':+r.VALOR_CALCULADO,'Recebido':r.RECEBIDO}))),'NFs');
-  XLSX.writeFile(wb,'relatorio-recebimento-'+hojeBR().replace(/\//g,'-')+'.xlsx');
+  const L=rrDados(); const cols=rrColunas(L.length?L:(S.dados.logistica||[])); if(L.some(r=>!rrMes(r))) cols.push('');
+  const wb=XLSX.utils.book_new();
+  const folha=(lista,rot)=>{ const rows=lista.map(o=>{ const x={[rot]:o.nome}; cols.forEach(c=>x[rrMesNome(c)]=o.m[c]?+o.m[c].toFixed(2):''); x['Total']=+o.tot.toFixed(2); return x; });
+    const t={[rot]:'TOTAL'}; cols.forEach(c=>{ const v=lista.reduce((s,o)=>s+(o.m[c]||0),0); t[rrMesNome(c)]=v?+v.toFixed(2):''; }); t['Total']=+lista.reduce((s,o)=>s+o.tot,0).toFixed(2); rows.push(t); return XLSX.utils.json_to_sheet(rows); };
+  const fil=rrTodasFiliais(rrMatriz(L,cols,r=>rrNome(r.FILIAL)));
+  XLSX.utils.book_append_sheet(wb,folha(fil,'Filial'),RR.f.forn?String(RR.f.forn).replace(/[\\/?*\[\]:]/g,'').slice(0,31):'Filial x mês');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(fil.flatMap(f=>f.itens).map(r=>({'Mês':rrMesNome(rrMes(r)),'Filial':rrNome(r.FILIAL),'Fornecedor':r.FORNECEDOR,'NF':r.NOTA_FISCAL,'Chegada':r.DATA_CHEGADA,'Lançamento':r.DATA_LANCAMENTO,'Valor NF':+r.VALOR_NF,'Cálculo':r.CALCULO,'Recebido (R$)':+r.VALOR_CALCULADO}))),'NFs');
+  XLSX.writeFile(wb,'relatorio-recebimento-'+(RR.f.forn?String(RR.f.forn).replace(/[\\/:*?"<>|]/g,'')+'-':'')+hojeBR().replace(/\//g,'-')+'.xlsx');
 }
 
 /* ---------- importar lançamentos por planilha Excel ---------- */
@@ -1466,10 +1482,9 @@ function lgModalImport(nome){
     ${L.some(x=>x.dup)?`<label class="check small"><input type="checkbox" ${LG_IMP.pularDup?'checked':''} onchange="LG_IMP.pularDup=this.checked;lgModalImport('${esc(nome).replace(/'/g,"\\'")}')"> pular NFs já lançadas (${L.filter(x=>x.dup).length})</label>`:''}
     <span class="sp"></span><button class="btn" id="lgImpBt" onclick="lgConfirmarImport()" ${ok.length?'':'disabled'}>Importar ${ok.length} lançamento(s)</button>
   </div>
-  <div class="tw sl-tab" style="max-height:62vh"><table><thead><tr><th>Lin.</th><th>Fornecedor</th><th>Filial</th><th>Chegada</th><th>NF</th><th>Lançamento</th><th class="n">Valor NF</th><th class="c">Cálc.</th><th class="n">Calculado</th><th class="c">Receb.</th><th class="c">Bol. esp.</th><th class="c">Bol. NF</th><th>Obs</th><th>Situação</th></tr></thead><tbody>
+  <div class="tw sl-tab" style="max-height:62vh"><table><thead><tr><th>Lin.</th><th>Fornecedor</th><th>Filial</th><th>Chegada</th><th>NF</th><th>Lançamento</th><th class="n">Valor NF</th><th class="c">Cálc.</th><th class="n">Calculado</th><th class="c">Bol. esp.</th><th class="c">Bol. NF</th><th>Obs</th><th>Situação</th></tr></thead><tbody>
   ${L.map(({d,erros,dup})=>`<tr class="${erros.length?'':verde(d)?'lg-ok':''}" style="${erros.length||(dup&&LG_IMP.pularDup)?'opacity:.55':''}"><td class="muted">${d.linha}</td><td><b>${esc(d.fornecedor)||'—'}</b></td><td>${esc(d.filial)}</td><td>${esc(d.dataChegada)}</td><td>${esc(d.notaFiscal)}</td><td>${esc(d.dataLancamento)}</td>
-    <td class="n">${fR(d.valorNF)}</td><td class="c">${esc(d.calculo)}</td><td class="n"><b>${fR(d.valorNF*fatorDe(d.calculo))}</b></td><td class="c">${d.recebido?'SIM':'NÃO'}</td>
-    <td class="c">${d.calculo==='BONIF'||d.boletoEspecial?'OK':'—'}</td><td class="c">${d.calculo==='BONIF'||d.boletosNF?'OK':'—'}</td><td class="ell" title="${esc(d.obs)}">${esc(d.obs)}</td>
+    <td class="n">${fR(d.valorNF)}</td><td class="c">${esc(d.calculo)}</td><td class="n"><b>${fR(d.valorNF*fatorDe(d.calculo))}</b></td><td class="c">${d.calculo==='BONIF'||d.boletoEspecial?'OK':'—'}</td><td class="c">${d.calculo==='BONIF'||d.boletosNF?'OK':'—'}</td><td class="ell" title="${esc(d.obs)}">${esc(d.obs)}</td>
     <td>${erros.length?`<span class="tag t-bad">${esc(erros.join(', '))}</span>`:dup?'<span class="tag t-warn">NF já lançada</span>':'<span class="tag t-ok">ok</span>'}</td></tr>`).join('')}
   </tbody></table></div>`);
 }
@@ -1479,6 +1494,9 @@ async function lgConfirmarImport(){
   try{ const r=await api('importarLogistica',{lista}); fecharModal(); LG.sort={k:'criado',d:-1}; toast(`${r.importados} lançamento(s) importado(s)`+(r.erros.length?' · '+r.erros.length+' com erro':''),6000); await carregar(true); render(); }
   catch(e){ bt.disabled=false; bt.textContent='Importar'; toast('Erro: '+e.message,7000); }
 }
+
+// fecha qualquer lista de sugestões ao clicar fora dela
+document.addEventListener('mousedown',e=>{ if(!e.target.closest('.acw')) document.querySelectorAll('.acw .sugbox').forEach(b=>b.style.display='none'); },true);
 
 
 /* =================== PEDIDOS A FATURAR =================== */
