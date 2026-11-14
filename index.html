@@ -1207,7 +1207,7 @@ function calcNorm(v){ // devolve o cálculo padronizado ou null se inválido
   const r=Math.round(n*1000)/1000; return r===1?'NC':'X'+String(r).replace('.',',');
 }
 const fatorDe = c => { const k=calcNorm(c); if(!k||k==='NC'||k==='BONIF') return 1; return parseFloat(k.slice(1).replace(',','.')); };
-const LG = { edit:null, f:{q:'',forn:'',fil:'',rec:'',calc:'',bol:'',de:'',ate:''}, sort:{k:'chegada',d:-1} };
+const LG = { edit:null, f:{q:'',forn:'',fil:'',rec:'',calc:'',bol:'',de:'',ate:''}, sort:{k:'criado',d:-1} }; // padrão: último lançamento primeiro
 const isoBR = br => { const m=String(br||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); return m? m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0') : ''; };
 const brISO = iso => { const m=String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m? m[3]+'/'+m[2]+'/'+m[1] : ''; };
 const semAcento = t => up(t).normalize('NFD').replace(/[\u0300-\u036f]/g,'');
@@ -1273,7 +1273,7 @@ function vLogistica(){
     <select onchange="LG.f.bol=this.value;lgAtualizar()"><option value="">Boletos: todos</option><option value="ok" ${F.bol==='ok'?'selected':''}>Boletos: OK (verde)</option><option value="pend" ${F.bol==='pend'?'selected':''}>Boletos: pendentes</option></select>
     <select onchange="LG.f.calc=this.value;lgAtualizar()"><option value="">Cálculo: todos</option>${[...new Set((S.dados.logistica||[]).map(r=>r.CALCULO).filter(Boolean))].sort((a,b)=>(a==='BONIF')-(b==='BONIF')||fatorDe(a)-fatorDe(b)).map(c=>`<option value="${c}" ${c===F.calc?'selected':''}>Cálculo: ${c}</option>`).join('')}</select>
     <span class="muted small">chegada</span><input type="date" value="${F.de}" onchange="LG.f.de=this.value;lgAtualizar()" title="Chegada de"><span class="muted small">a</span><input type="date" value="${F.ate}" onchange="LG.f.ate=this.value;lgAtualizar()" title="Chegada até">
-    <button class="btn ghost sm" onclick="LG.f={q:'',forn:'',fil:'',rec:'',calc:'',bol:'',de:'',ate:''};render()">limpar</button>
+    <button class="btn ghost sm" onclick="LG.f={q:'',forn:'',fil:'',rec:'',calc:'',bol:'',de:'',ate:''};LG.sort={k:'criado',d:-1};render()">limpar</button>
     <button class="btn sec sm" onclick="lgExportar()">Excel</button>
   </div>
   <div class="tw sl-tab"><table id="tbLog">${lgTabela()}</table></div>
@@ -1288,6 +1288,9 @@ function lgPrevCalc(){ const el=document.getElementById('lgCalcVal'); if(!el) re
   if(calcNorm(c)===null){ el.innerHTML='<span class="bad">cálculo inválido</span>'; return; }
   el.innerHTML = v ? `<b>${fR(Math.round(v*fatorDe(c)*100)/100)}</b>` : '—'; el.title = v&&c!=='NC' ? 'Parte especial: '+fR(Math.round((v*fatorDe(c)-v)*100)/100) : ''; }
 
+// ordem de lançamento: data/hora de criação (dd/mm/aaaa hh:mm:ss → aaaammddhhmmss) + nº da linha da importação
+function lgOrdemCriacao(r){ const m=String(r.CRIADO_EM||'').match(/(\d{2})\/(\d{2})\/(\d{4})\D+(\d{2}):(\d{2}):?(\d{2})?/);
+  const t=m? m[3]+m[2]+m[1]+m[4]+m[5]+(m[6]||'00') : '00000000000000'; const k=String(r.ID||'').match(/-(\d+)$/); return t+(k?k[1].padStart(5,'0'):'99999'); }
 function lgFiltrados(){
   const F=LG.f, q=semAcento(F.q).trim();
   let L=(S.dados.logistica||[]).filter(r=>{
@@ -1297,8 +1300,8 @@ function lgFiltrados(){
     const d=isoBR(r.DATA_CHEGADA); if(F.de && (!d||d<F.de)) return false; if(F.ate && (!d||d>F.ate)) return false;
     if(q){ const alvo=semAcento([r.FORNECEDOR,r.FILIAL,r.NOTA_FISCAL,r.DATA_CHEGADA,r.DATA_LANCAMENTO,r.CALCULO,r.USUARIO,r.OBS,fN(+r.VALOR_NF,2),fN(+r.VALOR_CALCULADO,2)].join(' ')); if(!q.split(/\s+/).every(t=>alvo.includes(t))) return false; }
     return true; });
-  const val={forn:r=>up(r.FORNECEDOR),fil:r=>up(r.FILIAL),chegada:r=>isoBR(r.DATA_CHEGADA),nf:r=>String(r.NOTA_FISCAL).padStart(12,'0'),lanc:r=>isoBR(r.DATA_LANCAMENTO),vnf:r=>+r.VALOR_NF||0,calc:r=>+r.FATOR||1,vcalc:r=>+r.VALOR_CALCULADO||0,rec:r=>r.RECEBIDO,besp:r=>isOK(r.BOLETO_PARTE_ESPECIAL)?1:0,bnf:r=>isOK(r.BOLETOS_PARTE_NF)?1:0,obs:r=>up(r.OBS||'~')}[LG.sort.k]||(r=>0);
-  return L.sort((a,b)=>{ const x=val(a),y=val(b); return (x<y?-1:x>y?1:0)*LG.sort.d || String(b.CRIADO_EM).localeCompare(String(a.CRIADO_EM)); });
+  const val={criado:lgOrdemCriacao,forn:r=>up(r.FORNECEDOR),fil:r=>up(r.FILIAL),chegada:r=>isoBR(r.DATA_CHEGADA),nf:r=>String(r.NOTA_FISCAL).padStart(12,'0'),lanc:r=>isoBR(r.DATA_LANCAMENTO),vnf:r=>+r.VALOR_NF||0,calc:r=>+r.FATOR||1,vcalc:r=>+r.VALOR_CALCULADO||0,rec:r=>r.RECEBIDO,besp:r=>isOK(r.BOLETO_PARTE_ESPECIAL)?1:0,bnf:r=>isOK(r.BOLETOS_PARTE_NF)?1:0,obs:r=>up(r.OBS||'~')}[LG.sort.k]||(r=>0);
+  return L.sort((a,b)=>{ const x=val(a),y=val(b); return (x<y?-1:x>y?1:0)*LG.sort.d || lgOrdemCriacao(b).localeCompare(lgOrdemCriacao(a)); });
 }
 function lgOrdenar(k){ LG.sort = LG.sort.k===k ? {k,d:-LG.sort.d} : {k,d:['vnf','vcalc','chegada','lanc'].includes(k)?-1:1}; lgAtualizar(); }
 function lgTabela(){
@@ -1336,7 +1339,7 @@ async function lgSalvar(){
   if(d.notaFiscal){ const dup=(S.dados.logistica||[]).find(r=>r.ID!==d.id && up(r.FORNECEDOR)===up(d.fornecedor) && String(r.NOTA_FISCAL).trim()===d.notaFiscal);
     if(dup && !confirm(`A NF ${d.notaFiscal} de ${dup.FORNECEDOR} já está lançada (filial ${dup.FILIAL||'—'}). Lançar mesmo assim?`)) return; }
   const bt=document.getElementById('lgSalvar'); bt.disabled=true;
-  try{ await api('salvarLogistica',d); toast(LG.edit?'Lançamento alterado':'Lançamento adicionado'); LG.edit=null; await carregar(true); render(); setTimeout(()=>{ const f=document.getElementById('lgForn'); if(f) f.focus(); },50); }
+  try{ await api('salvarLogistica',d); toast(LG.edit?'Lançamento alterado':'Lançamento adicionado'); if(!LG.edit) LG.sort={k:'criado',d:-1}; LG.edit=null; await carregar(true); render(); setTimeout(()=>{ const f=document.getElementById('lgForn'); if(f) f.focus(); },50); }
   catch(e){ toast('Erro: '+e.message,6000); bt.disabled=false; }
 }
 function lgEditar(id){ LG.edit=(S.dados.logistica||[]).find(r=>r.ID===id)||null; render(); window.scrollTo({top:0,behavior:'smooth'}); }
@@ -1473,7 +1476,7 @@ function lgModalImport(nome){
 async function lgConfirmarImport(){
   const lista=LG_IMP.linhas.filter(x=>!x.erros.length&&!(LG_IMP.pularDup&&x.dup)).map(x=>x.d); if(!lista.length) return;
   const bt=document.getElementById('lgImpBt'); bt.disabled=true; bt.textContent='Importando…';
-  try{ const r=await api('importarLogistica',{lista}); fecharModal(); toast(`${r.importados} lançamento(s) importado(s)`+(r.erros.length?' · '+r.erros.length+' com erro':''),6000); await carregar(true); render(); }
+  try{ const r=await api('importarLogistica',{lista}); fecharModal(); LG.sort={k:'criado',d:-1}; toast(`${r.importados} lançamento(s) importado(s)`+(r.erros.length?' · '+r.erros.length+' com erro':''),6000); await carregar(true); render(); }
   catch(e){ bt.disabled=false; bt.textContent='Importar'; toast('Erro: '+e.message,7000); }
 }
 
