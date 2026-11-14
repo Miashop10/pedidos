@@ -52,6 +52,9 @@ tfoot td{border-top:2px solid var(--line)}
 .lg-grid input[type=checkbox]{width:18px;height:18px;accent-color:var(--acc)}
 @media(max-width:1600px){nav button{padding:7px 8px;font-size:13px} .top{gap:10px}}
 @media(max-width:1500px){.brand-sub,#whoSync{display:none}}
+#btConfig.on{background:var(--acc);color:#fff}
+@media(max-width:1600px){.bc-txt{display:none} #btConfig{font-size:15px;padding:4px 9px}}
+.who{flex-wrap:nowrap;white-space:nowrap}
 .lg-calc{height:38px;display:flex;align-items:center;gap:4px;padding:0 10px;background:var(--soft);border-radius:8px;color:var(--ink);font-weight:400;white-space:nowrap;overflow:hidden}
 @media(max-width:1100px){.lg-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:640px){.lg-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -127,6 +130,9 @@ tr.rr-fil.on td{background:var(--acc-soft)}
 .rr-car{display:inline-block;width:16px;color:var(--acc-ink)}
 tr.rr-sub>td{padding:4px 8px 10px 26px;background:var(--soft)}
 tr.rr-sub table{background:var(--card);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+table.rr-mini{width:auto;min-width:420px}
+table.rr-mini th,table.rr-mini td{padding:4px 14px 4px 10px!important}
+table.rr-mini td.n,table.rr-mini th.n{padding-left:28px!important}
 tr.rr-sub tfoot td{background:var(--card)!important;position:static}
 tr.rr-sub td{position:static!important}
 @media(max-width:800px){.rr-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -234,8 +240,8 @@ td.desc{white-space:normal;min-width:220px;max-width:340px}
   <div class="lg-r"><div class="lg-f">
     <img class="logoMia lg-mob" alt="Miashop"><div class="lg-mob" style="text-align:center;font-weight:800;letter-spacing:.08em;margin:-12px 0 26px">SISTEMA DE PEDIDOS</div>
     <h1>Entrar</h1>
-    <p class="lg-s2" style="color:#6b675f;margin:0 0 24px">Acesse com seu nome e a senha do sistema.</p>
-    <div class="fld">Seu nome<input id="lgNome" placeholder="Ex.: Yarede" autocomplete="name"></div>
+    <p class="lg-s2" style="color:#6b675f;margin:0 0 24px">Acesse com seu usuário e senha.</p>
+    <div class="fld">Usuário<input id="lgNome" placeholder="Seu login" autocomplete="username"></div>
     <div class="fld" style="margin-top:14px">Senha<input id="lgSenha" type="password" placeholder="Senha do sistema" autocomplete="current-password"></div>
     <div class="fld" id="lgUrlBox" style="margin-top:14px">URL do Apps Script (/exec)<input id="lgUrl" placeholder="https://script.google.com/macros/s/.../exec"></div>
     <button class="btn" style="width:100%;margin-top:22px;padding:13px;font-size:15px" onclick="entrar()">Entrar</button>
@@ -260,7 +266,7 @@ td.desc{white-space:normal;min-width:220px;max-width:340px}
       <button data-v="relreceb">Relatórios de Recebimento</button>
     </nav>
     <div class="sp"></div>
-    <div class="who"><span id="whoNome"></span><span id="whoSync"></span>
+    <div class="who"><button class="btn sec sm hide" id="btConfig" onclick="irPara('config')" title="Configurações: usuários e agrupamento de filiais">⚙<span class="bc-txt"> Configurações</span></button><span id="whoNome"></span><span id="whoSync"></span>
       <button class="btn ghost" title="Atualizar" onclick="carregar()">↻</button>
       <button class="btn ghost" onclick="sair()">Sair</button></div>
   </div>
@@ -529,7 +535,7 @@ function loading(on){ document.getElementById('loading').classList.toggle('hide'
 /* =================== API =================== */
 function api(acao, dados){
   loading(true);
-  const fim = r => { loading(false); if(!r || !r.ok){ if(r && r.erro==='SENHA_INVALIDA'){ sair(); throw new Error('Senha inválida'); } throw new Error(r&&r.erro||'Falha na comunicação'); } return r.dados; };
+  const fim = r => { loading(false); if(r && r.ok){ S.master=!!r.master; const b=document.getElementById('btConfig'); if(b) b.classList.toggle('hide',!S.master); } if(!r || !r.ok){ if(r && r.erro==='SENHA_INVALIDA'){ sair(); throw new Error('Senha inválida'); } throw new Error(r&&r.erro||'Falha na comunicação'); } return r.dados; };
   if (emAppsScript()) return new Promise((res,rej)=>google.script.run.withSuccessHandler(r=>{try{res(fim(r));}catch(e){rej(e);}}).withFailureHandler(e=>{loading(false);rej(e);}).api(acao,S.senha,dados||{},S.usuario));
   return fetch(S.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({acao,senha:S.senha,usuario:S.usuario,dados:dados||{}})})
     .then(r=>r.json()).then(fim).catch(e=>{loading(false);throw e;});
@@ -551,9 +557,9 @@ async function entrar(){
   const err=document.getElementById('lgErro'); err.textContent='';
   S.senha=document.getElementById('lgSenha').value.trim(); S.usuario=document.getElementById('lgNome').value.trim();
   if(!emAppsScript() && !API_URL){ S.url=document.getElementById('lgUrl').value.trim(); if(!/^https:\/\/script\.google(usercontent)?\.com\//.test(S.url)){ err.textContent='Informe a URL /exec do Apps Script.'; return; } }
-  if(!S.usuario){ err.textContent='Informe seu nome.'; return; }
+  if(!S.usuario){ err.textContent='Informe o usuário.'; return; }
   try{ await api('login'); LS.set('mc_senha',S.senha); LS.set('mc_user',S.usuario); if(!API_URL) LS.set('mc_url',S.url); document.getElementById('telaLogin').classList.add('hide'); abrirApp(); }
-  catch(e){ err.textContent = e.message==='Senha inválida' ? 'Senha incorreta.' : ('Não conectou: '+e.message); }
+  catch(e){ err.textContent = e.message==='Senha inválida' ? 'Usuário ou senha incorretos.' : ('Não conectou: '+e.message); }
 }
 function sair(){ LS.del('mc_senha'); S.senha=''; document.getElementById('telaApp').classList.add('hide'); document.getElementById('telaLogin').classList.remove('hide'); document.getElementById('lgUrlBox').classList.toggle('hide', emAppsScript() || !!API_URL); }
 function abrirApp(){
@@ -561,9 +567,9 @@ function abrirApp(){
   document.getElementById('whoNome').textContent=S.usuario;
   document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>irPara(b.dataset.v));
   carregar();
-  setInterval(()=>{ if(document.visibilityState==='visible' && !document.querySelector('.mbg') && S.view!=='importar' && S.view!=='pedidos' && S.view!=='logistica' && S.view!=='relreceb' && S.view!=='faturar') carregar(true); }, 180000);
+  setInterval(()=>{ if(document.visibilityState==='visible' && !document.querySelector('.mbg') && S.view!=='importar' && S.view!=='pedidos' && S.view!=='logistica' && S.view!=='relreceb' && S.view!=='faturar' && S.view!=='config') carregar(true); }, 180000);
 }
-function irPara(v){ S.view=v; const navV=(v==='notas'||v==='relatorios')?'importar':v; document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===navV)); document.getElementById('barraFiltros').classList.toggle('hide', v==='importar'||v==='pedidos'||v==='logistica'||v==='relreceb'||v==='faturar'); render(); window.scrollTo(0,0); }
+function irPara(v){ S.view=v; const navV=(v==='notas'||v==='relatorios')?'importar':v; document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===navV)); const bc=document.getElementById('btConfig'); if(bc) bc.classList.toggle('on',v==='config'); if(v==='config') CFG.usuarios=null; document.getElementById('barraFiltros').classList.toggle('hide', v==='importar'||v==='pedidos'||v==='logistica'||v==='relreceb'||v==='faturar'||v==='config'); render(); window.scrollTo(0,0); }
 
 async function carregar(silencioso){
   try{ S.dados = await api('getDados'); calcular(); preencherImportadoras(); document.getElementById('whoSync').textContent='atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); render(); }
@@ -637,9 +643,9 @@ function totais(L){
 /* =================== RENDER =================== */
 let _deb; function debRender(){ clearTimeout(_deb); _deb=setTimeout(render,180); }
 function render(){
-  if(!S.dados && !['importar','pedidos','logistica','relreceb','faturar'].includes(S.view)){ document.getElementById('main').innerHTML='<p class="muted">Carregando…</p>'; return; }
+  if(!S.dados && !['importar','pedidos','logistica','relreceb','faturar','config'].includes(S.view)){ document.getElementById('main').innerHTML='<p class="muted">Carregando…</p>'; return; }
   const v=S.view; const m=document.getElementById('main');
-  m.innerHTML = v==='painel'?vPainel(): v==='produtos'?vProdutos(): v==='ranking'?vRanking(): v==='importadoras'?vImportadoras(): v==='notas'?vNotas(): v==='relatorios'?vRelatorios(): v==='pedidos'?vPedidos(): v==='logistica'?vLogistica(): v==='relreceb'?vRelReceb(): v==='faturar'?vFaturar(): vImportar();
+  m.innerHTML = v==='painel'?vPainel(): v==='produtos'?vProdutos(): v==='ranking'?vRanking(): v==='importadoras'?vImportadoras(): v==='notas'?vNotas(): v==='relatorios'?vRelatorios(): v==='pedidos'?vPedidos(): v==='logistica'?vLogistica(): v==='relreceb'?vRelReceb(): v==='faturar'?vFaturar(): v==='config'?vConfig(): vImportar();
   if(v==='importar') ligarImportar(); if(v==='pedidos') ligarPedidos(); if(v==='logistica') ligarLogistica();
   ajustarTabelas();
 }
@@ -1471,9 +1477,9 @@ function rrCorpo(){
     const itens=ab? f.itens.filter(r=>sel.mes==='*'||rrMes(r)===sel.mes) : [];
     const totSel=itens.reduce((s,r)=>s+(+r.VALOR_CALCULADO||0),0);
     return `<tr class="rr-fil${ab?' on':''}"><td class="clk" onclick="${abre(f.nome,'*')}" title="Ver todos os lançamentos da filial"><span class="rr-car">${ab?'▾':'▸'}</span><b>${esc(f.nome)}</b></td>${cols.map(c=>f.m[c]?`<td class="n rr-cel${ab&&sel.mes===c?' sel':''}" onclick="${abre(f.nome,c)}" title="Ver lançamentos de ${esc(f.nome)} em ${rrMesNome(c)}">${fR(f.m[c])}</td>`:'<td class="n"><span class="muted">·</span></td>').join('')}<td class="n rr-cel${ab&&sel.mes==='*'?' sel':''}" onclick="${abre(f.nome,'*')}"><b>${fR(f.tot)}</b></td></tr>`
-    + (ab ? `<tr class="rr-sub"><td colspan="${cols.length+2}"><table><thead><tr><th>Mês</th><th>Fornecedor</th><th>NF</th><th>Chegada</th><th>Lançamento</th><th class="n">Valor NF</th><th class="c">Cálc.</th><th class="n">Recebido</th></tr></thead><tbody>
-        ${itens.slice().sort((a,b)=>rrMes(b).localeCompare(rrMes(a))||(isoBR(b.DATA_CHEGADA)||'').localeCompare(isoBR(a.DATA_CHEGADA)||'')).map(r=>`<tr class="${lgQuitado(r)?'lg-ok':''}"><td>${rrMesNome(rrMes(r))}</td><td>${esc(r.FORNECEDOR)}</td><td>${esc(r.NOTA_FISCAL)||'—'}</td><td>${esc(r.DATA_CHEGADA)||'—'}</td><td>${esc(r.DATA_LANCAMENTO)||'—'}</td><td class="n">${fR(+r.VALOR_NF)}</td><td class="c">${esc(r.CALCULO)}</td><td class="n"><b>${fR(+r.VALOR_CALCULADO)}</b></td></tr>`).join('')}
-        </tbody><tfoot><tr><td colspan="7">${itens.length} NF(s) · ${esc(f.nome)} · ${sel.mes==='*'?'todo o período':rrMesNome(sel.mes)}</td><td class="n">${fR(totSel)}</td></tr></tfoot></table></td></tr>` : ''); }).join('');
+    + (ab ? `<tr class="rr-sub"><td colspan="${cols.length+2}"><table class="rr-mini"><thead><tr><th>Fornecedor</th><th>NF</th><th>Chegada</th><th class="n">Recebido</th></tr></thead><tbody>
+        ${itens.slice().sort((a,b)=>rrMes(b).localeCompare(rrMes(a))||(isoBR(b.DATA_CHEGADA)||'').localeCompare(isoBR(a.DATA_CHEGADA)||'')).map(r=>`<tr><td>${esc(r.FORNECEDOR)}</td><td>${esc(r.NOTA_FISCAL)||'—'}</td><td>${esc(r.DATA_CHEGADA)||esc(r.DATA_LANCAMENTO)||'—'}</td><td class="n"><b>${fR(+r.VALOR_CALCULADO)}</b></td></tr>`).join('')}
+        </tbody><tfoot><tr><td colspan="3">${itens.length} NF(s) · ${esc(f.nome)} · ${sel.mes==='*'?'todo o período':rrMesNome(sel.mes)}</td><td class="n">${fR(totSel)}</td></tr></tfoot></table></td></tr>` : ''); }).join('');
   return `<h3 class="rr-h">Recebimento por filial e mês${RR.f.forn?' · <span style="color:var(--acc-ink)">'+esc(RR.f.forn)+'</span>':''} <span class="muted small">— clique num valor para ver os lançamentos daquele mês · na filial para ver todos</span></h3>
   <div class="tw sl-tab rr-mat"><table><thead><tr>${head}</tr></thead><tbody>${linhas}</tbody>
     <tfoot><tr><td>TOTAL · ${n} NF(s)</td>${cols.map(c=>`<td class="n">${totM[c]?fR(totM[c]):'—'}</td>`).join('')}<td class="n">${fR(tot)}</td></tr></tfoot></table></div>`;
@@ -1634,6 +1640,68 @@ function faExportar(){
   linha('NIBO','',c=>nibo[c]); linha('PEDIDOS',+lista.reduce((s,f)=>s+f.valor,0).toFixed(2),c=>totPed[c]?+totPed[c].toFixed(2):''); linha('TOTAL','',c=>+(((nibo[c]||0)+(totPed[c]||0)).toFixed(2))||'');
   rows.push({}); lista.forEach(f=>linha(f.nome,+f.valor.toFixed(2),c=>f.meses[c]?+f.meses[c].toFixed(2):''));
   const ws=XLSX.utils.json_to_sheet(rows); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'A faturar'); XLSX.writeFile(wb,'pedidos-a-faturar-'+hojeBR().replace(/\//g,'-')+'.xlsx');
+}
+
+
+/* =================== CONFIGURAÇÕES (somente master) =================== */
+const CFG = { usuarios:null };
+function vConfig(){
+  if(!S.master) return '<div class="card muted">Somente o usuário master (senha YY17) acessa as Configurações.</div>';
+  if(CFG.usuarios===null){ cfgCarregarUsuarios(); }
+  const fil=nomesLog('FILIAL').map(n=>({n,u:usoNome('FILIAL',n)}));
+  return `<div class="slim">
+  <div class="sl-head"><h2>Configurações</h2><span class="muted small">Acesso master. Usuários entram com login e senha próprios; a senha master continua valendo para entrar.</span></div>
+  <div class="grid two" style="align-items:start">
+    <div class="card">
+      <b>Usuários</b><div class="small muted" style="margin:2px 0 10px">Login e senha para entrar no sistema.</div>
+      <div class="row" style="margin-bottom:10px">
+        <label class="sf" style="flex:1 1 140px"><span>Login</span><input id="cfgLogin" autocomplete="off" placeholder="ex.: joao"></label>
+        <label class="sf" style="flex:1 1 140px"><span>Senha</span><input id="cfgSenha" type="password" autocomplete="new-password" placeholder="mín. 3 caracteres" onkeydown="if(event.key==='Enter')cfgSalvarUsuario()"></label>
+        <div class="sf w-act"><button class="btn" onclick="cfgSalvarUsuario()">+ Adicionar</button></div>
+      </div>
+      <div class="tw sl-tab"><table><thead><tr><th>Login</th><th>Criado</th><th>Alterado</th><th></th></tr></thead><tbody id="cfgUsers">${cfgUsuariosHTML()}</tbody></table></div>
+      <div class="small muted" style="margin-top:6px">Para trocar a senha de alguém, adicione o mesmo login com a senha nova.</div>
+    </div>
+    <div class="card">
+      <b>Agrupar filiais</b><div class="small muted" style="margin:2px 0 10px">Junta filiais com nomes diferentes que são a mesma (ex.: JDA → JD AMER). Os lançamentos da primeira passam para a segunda e o nome da primeira é apagado.</div>
+      <div class="row" style="margin-bottom:10px;align-items:flex-end">
+        <label class="sf" style="flex:1 1 150px"><span>Filial que será apagada</span><select id="cfgOrigem">${['<option value="">Escolha…</option>'].concat(fil.map(f=>`<option value="${esc(f.n)}">${esc(f.n)} (${f.u})</option>`)).join('')}</select></label>
+        <span style="padding:0 2px 8px;font-weight:800;color:var(--acc-ink)">→</span>
+        <label class="sf" style="flex:1 1 150px"><span>Juntar dentro de</span><select id="cfgDestino">${['<option value="">Escolha…</option>'].concat(fil.map(f=>`<option value="${esc(f.n)}">${esc(f.n)} (${f.u})</option>`)).join('')}</select></label>
+        <div class="sf w-act"><button class="btn" onclick="cfgAgrupar()">Agrupar</button></div>
+      </div>
+      <div class="tw sl-tab" style="max-height:52vh"><table><thead><tr><th>Filial</th><th class="n">Lançamentos</th></tr></thead><tbody>
+        ${fil.map(f=>`<tr><td>${esc(f.n)}</td><td class="n">${f.u||'<span class="muted">0</span>'}</td></tr>`).join('')||'<tr><td colspan="2" class="muted">Nenhuma filial lançada ainda.</td></tr>'}
+      </tbody></table></div>
+    </div>
+  </div></div>`;
+}
+function cfgUsuariosHTML(){
+  if(CFG.usuarios===null) return '<tr><td colspan="4" class="muted">Carregando…</td></tr>';
+  return CFG.usuarios.map(u=>`<tr><td><b>${esc(u.login)}</b></td><td class="small muted">${esc(u.criado)}</td><td class="small muted">${esc(u.atualizado)}${u.por?' · '+esc(u.por):''}</td><td class="c"><button class="ib del" title="Excluir usuário" data-l="${esc(u.login)}" onclick="cfgExcluirUsuario(this.dataset.l)">✕</button></td></tr>`).join('')
+    || '<tr><td colspan="4" class="muted">Nenhum usuário cadastrado.</td></tr>';
+}
+async function cfgCarregarUsuarios(){
+  try{ CFG.usuarios=await api('listarUsuarios'); }catch(e){ CFG.usuarios=[]; toast('Erro: '+e.message,6000); }
+  const el=document.getElementById('cfgUsers'); if(el) el.innerHTML=cfgUsuariosHTML();
+}
+async function cfgSalvarUsuario(){
+  const l=document.getElementById('cfgLogin'), s=document.getElementById('cfgSenha');
+  if(!l.value.trim()){ toast('Informe o login'); l.focus(); return; } if(s.value.trim().length<3){ toast('A senha precisa ter pelo menos 3 caracteres'); s.focus(); return; }
+  try{ const r=await api('salvarUsuario',{login:l.value.trim(),senha:s.value.trim()}); toast(r.novo?'Usuário '+r.login+' criado':'Senha de '+r.login+' alterada'); l.value=''; s.value=''; await cfgCarregarUsuarios(); }
+  catch(e){ toast('Erro: '+e.message,6000); }
+}
+async function cfgExcluirUsuario(login){
+  if(!confirm('Excluir o usuário '+login+'? Ele não conseguirá mais entrar.')) return;
+  try{ await api('excluirUsuario',{login}); toast('Usuário excluído'); await cfgCarregarUsuarios(); }catch(e){ toast('Erro: '+e.message,6000); }
+}
+async function cfgAgrupar(){
+  const o=document.getElementById('cfgOrigem').value, d=document.getElementById('cfgDestino').value;
+  if(!o||!d){ toast('Escolha as duas filiais'); return; } if(up(o)===up(d)){ toast('Escolha filiais diferentes'); return; }
+  const n=usoNome('FILIAL',o);
+  if(!confirm(`Agrupar "${o}" dentro de "${d}"?\n\n${n} lançamento(s) de "${o}" passarão para "${d}" e o nome "${o}" será apagado.`)) return;
+  try{ const r=await api('agruparFiliais',{origem:o,destino:d}); toast(`${r.movidos} lançamento(s) passaram para ${r.destino}`,5000); await carregar(true); render(); }
+  catch(e){ toast('Erro: '+e.message,6000); }
 }
 
 iniciar();
