@@ -53,6 +53,12 @@ tfoot td{border-top:2px solid var(--line)}
 @media(max-width:1600px){nav button{padding:7px 8px;font-size:13px} .top{gap:10px}}
 @media(max-width:1500px){.brand-sub,#whoSync{display:none}}
 #btConfig.on{background:var(--acc);color:#fff}
+tr.cfg-u td{border-bottom:0}
+tr.cfg-abas td{padding:0 8px 10px!important}
+.cfg-abas-box{background:var(--soft);border-radius:8px;padding:6px 10px;display:flex;flex-wrap:wrap;align-items:center;gap:2px 4px}
+.cfg-novo{background:var(--acc-soft);border-radius:8px;padding:8px 10px;margin-bottom:12px}
+.cfg-ck{display:inline-flex;align-items:center;gap:5px;margin:2px 12px 2px 0;font-size:12.5px;cursor:pointer;white-space:nowrap}
+.cfg-ck input{accent-color:var(--acc);width:15px;height:15px}
 @media(max-width:1600px){.bc-txt{display:none} #btConfig{font-size:15px;padding:4px 9px}}
 .who{flex-wrap:nowrap;white-space:nowrap}
 .lg-calc{height:38px;display:flex;align-items:center;gap:4px;padding:0 10px;background:var(--soft);border-radius:8px;color:var(--ink);font-weight:400;white-space:nowrap;overflow:hidden}
@@ -71,6 +77,7 @@ tfoot td{border-top:2px solid var(--line)}
 .w-obs{flex:1.2 1 140px}
 td.lg-obs{min-width:150px;padding-top:1px;padding-bottom:1px}
 #tbLog td{padding-top:1px;padding-bottom:1px}
+#tbLog td,#tbLog .lgi,#tbLog .okb,#tbLog .tag{font-weight:700}
 .lgi{width:100%;height:26px;padding:2px 6px;font-size:12.5px;border:1px solid transparent;background:transparent;border-radius:6px;color:var(--ink);font-family:inherit}
 .lgi:hover{border-color:var(--line);background:var(--card)}
 .lgi:focus{border-color:var(--acc);background:var(--card);box-shadow:0 0 0 2px var(--acc-soft);outline:none}
@@ -113,6 +120,8 @@ tr.lg-ok td{background:var(--ok-soft)}
 tr.lg-ok td:first-child{box-shadow:inset 3px 0 var(--ok)}
 tr.lg-ed td{background:var(--acc-soft)}
 .ib{border:0;background:none;cursor:pointer;color:var(--mut);font-size:12px;font-weight:600;padding:2px 7px;border-radius:6px;line-height:1.4}
+.rt-b{color:var(--acc-ink)!important;border:1px solid var(--acc-soft)!important;margin-right:4px}
+.rt-b.on{background:var(--ok-soft)!important;color:var(--ok)!important;border-color:transparent!important}
 .ib:hover{background:var(--soft);color:var(--ink)}.ib.del:hover{color:var(--bad);background:var(--bad-soft)}
 .rr-kpis{grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:10px}
 .rr-mat td:first-child,.rr-mat th:first-child{position:sticky;left:0;z-index:1}
@@ -261,12 +270,7 @@ td.desc{white-space:normal;min-width:220px;max-width:340px}
   <div class="top">
     <div class="brand" style="display:flex;align-items:center;gap:10px"><img class="logoMia" alt="Miashop" style="height:38px;background:#fff;border-radius:6px;padding:3px 6px"><span class="brand-sub" style="color:var(--ink);font-size:13px;font-weight:800;letter-spacing:.08em;border-left:1px solid var(--line);padding-left:12px">SISTEMA DE PEDIDOS</span></div>
     <nav id="nav">
-      <button data-v="painel" class="on">Painel</button>
-      <button data-v="produtos">Produtos</button>
-      <button data-v="ranking">Mais vantajosos</button>
-      <button data-v="importadoras">Importadoras</button>
-      <button data-v="importar">Importar</button>
-      <button data-v="pedidos">Pedidos</button>
+      <button data-v="pedidos" class="on">Pedidos</button>
       <button data-v="faturar">Pedidos a faturar</button>
       <button data-v="logistica">Controle de Logística</button>
       <button data-v="relreceb">Relatórios de Recebimento</button>
@@ -275,11 +279,6 @@ td.desc{white-space:normal;min-width:220px;max-width:340px}
     <div class="who"><button class="btn sec sm hide" id="btConfig" onclick="irPara('config')" title="Configurações: usuários e agrupamento de filiais">⚙<span class="bc-txt"> Configurações</span></button><span id="whoNome"></span><span id="whoSync"></span>
       <button class="btn ghost" title="Atualizar" onclick="carregar()">↻</button>
       <button class="btn ghost" onclick="sair()">Sair</button></div>
-  </div>
-  <div class="filtros" id="barraFiltros">
-    <select id="fImp" onchange="render()"><option value="">Todas as importadoras</option></select>
-    <input type="search" id="fBusca" placeholder="Buscar por código, nome ou valor (ex.: CK3571, chaleira, 17,85)" oninput="debRender()">
-    <label class="check"><input type="checkbox" id="fSoVendidos" onchange="render()"> incluir produtos só vendidos (sem NF no sistema)</label>
   </div>
 </header>
 <main id="main"></main>
@@ -518,9 +517,42 @@ function parsePedidoMatriz(rows, numsFiliais){
 
 if(typeof module!=='undefined') module.exports={numBR:numBR,parseDanfe:parseDanfe,parseVendas:parseVendas,linhasPlanilha:linhasPlanilha,groupLines:groupLines,parsePedidoMatriz:parsePedidoMatriz};
 
+// ---------- Rateio de NF por filial (PDF "Rateio de Nota Fiscal por Filial") ----------
+// Lê: Fornecedor, Nota fiscal nº, Data, valor total e as linhas FILIAL | ITENS | VALOR TRANSFERIDO | % DA NOTA
+function parseRateio(items){
+  var out={fornecedor:'',nf:'',data:'',total:0,linhas:[]};
+  var L=groupLines(items,3);
+  L.forEach(function(l){ var t=l.items.map(function(i){return i.s;});
+    for(var k=0;k<t.length;k++){ var n=normTxt(t[k]);
+      if(/^FORNECEDOR:?$/.test(n)&&t[k+1]) out.fornecedor=t[k+1].trim();
+      if(/^NOTA FISCAL/.test(n)&&t[k+1]&&!/^[—-]$/.test(t[k+1].trim())) out.nf=t[k+1].replace(/\D/g,'');
+      if(/^DATA:?$/.test(n)&&t[k+1]&&/\d{2}\/\d{2}\/\d{4}/.test(t[k+1])) out.data=t[k+1].match(/\d{2}\/\d{2}\/\d{4}/)[0];
+    } });
+  var all=items.slice();
+  var hf=all.find(function(i){return normTxt(i.s)==='FILIAL';}); if(!hf) return out;
+  var hv=all.find(function(i){return Math.abs(i.y-hf.y)<3 && /^VALOR/.test(normTxt(i.s));});
+  var hi=all.find(function(i){return Math.abs(i.y-hf.y)<3 && /^(ITENS|QTD|QUANT)/.test(normTxt(i.s));});
+  var hp=all.find(function(i){return Math.abs(i.y-hf.y)<3 && /^%/.test(normTxt(i.s));});
+  var tot=all.filter(function(i){return i.p===hf.p && i.y>hf.y && /^R\$/.test(i.s.trim());}).sort(function(a,b){return a.y-b.y;})[0];
+  if(tot) out.total=numBR(tot.s.replace(/[R$\s]/g,''));
+  var rows=L.filter(function(l){return l.p===hf.p && l.y<hf.y-4;});
+  // continua em páginas seguintes (mesmas colunas)
+  L.filter(function(l){return l.p>hf.p;}).forEach(function(l){rows.push(l);});
+  rows.forEach(function(l){
+    var fi=l.items.find(function(i){return Math.abs(i.x-hf.x)<25;}); if(!fi) return;
+    var nm=fi.s.trim(); if(!nm||/^(TOTAL|FILIAL)/i.test(nm)||/^https?:/i.test(nm)) return;
+    var near=function(h){ if(!h) return null; return l.items.filter(function(i){return i!==fi && Math.abs((i.x)-(h.x))<60;}).sort(function(a,b){return Math.abs(a.x-h.x)-Math.abs(b.x-h.x);})[0]||null; };
+    var v=near(hv); if(!v||!/\d/.test(v.s)) return;
+    var it=near(hi), pc=near(hp);
+    out.linhas.push({codigo:nm,valor:numBR(v.s.replace(/[R$\s]/g,'')),itens:it?numBR(it.s):0,perc:pc?numBR(pc.s.replace('%','')):null});
+  });
+  return out;
+}
+if(typeof module!=='undefined') module.exports.parseRateio=parseRateio;
+
 
 /* =================== ESTADO =================== */
-const S = { senha:'', usuario:'', url:'', dados:null, view:'painel', sort:{}, fila:[], vendasCache:{} };
+const S = { senha:'', usuario:'', url:'', dados:null, view:'pedidos', sort:{}, fila:[], vendasCache:{} };
 const LS = { get(k){ try{return localStorage.getItem(k);}catch(e){return null;} }, set(k,v){ try{localStorage.setItem(k,v);}catch(e){} }, del(k){ try{localStorage.removeItem(k);}catch(e){} } };
 const emAppsScript = () => !!(window.google && google.script && google.script.run);
 if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -541,7 +573,7 @@ function loading(on){ document.getElementById('loading').classList.toggle('hide'
 /* =================== API =================== */
 function api(acao, dados){
   loading(true);
-  const fim = r => { loading(false); if(r && r.ok){ S.master=!!r.master; const b=document.getElementById('btConfig'); if(b) b.classList.toggle('hide',!S.master); } if(!r || !r.ok){ if(r && r.erro==='SENHA_INVALIDA'){ sair(); throw new Error('Senha inválida'); } throw new Error(r&&r.erro||'Falha na comunicação'); } return r.dados; };
+  const fim = r => { loading(false); if(r && r.ok){ S.master=!!r.master; S.abas=r.abas||[]; const b=document.getElementById('btConfig'); if(b) b.classList.toggle('hide',!S.master); aplicarAbas(); } if(!r || !r.ok){ if(r && r.erro==='SENHA_INVALIDA'){ sair(); throw new Error('Senha inválida'); } throw new Error(r&&r.erro||'Falha na comunicação'); } return r.dados; };
   if (emAppsScript()) return new Promise((res,rej)=>google.script.run.withSuccessHandler(r=>{try{res(fim(r));}catch(e){rej(e);}}).withFailureHandler(e=>{loading(false);rej(e);}).api(acao,S.senha,dados||{},S.usuario));
   return fetch(S.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({acao,senha:S.senha,usuario:S.usuario,dados:dados||{}})})
     .then(r=>r.json()).then(fim).catch(e=>{loading(false);throw e;});
@@ -573,398 +605,44 @@ function abrirApp(){
   document.getElementById('whoNome').textContent=S.usuario;
   document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>irPara(b.dataset.v));
   carregar();
-  setInterval(()=>{ if(document.visibilityState==='visible' && !document.querySelector('.mbg') && S.view!=='importar' && S.view!=='pedidos' && S.view!=='logistica' && S.view!=='relreceb' && S.view!=='faturar' && S.view!=='config') carregar(true); }, 180000);
 }
-function irPara(v){ S.view=v; const navV=(v==='notas'||v==='relatorios')?'importar':v; document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===navV)); const bc=document.getElementById('btConfig'); if(bc) bc.classList.toggle('on',v==='config'); if(v==='config') CFG.usuarios=null; document.getElementById('barraFiltros').classList.toggle('hide', v==='importar'||v==='pedidos'||v==='logistica'||v==='relreceb'||v==='faturar'||v==='config'); render(); window.scrollTo(0,0); }
+// mostra no menu só as abas liberadas para o usuário (master vê todas)
+function aplicarAbas(){
+  const ok=v=>S.master||(S.abas||[]).includes(v);
+  document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('hide',!ok(b.dataset.v)));
+  if(S.view==='config'?!S.master:!ok(S.view)){ const prim=[...document.querySelectorAll('#nav button')].find(b=>ok(b.dataset.v)); S.view=prim?prim.dataset.v:'semacesso'; document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===S.view)); if(document.getElementById('main')&&S.dados) render(); }
+}
+function irPara(v){ if(v!=='config' && !(S.master||(S.abas||[]).includes(v))) return; S.view=v; const navV=v; document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===navV)); const bc=document.getElementById('btConfig'); if(bc) bc.classList.toggle('on',v==='config'); if(v==='config') CFG.usuarios=null; render(); window.scrollTo(0,0); }
 
 async function carregar(silencioso){
-  try{ S.dados = await api('getDados'); calcular(); preencherImportadoras(); document.getElementById('whoSync').textContent='atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); render(); }
+  try{ S.dados = await api('getDados'); document.getElementById('whoSync').textContent='atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); render(); }
   catch(e){ if(!silencioso) toast('Erro ao carregar: '+e.message,5000); }
 }
 
-/* =================== CÁLCULOS =================== */
-let P = []; // produtos calculados
-function calcular(){
-  const D=S.dados; const map={};
-  const get=(cod,desc)=>{ const k=up(cod); if(!map[k]) map[k]={codigo:String(cod).trim(),k,descricao:desc||'',importadoras:new Set(),comprado:0,investido:0,valorNF:0,ipi:0,notas:[],ultimaCompra:0,primeiraCompra:0,ultimoCustoUnit:0,vendidoTotal:0,receitaTotal:0,vendido:0,receita:0,q30:0,v30:0,diasCob:0,foto:'',estoqueInicial:0,ajuste:0,precoCad:0,obs:''}; return map[k]; };
-  (D.compras||[]).forEach(c=>{ const p=get(c.CODIGO,c.DESCRICAO); if(!p.descricao) p.descricao=c.DESCRICAO;
-    p.importadoras.add(c.IMPORTADORA||'(sem importadora)'); p.comprado+=+c.QUANTIDADE||0; p.investido+=+c.CUSTO_TOTAL||0; p.valorNF+=+c.VALOR_TOTAL||0; p.ipi+=+c.VALOR_IPI||0;
-    const d=dnum(c.DATA_EMISSAO); p.notas.push({nf:c.NUMERO_NF,data:c.DATA_EMISSAO,imp:c.IMPORTADORA,q:+c.QUANTIDADE,cu:+c.CUSTO_UNIT,vu:+c.VALOR_UNIT,ct:+c.CUSTO_TOTAL});
-    if(!p.primeiraCompra||d<p.primeiraCompra) p.primeiraCompra=d; if(d>=p.ultimaCompra){p.ultimaCompra=d;p.ultimoCustoUnit=+c.CUSTO_UNIT||0;} });
-  (D.vendas||[]).forEach(v=>{ const p=get(v.c,v.d); if(!p.descricao) p.descricao=v.d;
-    p.vendidoTotal=v.q; p.receitaTotal=v.v; p.vendido=v.qp; p.receita=v.vp; p.q30=v.q30; p.v30=v.v30; p.diasCob=v.dp; p.ultVenda=v.ult; });
-  (D.produtos||[]).forEach(r=>{ const k=up(r.CODIGO); const p=map[k]; if(!p) return; p.foto=r.FOTO_URL||''; p.estoqueInicial=+r.ESTOQUE_INICIAL||0; p.ajuste=+r.AJUSTE_ESTOQUE||0; p.precoCad=+r.PRECO_VENDA||0; p.obs=r.OBS||''; if(r.DESCRICAO) p.descricao=r.DESCRICAO; });
-  P = Object.values(map).map(p=>{
-    p.temCompra = p.comprado>0;
-    if(!p.diasCob && p.temCompra) p.diasCob = (D.diasDesdeCompra||{})[p.k]||0;
-    p.custoMedio = p.comprado? p.investido/p.comprado : 0;
-    if(!p.temCompra){ p.vendido=p.vendidoTotal; p.receita=p.receitaTotal; p.diasCob=D.diasCobertos||0; }
-    p.estoque = p.estoqueInicial + p.ajuste + p.comprado - p.vendido;
-    p.valorEstoque = Math.max(0,p.estoque)*p.custoMedio;
-    p.precoMedio = p.vendido>0 ? p.receita/p.vendido : (p.precoCad||0);
-    p.markup = p.custoMedio>0 && p.precoMedio>0 ? p.precoMedio/p.custoMedio : NaN;
-    p.vendaDia = p.diasCob>0 ? p.vendido/p.diasCob : 0;
-    p.receitaDia = p.diasCob>0 ? p.receita/p.diasCob : 0;
-    p.recuperado = p.investido>0 ? p.receita/p.investido : NaN;
-    p.diasRecuperar = p.receitaDia>0 && p.investido>0 ? p.investido/p.receitaDia : NaN;          // tempo total p/ recuperar o custo
-    p.diasRestantes = p.receitaDia>0 ? Math.max(0,(p.investido-p.receita)/p.receitaDia) : NaN;   // quanto falta
-    p.cobertura = p.vendaDia>0 ? Math.max(0,p.estoque)/p.vendaDia : NaN;                          // dias de estoque
-    p.giro = p.comprado>0 ? p.vendido/p.comprado : NaN;                                           // % vendido do comprado
-    p.lucroBrutoDia = p.receitaDia - p.vendaDia*p.custoMedio;
-    p.retornoMes = p.investido>0 ? (p.lucroBrutoDia*30)/p.investido : NaN;                        // lucro bruto em 30 dias ÷ investido
-    p.imps=[...p.importadoras];
-    p.status = statusProduto(p);
-    return p; });
-}
-function statusProduto(p){
-  if(!p.temCompra) return {t:'Sem NF',c:'t-mut',o:9};
-  if(p.vendido<=0) return p.diasCob>=7 ? {t:'Parado',c:'t-bad',o:6} : {t:'Aguardando vendas',c:'t-mut',o:7};
-  if(p.giro>=0.4 && p.cobertura<15) return {t:'REPOR JÁ',c:'t-acc',o:0};
-  if(p.diasRecuperar<=30) return {t:'Ótimo',c:'t-ok',o:1};
-  if(p.diasRecuperar<=60) return {t:'Bom',c:'t-ok',o:2};
-  if(p.diasRecuperar<=120) return {t:'Regular',c:'t-warn',o:3};
-  return {t:'Lento',c:'t-bad',o:4};
-}
-function preencherImportadoras(){
-  const sel=document.getElementById('fImp'); const atual=sel.value; const set=new Set();
-  (S.dados.compras||[]).forEach(c=>set.add(c.IMPORTADORA||'(sem importadora)'));
-  sel.innerHTML='<option value="">Todas as importadoras</option>'+[...set].sort().map(i=>`<option ${i===atual?'selected':''}>${esc(i)}</option>`).join('');
-}
-function filtrados(){
-  const imp=document.getElementById('fImp').value; const q=document.getElementById('fBusca').value.trim(); const so=document.getElementById('fSoVendidos').checked;
-  let L=P.filter(p=>(so||p.temCompra) && (!imp || p.importadoras.has(imp)));
-  if(q){ const Q=up(q).normalize('NFD').replace(/[̀-ͯ]/g,''); const numQ=/^[\d.,]+$/.test(q)?numBR(q):null;
-    L=L.filter(p=>{ if(up(p.codigo).includes(Q)) return true; if(up(p.descricao).normalize('NFD').replace(/[̀-ͯ]/g,'').includes(Q)) return true;
-      if(numQ!=null && numQ>0){ const eq=v=>Math.abs((v||0)-numQ)<0.006; if(eq(p.custoMedio)||eq(p.precoMedio)||eq(p.precoCad)||eq(p.ultimoCustoUnit)||eq(p.investido)||eq(p.receita)) return true; if(p.notas.some(n=>eq(n.vu)||eq(n.cu))) return true; }
-      return false; }); }
-  return L;
-}
-function totais(L){
-  const t={investido:0,comprado:0,vendido:0,receita:0,estoque:0,valorEstoque:0,receitaDia:0,custoVendido:0,valorNF:0,ipi:0};
-  L.forEach(p=>{ if(!p.temCompra) return; t.investido+=p.investido; t.comprado+=p.comprado; t.vendido+=p.vendido; t.receita+=p.receita; t.estoque+=Math.max(0,p.estoque); t.valorEstoque+=p.valorEstoque; t.receitaDia+=p.receitaDia; t.custoVendido+=p.vendido*p.custoMedio; t.valorNF+=p.valorNF; t.ipi+=p.ipi; });
-  t.recuperado=t.investido? t.receita/t.investido : NaN; t.diasRecuperar=t.receitaDia>0? t.investido/t.receitaDia : NaN; t.diasRestantes=t.receitaDia>0? Math.max(0,(t.investido-t.receita)/t.receitaDia):NaN;
-  t.lucroBruto=t.receita-t.custoVendido; t.margem=t.receita? t.lucroBruto/t.receita : NaN; return t;
-}
+let P = []; // (abas de produtos removidas)
 
 /* =================== RENDER =================== */
 let _deb; function debRender(){ clearTimeout(_deb); _deb=setTimeout(render,180); }
 function render(){
-  if(!S.dados && !['importar','pedidos','logistica','relreceb','faturar','config'].includes(S.view)){ document.getElementById('main').innerHTML='<p class="muted">Carregando…</p>'; return; }
   const v=S.view; const m=document.getElementById('main');
-  m.innerHTML = v==='painel'?vPainel(): v==='produtos'?vProdutos(): v==='ranking'?vRanking(): v==='importadoras'?vImportadoras(): v==='notas'?vNotas(): v==='relatorios'?vRelatorios(): v==='pedidos'?vPedidos(): v==='logistica'?vLogistica(): v==='relreceb'?vRelReceb(): v==='faturar'?vFaturar(): v==='config'?vConfig(): vImportar();
-  if(v==='importar') ligarImportar(); if(v==='pedidos') ligarPedidos(); if(v==='logistica') ligarLogistica();
+  if(v==='semacesso'){ m.innerHTML='<div class="card muted" style="margin-top:20px">Seu usuário ainda não tem acesso a nenhuma aba. Peça ao administrador para liberar em Configurações.</div>'; return; }
+  m.innerHTML = v==='logistica'?vLogistica(): v==='relreceb'?vRelReceb(): v==='faturar'?vFaturar(): v==='config'?vConfig(): vPedidos();
+  if(v==='pedidos') ligarPedidos(); if(v==='logistica') ligarLogistica();
   ajustarTabelas();
 }
 /* zoom automático: encolhe a tabela para caber na largura da tela (sem rolar para os lados) */
 function ajustarTabelas(raiz){ (raiz||document).querySelectorAll('.tw > table').forEach(t=>{ t.style.zoom=''; const w=t.parentElement.clientWidth, sw=t.scrollWidth;
   if(sw>w+2 && w>0){ const z=Math.max(0.6, (w-2)/sw); t.style.zoom=z.toFixed(3); } }); }
 let _rz; window.addEventListener('resize',()=>{ clearTimeout(_rz); _rz=setTimeout(()=>ajustarTabelas(),150); });
-function kpi(l,v,d,cls){ return `<div class="card kpi"><div class="l">${l}</div><div class="v ${cls||''}">${v}</div>${d?`<div class="d">${d}</div>`:''}</div>`; }
-function bar(frac,ok){ const w=Math.max(0,Math.min(1,frac||0))*100; return `<div class="bar ${ok?'ok':''}"><i style="width:${w}%"></i></div>`; }
-function foto(p){ return p.foto?`<img class="thumb" loading="lazy" src="${esc(p.foto)}" onerror="this.outerHTML='<div class=ph>foto</div>'">`:'<div class="ph">sem foto</div>'; }
-
-function vPainel(){
-  const L=filtrados(); const t=totais(L); const D=S.dados;
-  const periodo = D.diasCobertos ? `Vendas importadas: ${fN(D.diasCobertos)} dia(s), de ${dfmt(D.primeiroDia)} a ${dfmt(D.ultimoDia)}` : 'Nenhum relatório de vendas importado ainda';
-  // por importadora
-  const imps={}; L.filter(p=>p.temCompra).forEach(p=>{ const k=p.imps.length===1?p.imps[0]:p.imps[0]; const o=imps[k]||(imps[k]={inv:0,rec:0}); o.inv+=p.investido; o.rec+=p.receita; });
-  const ordem=Object.entries(imps).sort((a,b)=>b[1].inv-a[1].inv).slice(0,12); const max=Math.max(1,...ordem.map(e=>Math.max(e[1].inv,e[1].rec)));
-  const top=L.filter(p=>p.temCompra&&p.vendido>0).sort((a,b)=>(b.retornoMes||0)-(a.retornoMes||0)).slice(0,8);
-  const repor=L.filter(p=>p.status.t==='REPOR JÁ').sort((a,b)=>a.cobertura-b.cobertura).slice(0,8);
-  const parados=L.filter(p=>p.status.t==='Parado').sort((a,b)=>b.investido-a.investido).slice(0,8);
-  const mini=(arr,col)=>arr.length?`<table><tbody>${arr.map(p=>`<tr class="clk" onclick="abrirProduto('${esc(p.k)}')"><td>${foto(p)}</td><td><b>${esc(p.codigo)}</b><div class="small muted" style="white-space:normal">${esc(p.descricao).substr(0,60)}</div></td><td class="n">${col(p)}</td></tr>`).join('')}</tbody></table>`:'<p class="muted small">Nada por aqui.</p>';
-  const aviso = D.diasCobertos && D.diasCobertos<7 ? `<div class="card" style="background:var(--warn-soft);border-color:transparent;color:var(--warn);margin-bottom:14px"><b>Poucos dias de vendas importados (${D.diasCobertos}).</b> As projeções de dias para recuperar e retorno/mês ficam mais confiáveis com pelo menos 2 a 4 semanas de relatórios.</div>` : '';
-  return `<h2>Painel</h2><p class="sub">${periodo}. Recuperação calculada com as vendas a partir da 1ª compra de cada produto.</p>${aviso}
-  <div class="grid kpis">
-    ${kpi('Investido (custo)',fR(t.investido),`${fN(t.comprado)} peças compradas`)}
-    ${kpi('Recuperado',fR(t.receita),`${fP(t.recuperado)} do investido`, t.recuperado>=1?'ok':'')}
-    ${kpi('Tempo p/ recuperar',fD(t.diasRecuperar),isNaN(t.diasRestantes)?'sem vendas':(t.diasRestantes<=0?'investimento já recuperado':'faltam '+fD(t.diasRestantes)))}
-    ${kpi('Vendido',fN(t.vendido)+' pç',`${fP(t.comprado?t.vendido/t.comprado:NaN)} do comprado`)}
-    ${kpi('Estoque nas lojas',fN(t.estoque)+' pç',`${fR(t.valorEstoque)} a custo`)}
-    ${kpi('Lucro bruto',fR(t.lucroBruto),`margem ${fP(t.margem)}`, t.lucroBruto>=0?'ok':'bad')}
-  </div>
-  <div class="grid two">
-    <div class="card"><b>Investido × recuperado por importadora</b>
-      ${ordem.length?ordem.map(([k,o])=>`<div class="hbar"><span title="${esc(k)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(k)}</span><div class="tr"><i style="width:${o.inv/max*100}%"></i><b style="width:${o.rec/max*100}%"></b></div><span class="n small">${fP(o.inv?o.rec/o.inv:NaN)} · ${fR(o.inv)}</span></div>`).join(''):'<p class="muted small">Importe notas de compra para ver.</p>'}
-      <div class="legend"><span><i style="background:var(--line)"></i>investido</span><span><i style="background:var(--acc)"></i>recuperado</span></div></div>
-    <div class="card"><b>Mais vantajosos para comprar</b><div class="small muted">lucro bruto em 30 dias ÷ valor investido</div>${mini(top,p=>`<span class="tag t-ok">${fP(p.retornoMes)}/mês</span><div class="small muted">recupera em ${fD(p.diasRecuperar)}</div>`)}</div>
-    <div class="card"><b>Repor já</b><div class="small muted">vendeu 40%+ do comprado, e estoque para menos de 15 dias</div>${mini(repor,p=>`<b>${fN(Math.max(0,p.estoque))} pç</b><div class="small muted">${fD(p.cobertura)} de estoque</div>`)}</div>
-    <div class="card"><b>Parados</b><div class="small muted">comprados e sem venda há 7+ dias de relatório</div>${mini(parados,p=>`<b>${fR(p.investido)}</b><div class="small muted">${fN(p.comprado)} pç</div>`)}</div>
-  </div>`;
-}
-
-const COLS_PROD = [
-  {k:'foto',l:'',f:p=>foto(p),ns:1},
-  {k:'codigo',l:'Código',f:p=>`<b>${esc(p.codigo)}</b>`},
-  {k:'descricao',l:'Produto',f:p=>esc(p.descricao),c:'desc'},
-  {k:'imps',l:'Importadora',f:p=>`<span style="display:inline-block;max-width:200px;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom" title="${esc(p.imps.join(', '))}">${esc(p.imps.join(', '))}</span>`,s:p=>p.imps.join(',')},
-  {k:'comprado',l:'Comprado',n:1,f:p=>fN(p.comprado)},
-  {k:'custoMedio',l:'Custo un.',n:1,f:p=>fR(p.custoMedio)},
-  {k:'investido',l:'Investido',n:1,f:p=>fR(p.investido)},
-  {k:'vendido',l:'Vendido',n:1,f:p=>fN(p.vendido)},
-  {k:'precoMedio',l:'Preço médio',n:1,f:p=>fR(p.precoMedio)},
-  {k:'markup',l:'Markup',n:1,f:p=>isNaN(p.markup)?'—':fN(p.markup,2)+'x'},
-  {k:'receita',l:'Recuperado',n:1,f:p=>fR(p.receita)},
-  {k:'recuperado',l:'% recup.',n:1,f:p=>`<div style="display:flex;gap:6px;align-items:center;justify-content:flex-end">${fP(p.recuperado)}${bar(p.recuperado,p.recuperado>=1)}</div>`},
-  {k:'estoque',l:'Estoque',n:1,f:p=>`<span class="${p.estoque<0?'bad':''}">${fN(p.estoque)}</span>`},
-  {k:'vendaDia',l:'Venda/dia',n:1,f:p=>fN(p.vendaDia,1)},
-  {k:'cobertura',l:'Estoque p/',n:1,f:p=>fD(p.cobertura)},
-  {k:'diasRecuperar',l:'Dias p/ recuperar',n:1,f:p=>fD(p.diasRecuperar)},
-  {k:'diasRestantes',l:'Faltam',n:1,f:p=>p.recuperado>=1?'<span class="ok">recuperado</span>':fD(p.diasRestantes)},
-  {k:'status',l:'Situação',f:p=>`<span class="tag ${p.status.c}">${p.status.t}</span>`,s:p=>p.status.o}
-];
-function ordenar(L,view,def){
-  const s=S.sort[view]||def; const col=COLS_PROD.find(c=>c.k===s.k)||{k:s.k};
-  const val=p=>{ const v=col.s?col.s(p):p[s.k]; return (typeof v==='number'&&isNaN(v))?null:v; };
-  return L.slice().sort((a,b)=>{ const x=val(a),y=val(b); if(x==null&&y==null) return 0; if(x==null) return 1; if(y==null) return -1;
-    return (typeof x==='string'? x.localeCompare(y,'pt-BR') : x-y) * s.d; });
-}
-function setSort(view,k){ const s=S.sort[view]; S.sort[view] = (s&&s.k===k)? {k,d:-s.d} : {k,d:(['codigo','descricao','imps','status','diasRecuperar','diasRestantes','cobertura'].includes(k)?1:-1)}; render(); }
-function tabelaProdutos(L,view,cols){
-  const s=S.sort[view]||{};
-  return `<div class="tw" style="max-height:72vh"><table><thead><tr>${cols.map(c=>`<th class="${c.n?'n':''}" ${c.ns?'':`onclick="setSort('${view}','${c.k}')"`}>${c.l}${s.k===c.k?(s.d>0?' ▲':' ▼'):''}</th>`).join('')}</tr></thead>
-  <tbody>${L.slice(0,1500).map(p=>`<tr class="clk" onclick="abrirProduto('${esc(p.k).replace(/'/g,"\\'")}')">${cols.map(c=>`<td class="${c.n?'n':''} ${c.c||''}">${c.f(p)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
-  ${L.length>1500?`<p class="small muted">Mostrando 1.500 de ${fN(L.length)} — use a busca para refinar.</p>`:''}`;
-}
-function vProdutos(){
-  const L=ordenar(filtrados(),'produtos',{k:'investido',d:-1}); const t=totais(L);
-  return `<div class="toolbar"><div><h2>Produtos</h2><p class="sub" style="margin:0">${fN(L.length)} produtos · investido ${fR(t.investido)} · recuperado ${fR(t.receita)} (${fP(t.recuperado)}) · estoque ${fN(t.estoque)} pç</p></div><div class="sp"></div>
-  <button class="btn sec" onclick="exportarProdutos()">Exportar Excel</button></div>${tabelaProdutos(L,'produtos',COLS_PROD)}`;
-}
-function vRanking(){
-  const L=ordenar(filtrados().filter(p=>p.temCompra),'ranking',{k:'retornoMes',d:-1});
-  const cols=[{k:'pos',l:'#',f:p=>L.indexOf(p)+1,ns:1}, ...COLS_PROD.filter(c=>['foto','codigo','descricao','imps'].includes(c.k)),
-    {k:'retornoMes',l:'Retorno/mês',n:1,f:p=>`<b>${fP(p.retornoMes)}</b>`},
-    {k:'lucroBrutoDia',l:'Lucro bruto/dia',n:1,f:p=>fR(p.lucroBrutoDia)},
-    COLS_PROD.find(c=>c.k==='markup'), {k:'giro',l:'% vendido',n:1,f:p=>fP(p.giro)},
-    COLS_PROD.find(c=>c.k==='diasRecuperar'), COLS_PROD.find(c=>c.k==='cobertura'), COLS_PROD.find(c=>c.k==='status')];
-  return `<h2>Mais vantajosos para comprar</h2><p class="sub">Ordenado por <b>retorno ao mês</b>: quanto o produto devolve de lucro bruto em 30 dias para cada R$ investido nele. Combina margem (markup) e velocidade de venda. “Dias p/ recuperar” é o tempo para a venda cobrir o custo da mercadoria.</p>${tabelaProdutos(L,'ranking',cols)}`;
-}
-function vImportadoras(){
-  const imps={}; filtrados().filter(p=>p.temCompra).forEach(p=>p.imps.forEach(i=>{ const o=imps[i]||(imps[i]={nome:i,prods:[],notas:new Set()}); o.prods.push(p); }));
-  (S.dados.notas||[]).forEach(n=>{ const o=imps[n.IMPORTADORA]; if(o) o.notas.add(n.ID); });
-  const rows=Object.values(imps).map(o=>{ const t=totais(o.prods); return {...o,t}; }).sort((a,b)=>b.t.investido-a.t.investido);
-  return `<h2>Importadoras</h2><p class="sub">Resultado por fornecedor (produtos comprados de mais de uma importadora aparecem em ambas).</p>
-  <div class="tw"><table><thead><tr><th>Importadora</th><th class="n">Notas</th><th class="n">Produtos</th><th class="n">Investido</th><th class="n">Peças</th><th class="n">Vendido</th><th class="n">Recuperado</th><th class="n">%</th><th class="n">Dias p/ recuperar</th><th class="n">Estoque</th><th class="n">Lucro bruto</th><th class="n">Margem</th><th></th></tr></thead>
-  <tbody>${rows.map(r=>`<tr><td><b>${esc(r.nome)}</b></td><td class="n">${r.notas.size}</td><td class="n">${r.prods.length}</td><td class="n">${fR(r.t.investido)}</td><td class="n">${fN(r.t.comprado)}</td><td class="n">${fN(r.t.vendido)}</td><td class="n">${fR(r.t.receita)}</td><td class="n">${fP(r.t.recuperado)}</td><td class="n">${fD(r.t.diasRecuperar)}</td><td class="n">${fN(r.t.estoque)}</td><td class="n">${fR(r.t.lucroBruto)}</td><td class="n">${fP(r.t.margem)}</td>
-  <td><button class="btn ghost" onclick="document.getElementById('fImp').value='${esc(r.nome).replace(/'/g,"\\'")}';irPara('produtos')">ver produtos →</button></td></tr>`).join('')||'<tr><td colspan="13" class="muted">Sem compras importadas.</td></tr>'}</tbody></table></div>`;
-}
-function vNotas(){
-  const imp=document.getElementById('fImp').value; const q=up(document.getElementById('fBusca').value);
-  let N=(S.dados.notas||[]).filter(n=>(!imp||n.IMPORTADORA===imp) && (!q || up(n.NUMERO).includes(q)||up(n.IMPORTADORA).includes(q)||(S.dados.compras||[]).some(c=>c.NOTA_ID===n.ID&&(up(c.CODIGO).includes(q)||up(c.DESCRICAO).includes(q)))));
-  N=N.sort((a,b)=>dnum(b.DATA_EMISSAO)-dnum(a.DATA_EMISSAO));
-  const tot=N.reduce((s,n)=>s+(+n.CUSTO_TOTAL||0),0);
-  return subImp('notas')+`<div class="toolbar"><div><h2>Notas de compra</h2><p class="sub" style="margin:0">${N.length} notas · custo total ${fR(tot)}</p></div><div class="sp"></div><button class="btn" onclick="irPara('importar')">+ Importar notas</button></div>
-  <div class="tw"><table><thead><tr><th>Emissão</th><th>NF</th><th>Importadora</th><th class="n">Itens</th><th class="n">Peças</th><th class="n">Produtos</th><th class="n">IPI</th><th class="n">Total NF</th><th class="n">Custo lançado</th><th>Origem</th><th>Importada</th><th></th></tr></thead>
-  <tbody>${N.map(n=>`<tr class="clk" onclick="abrirNota('${n.ID}')"><td>${esc(n.DATA_EMISSAO)}</td><td><b>${esc(n.NUMERO)}</b></td><td>${esc(n.IMPORTADORA)}</td><td class="n">${n.QTD_ITENS}</td><td class="n">${fN(+n.QTD_PECAS)}</td><td class="n">${fR(+n.VALOR_PRODUTOS)}</td><td class="n">${fR(+n.VALOR_IPI)}</td><td class="n">${fR(+n.VALOR_TOTAL)}</td><td class="n"><b>${fR(+n.CUSTO_TOTAL)}</b></td><td><span class="tag t-mut">${esc(n.ORIGEM)}</span></td><td class="small muted">${esc(n.IMPORTADO_EM)}<br>${esc(n.USUARIO)}</td>
-  <td>${n.ARQUIVO_URL?`<a href="${esc(n.ARQUIVO_URL)}" target="_blank" onclick="event.stopPropagation()">arquivo</a>`:''}</td></tr>`).join('')||'<tr><td colspan="12" class="muted">Nenhuma nota importada.</td></tr>'}</tbody></table></div>`;
-}
-function vRelatorios(){
-  const R=(S.dados.relatorios||[]).slice().sort((a,b)=>dnum(b.DATA_FINAL)-dnum(a.DATA_FINAL));
-  return subImp('relatorios')+`<div class="toolbar"><div><h2>Relatórios de venda</h2><p class="sub" style="margin:0">${R.length} relatórios · ${fN(S.dados.diasCobertos)} dias cobertos. Importe um relatório por dia (ou por período) — o sistema avisa se o período já foi importado.</p></div><div class="sp"></div><button class="btn" onclick="irPara('importar')">+ Importar vendas</button></div>
-  <div class="tw"><table><thead><tr><th>Período</th><th>Filial</th><th class="n">Linhas</th><th class="n">Peças</th><th class="n">Valor</th><th>Arquivo</th><th>Importado</th><th></th></tr></thead>
-  <tbody>${R.map(r=>`<tr><td><b>${esc(r.DATA_INICIAL)}${r.DATA_FINAL!==r.DATA_INICIAL?' a '+esc(r.DATA_FINAL):''}</b></td><td>${esc(r.FILIAL)}</td><td class="n">${fN(+r.QTD_LINHAS)}</td><td class="n">${fN(+r.QTD_TOTAL)}</td><td class="n">${fR(+r.VALOR_TOTAL)}</td><td class="small">${esc(r.ARQUIVO)}</td><td class="small muted">${esc(r.IMPORTADO_EM)} · ${esc(r.USUARIO)}</td>
-  <td><button class="btn danger" onclick="excluirRelatorio('${r.ID}','${esc(r.DATA_INICIAL)}')">Excluir</button></td></tr>`).join('')||'<tr><td colspan="8" class="muted">Nenhum relatório importado.</td></tr>'}</tbody></table></div>`;
-}
-
 /* =================== MODAIS =================== */
 function modal(html){ fecharModal(); const d=document.createElement('div'); d.className='mbg'; d.innerHTML=`<div class="modal">${html}</div>`; d.addEventListener('mousedown',e=>{ if(e.target===d) fecharModal(); }); document.body.appendChild(d); setTimeout(()=>ajustarTabelas(d),0); return d; }
 function fecharModal(){ document.querySelectorAll('.mbg').forEach(m=>m.remove()); }
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') fecharModal(); });
 
-function abrirProduto(k){
-  const p=P.find(x=>x.k===k); if(!p) return;
-  const li=(l,v)=>`<div><div class="small muted">${l}</div><div style="font-weight:700;font-variant-numeric:tabular-nums">${v}</div></div>`;
-  modal(`<div class="mh"><h3>${esc(p.codigo)} · ${esc(p.descricao)}</h3><span class="tag ${p.status.c}">${p.status.t}</span><button class="btn ghost" onclick="fecharModal()">✕</button></div>
-  <div style="display:flex;gap:18px;flex-wrap:wrap">
-    <div><div id="pFoto">${p.foto?`<img class="pfoto" src="${esc(p.foto)}">`:'<div class="pfoto">sem foto</div>'}</div>
-      <label class="btn sec" style="display:block;text-align:center;margin-top:8px">${p.foto?'Trocar foto':'Adicionar foto'}<input type="file" accept="image/*" class="hide" onchange="enviarFoto('${esc(p.k)}',this)"></label></div>
-    <div style="flex:1;min-width:280px">
-      <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:14px">
-        ${li('Importadora(s)',esc(p.imps.join(', ')||'—'))}${li('Comprado',fN(p.comprado)+' pç')}${li('Custo médio un.',fR(p.custoMedio))}${li('Último custo un.',fR(p.ultimoCustoUnit))}
-        ${li('Investido',fR(p.investido))}${li('Vendido (desde a compra)',fN(p.vendido)+' pç')}${li('Preço médio de venda',fR(p.precoMedio))}${li('Markup',isNaN(p.markup)?'—':fN(p.markup,2)+'x')}
-        ${li('Recuperado',fR(p.receita)+' · '+fP(p.recuperado))}${li('Dias p/ recuperar',fD(p.diasRecuperar))}${li('Faltam',p.recuperado>=1?'recuperado ✓':fD(p.diasRestantes))}${li('Retorno/mês',fP(p.retornoMes))}
-        ${li('Estoque nas lojas',fN(p.estoque)+' pç')}${li('Venda por dia',fN(p.vendaDia,2)+' pç')}${li('Estoque dura',fD(p.cobertura))}${li('Dias de venda considerados',fN(p.diasCob))}
-        ${li('1ª compra',dfmt(p.primeiraCompra))}${li('Vendido total (todos relat.)',fN(p.vendidoTotal)+' pç · '+fR(p.receitaTotal))}
-      </div>
-      <div class="row" style="margin-top:16px">
-        <div class="fld">Estoque inicial (antes das NFs)<input id="pEi" type="number" step="1" value="${p.estoqueInicial}" style="width:150px"></div>
-        <div class="fld">Ajuste de estoque (+/−)<input id="pAj" type="number" step="1" value="${p.ajuste}" style="width:150px"></div>
-        <div class="fld">Preço de venda cadastrado<input id="pPv" type="number" step="0.01" value="${p.precoCad||''}" style="width:150px"></div>
-        <div class="fld" style="flex:1;min-width:200px">Observação<input id="pObs" value="${esc(p.obs)}"></div>
-        <button class="btn" onclick="salvarProduto('${esc(p.k)}')">Salvar</button>
-      </div>
-    </div>
-  </div>
-  <div class="grid two" style="margin-top:18px">
-    <div><b>Compras</b><div class="tw" style="max-height:260px;margin-top:6px"><table><thead><tr><th>Data</th><th>NF</th><th>Importadora</th><th class="n">Qtd</th><th class="n">V. un. NF</th><th class="n">Custo un.</th><th class="n">Custo total</th></tr></thead><tbody>
-      ${p.notas.sort((a,b)=>dnum(b.data)-dnum(a.data)).map(n=>`<tr><td>${esc(n.data)}</td><td>${esc(n.nf)}</td><td>${esc(n.imp)}</td><td class="n">${fN(n.q)}</td><td class="n">${fR(n.vu)}</td><td class="n">${fR(n.cu)}</td><td class="n">${fR(n.ct)}</td></tr>`).join('')||'<tr><td colspan="7" class="muted">Sem compras no sistema.</td></tr>'}</tbody></table></div></div>
-    <div><b>Vendas por relatório</b><div class="tw" id="pVendas" style="max-height:260px;margin-top:6px"><p class="muted small" style="padding:10px">Carregando…</p></div></div>
-  </div>`);
-  api('vendasProduto',{codigo:p.codigo}).then(v=>{ const el=document.getElementById('pVendas'); if(!el) return;
-    v.sort((a,b)=>dnum(b.df)-dnum(a.df));
-    el.innerHTML=`<table><thead><tr><th>Período</th><th>Filial</th><th class="n">Qtd</th><th class="n">Valor</th></tr></thead><tbody>${v.map(x=>`<tr><td>${esc(x.di)}${x.df!==x.di?' a '+esc(x.df):''}</td><td>${esc(x.filial)}</td><td class="n">${fN(+x.q)}</td><td class="n">${fR(+x.v)}</td></tr>`).join('')||'<tr><td colspan="4" class="muted">Sem vendas.</td></tr>'}</tbody></table>`; }).catch(()=>{});
-}
-async function salvarProduto(k){
-  const p=P.find(x=>x.k===k);
-  try{ await api('salvarProduto',{codigo:p.codigo,descricao:p.descricao,importadora:p.imps[0]||'',estoqueInicial:+document.getElementById('pEi').value||0,ajusteEstoque:+document.getElementById('pAj').value||0,precoVenda:+document.getElementById('pPv').value||0,obs:document.getElementById('pObs').value});
-    toast('Produto salvo'); fecharModal(); carregar(); }catch(e){ toast('Erro: '+e.message,5000); }
-}
-async function enviarFoto(k,inp){
-  const p=P.find(x=>x.k===k); const f=inp.files[0]; if(!f) return;
-  try{ toast('Enviando foto…'); const b64=await redimensionar(f,1000);
-    const r=await api('uploadFoto',{codigo:p.codigo,descricao:p.descricao,base64:b64,mime:'image/jpeg'});
-    p.foto=r.fotoUrl; document.getElementById('pFoto').innerHTML=`<img class="pfoto" src="${esc(r.fotoUrl)}">`; toast('Foto salva no Google Drive'); render(); }
-  catch(e){ toast('Erro na foto: '+e.message,5000); }
-}
-function redimensionar(file,max){ return new Promise((res,rej)=>{ const img=new Image(); const u=URL.createObjectURL(file);
-  img.onload=()=>{ let w=img.width,h=img.height; const s=Math.min(1,max/Math.max(w,h)); w=Math.round(w*s); h=Math.round(h*s);
-    const c=document.createElement('canvas'); c.width=w; c.height=h; c.getContext('2d').drawImage(img,0,0,w,h); URL.revokeObjectURL(u); res(c.toDataURL('image/jpeg',0.85).split(',')[1]); };
-  img.onerror=rej; img.src=u; }); }
-
-function abrirNota(id){
-  const n=(S.dados.notas||[]).find(x=>x.ID===id); const itens=(S.dados.compras||[]).filter(c=>c.NOTA_ID===id);
-  modal(`<div class="mh"><h3>NF ${esc(n.NUMERO)} · ${esc(n.IMPORTADORA)}</h3><button class="btn danger" onclick="excluirNota('${id}')">Excluir nota</button><button class="btn ghost" onclick="fecharModal()">✕</button></div>
-  <p class="muted small">Emissão ${esc(n.DATA_EMISSAO)} · CNPJ ${esc(n.CNPJ)} · Chave ${esc(n.CHAVE)} · Total NF ${fR(+n.VALOR_TOTAL)} · IPI ${fR(+n.VALOR_IPI)} · Frete ${fR(+n.VALOR_FRETE)}</p>
-  <div class="tw" style="max-height:60vh"><table><thead><tr><th>Código</th><th>Produto</th><th>NCM</th><th class="n">Qtd</th><th class="n">V. unit</th><th class="n">V. total</th><th class="n">IPI</th><th class="n">Rateio</th><th class="n">Custo un.</th><th class="n">Custo total</th></tr></thead>
-  <tbody>${itens.map(c=>`<tr class="clk" onclick="abrirProduto('${esc(up(c.CODIGO))}')"><td><b>${esc(c.CODIGO)}</b></td><td class="desc">${esc(c.DESCRICAO)}</td><td>${esc(c.NCM)}</td><td class="n">${fN(+c.QUANTIDADE)}</td><td class="n">${fR(+c.VALOR_UNIT)}</td><td class="n">${fR(+c.VALOR_TOTAL)}</td><td class="n">${fR(+c.VALOR_IPI)}</td><td class="n">${fR(+c.RATEIO_DESPESAS)}</td><td class="n"><b>${fR(+c.CUSTO_UNIT)}</b></td><td class="n">${fR(+c.CUSTO_TOTAL)}</td></tr>`).join('')}</tbody></table></div>`);
-}
-async function excluirNota(id){ if(!confirm('Excluir esta nota e todos os itens dela?')) return; try{ await api('excluirNota',{id}); toast('Nota excluída'); fecharModal(); carregar(); }catch(e){ toast('Erro: '+e.message,5000); } }
-async function excluirRelatorio(id,d){ if(!confirm('Excluir o relatório de vendas de '+d+'?')) return; try{ await api('excluirRelatorio',{id}); toast('Relatório excluído'); carregar(); }catch(e){ toast('Erro: '+e.message,5000); } }
-
-function exportarProdutos(){
-  const L=ordenar(filtrados(),'produtos',{k:'investido',d:-1});
-  const rows=L.map(p=>({'Código':p.codigo,'Produto':p.descricao,'Importadora':p.imps.join(', '),'Comprado':p.comprado,'Custo médio un.':+p.custoMedio.toFixed(4),'Investido':+p.investido.toFixed(2),'Vendido':p.vendido,'Preço médio venda':+(p.precoMedio||0).toFixed(2),'Markup':isNaN(p.markup)?'':+p.markup.toFixed(2),'Recuperado':+p.receita.toFixed(2),'% recuperado':isNaN(p.recuperado)?'':+p.recuperado.toFixed(4),'Estoque':p.estoque,'Valor estoque (custo)':+p.valorEstoque.toFixed(2),'Venda/dia':+p.vendaDia.toFixed(2),'Estoque dura (dias)':isNaN(p.cobertura)?'':Math.ceil(p.cobertura),'Dias p/ recuperar':isNaN(p.diasRecuperar)?'':Math.ceil(p.diasRecuperar),'Faltam (dias)':isNaN(p.diasRestantes)?'':Math.ceil(p.diasRestantes),'Retorno/mês':isNaN(p.retornoMes)?'':+p.retornoMes.toFixed(4),'Situação':p.status.t,'Foto':p.foto}));
-  const ws=XLSX.utils.json_to_sheet(rows); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Produtos'); XLSX.writeFile(wb,'miashop-compras-'+hojeBR().replace(/\//g,'-')+'.xlsx');
-}
-
-/* =================== IMPORTAÇÃO =================== */
-function subImp(at){ const b=(v,l)=>`<button class="${v===at?'on':''}" onclick="irPara('${v}')">${l}</button>`;
-  return `<div class="seg">${b('importar','Importar arquivos')}${b('notas','Notas de compra')}${b('relatorios','Relatórios de venda')}</div>`; }
-function vImportar(){
-  return subImp('importar')+`<h2>Importar</h2><p class="sub">Arraste vários arquivos de uma vez. Confira a prévia antes de salvar — tudo pode ser editado.</p>
-  <div class="grid two">
-    <div><div class="drop" id="dropNF"><b>Notas fiscais de compra</b><small>PDF (DANFE), XML da NF-e ou Excel/CSV<br>Puxa código, nome, quantidade, custo e importadora</small><input type="file" id="inNF" multiple accept=".pdf,.xml,.xlsx,.xls,.csv" class="hide"></div></div>
-    <div><div class="drop" id="dropVD"><b>Relatório de vendas</b><small>PDF do Shop Control (Vendas - Normal) ou Excel/CSV<br>Puxa código, nome, quantidade vendida e valor</small><input type="file" id="inVD" multiple accept=".pdf,.xlsx,.xls,.csv" class="hide"></div></div>
-  </div>
-  <div class="card" style="margin-top:12px"><b>Como o custo é calculado</b><div class="small muted" style="margin-top:4px">Custo un. = (valor do item + IPI do item + rateio de frete/seguro/outras − desconto, proporcional ao valor) ÷ quantidade. Dá para desligar IPI ou rateio na prévia de cada nota.</div></div>
-  <div id="fila" style="margin-top:16px"></div>`;
-}
-function ligarImportar(){
-  [['dropNF','inNF','nf'],['dropVD','inVD','vd']].forEach(([d,i,t])=>{ const D=document.getElementById(d), I=document.getElementById(i);
-    D.onclick=()=>I.click(); I.onchange=()=>{ lerArquivos([...I.files],t); I.value=''; };
-    D.ondragover=e=>{e.preventDefault();D.classList.add('over');}; D.ondragleave=()=>D.classList.remove('over');
-    D.ondrop=e=>{e.preventDefault();D.classList.remove('over');lerArquivos([...e.dataTransfer.files],t);}; });
-  desenharFila();
-}
-async function lerArquivos(files,tipo){
-  for(const f of files){
-    try{
-      const ext=f.name.split('.').pop().toLowerCase(); let itens=[];
-      if(ext==='pdf'){ const it=await itensPDF(f); const txt=it.map(i=>i.s).join(' ');
-        if(/DANFE|NF-e|NOTA FISCAL/i.test(txt) && !/Vendas\s*-\s*Normal/i.test(txt)){ const nf=parseDanfe(it); nf.origem='PDF'; nf.arquivo=f; adicionarNota(nf,f.name); }
-        else { const r=parseVendas(it); r.arquivo=f.name; adicionarVenda(r); } }
-      else if(ext==='xml'){ const nf=parseNFeXML(await f.text()); nf.origem='XML'; nf.arquivo=f; adicionarNota(nf,f.name); }
-      else { const rows=await linhasXLSX(f); const r=linhasPlanilha(rows);
-        if(r.header<0) throw new Error('não achei a coluna de código. O cabeçalho precisa ter "Código"');
-        if(tipo==='nf'){ const grupos={}; r.linhas.forEach(l=>{ const g=(l.numero||'')+'|'+(l.importadora||''); (grupos[g]=grupos[g]||[]).push(l); });
-          Object.values(grupos).forEach(g=>{ const a=g[0]; adicionarNota({numero:a.numero?String(a.numero):'',serie:'',chave:'',dataEmissao:dataExcel(a.dataEmissao)||hojeBR(),importadora:a.importadora||'',cnpj:'',valorFrete:0,valorOutras:0,valorSeguro:0,valorDesconto:0,origem:'EXCEL',
-            itens:g.map(l=>{ const q=+l.quantidade||0; const vu=l.valorUnit!=null?+l.valorUnit:(q?(+l.valorTotal||0)/q:0); return {codigo:l.codigo,descricao:l.descricao||'',ncm:l.ncm||'',unidade:'',quantidade:q,valorUnit:vu,valorTotal:l.valorTotal!=null&&l.valorUnit!=null?+l.valorTotal:vu*q,valorIPI:+l.valorIPI||0}; })},f.name); }); }
-        else adicionarVenda({dataInicial:hojeBR(),dataFinal:hojeBR(),filial:'Todas',empresa:'Miashop',arquivo:f.name,itens:r.linhas.map(l=>({codigo:l.codigo,descricao:l.descricao||'',quantidade:+l.quantidade||0,valor:l.valorTotal!=null?+l.valorTotal:(+l.valorUnit||0)*(+l.quantidade||0)}))}); }
-    }catch(e){ toast(f.name+': '+e.message,6000); console.error(e); }
-  }
-  desenharFila();
-}
+/* =================== UTILITÁRIOS DE ARQUIVO =================== */
 function dataExcel(v){ if(v==null||v==='') return ''; if(typeof v==='number'){ const d=new Date(Math.round((v-25569)*864e5)); return String(d.getUTCDate()).padStart(2,'0')+'/'+String(d.getUTCMonth()+1).padStart(2,'0')+'/'+d.getUTCFullYear(); } const m=String(v).match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/); if(m) return m[1].padStart(2,'0')+'/'+m[2].padStart(2,'0')+'/'+(m[3].length===2?'20'+m[3]:m[3]); return String(v); }
-async function itensPDF(f){
-  if(!window.pdfjsLib) throw new Error('leitor de PDF não carregou (verifique a internet)');
-  const doc=await pdfjsLib.getDocument({data:new Uint8Array(await f.arrayBuffer())}).promise; const out=[];
-  for(let p=1;p<=doc.numPages;p++){ const tc=await (await doc.getPage(p)).getTextContent(); tc.items.forEach(it=>{ if(it.str&&it.str.trim()) out.push({p,x:it.transform[4],y:it.transform[5],s:it.str.trim()}); }); }
-  if(!out.length) throw new Error('PDF sem texto (escaneado). Use o XML ou Excel da nota.');
-  return out;
-}
 async function linhasXLSX(f){ const wb=XLSX.read(new Uint8Array(await f.arrayBuffer()),{type:'array'}); const ws=wb.Sheets[wb.SheetNames[0]]; return XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''}); }
-
-function adicionarNota(nf,nome){ nf.tipo='nf'; nf.nome=nome; nf.incluirIPI=true; nf.ratear=true; nf.uid=Math.random().toString(36).slice(2);
-  if(!nf.itens||!nf.itens.length) toast(nome+': nenhum item encontrado — confira a prévia',6000);
-  S.fila.push(nf); }
-function adicionarVenda(r){ r.tipo='vd'; r.uid=Math.random().toString(36).slice(2); if(!r.itens.length) toast(r.arquivo+': nenhuma venda encontrada',6000); S.fila.push(r); }
-function custosNota(nf){
-  const desp=(+nf.valorFrete||0)+(+nf.valorOutras||0)+(+nf.valorSeguro||0)-(+nf.valorDesconto||0);
-  const base=nf.itens.reduce((s,i)=>s+(+i.valorTotal||0),0)||1;
-  nf.itens.forEach(i=>{ const vt=+i.valorTotal||0, q=+i.quantidade||0;
-    i.rateio = nf.ratear ? (i.frete!=null||i.outras!=null ? (+i.frete||0)+(+i.outras||0)+(+i.seguro||0)-(+i.desconto||0) : desp*vt/base) : 0;
-    i.custoTotal = vt + (nf.incluirIPI?(+i.valorIPI||0):0) + i.rateio; i.custoUnit = q? i.custoTotal/q : 0; });
-  return nf.itens.reduce((s,i)=>s+i.custoTotal,0);
-}
-function desenharFila(){
-  const el=document.getElementById('fila'); if(!el) return;
-  if(!S.fila.length){ el.innerHTML=''; return; }
-  el.innerHTML = S.fila.map(x=> x.tipo==='nf' ? cardNota(x) : cardVenda(x)).join(''); ajustarTabelas(el);
-}
-function cardNota(nf){
-  const custo=custosNota(nf); const soma=nf.itens.reduce((s,i)=>s+(+i.valorTotal||0),0); const ipi=nf.itens.reduce((s,i)=>s+(+i.valorIPI||0),0);
-  const conf = nf.valorProdutos ? (Math.abs(soma-nf.valorProdutos)<0.05 ? `<span class="tag t-ok">confere com a NF (${fR(nf.valorProdutos)})</span>` : `<span class="tag t-bad">soma ${fR(soma)} ≠ total produtos da NF ${fR(nf.valorProdutos)}</span>`) : '';
-  const u=nf.uid; const inp=(c,v,w,t)=>`<input value="${esc(v)}" style="width:${w||140}px" onchange="editaFila('${u}','${c}',this.value${t?',1':''})">`;
-  return `<div class="card prev" style="margin-bottom:14px">
-  <div class="mh"><h3>Nota de compra · <span class="muted small">${esc(nf.nome)}</span></h3>${conf}<button class="btn ghost" onclick="removerFila('${u}')">descartar</button><button class="btn" onclick="salvarFila('${u}')">Salvar nota</button></div>
-  <div class="row" style="margin-bottom:10px">
-    <div class="fld">Importadora${inp('importadora',nf.importadora,300)}</div><div class="fld">Nº NF${inp('numero',nf.numero,100)}</div><div class="fld">Emissão${inp('dataEmissao',nf.dataEmissao,110)}</div>
-    <div class="fld">Frete${inp('valorFrete',nf.valorFrete||0,90,1)}</div><div class="fld">Outras desp.${inp('valorOutras',nf.valorOutras||0,90,1)}</div><div class="fld">Desconto${inp('valorDesconto',nf.valorDesconto||0,90,1)}</div>
-    <label class="check"><input type="checkbox" ${nf.incluirIPI?'checked':''} onchange="editaFila('${u}','incluirIPI',this.checked)"> somar IPI ao custo</label>
-    <label class="check"><input type="checkbox" ${nf.ratear?'checked':''} onchange="editaFila('${u}','ratear',this.checked)"> ratear frete/despesas</label>
-  </div>
-  <p class="small muted" style="margin:0 0 8px">${nf.itens.length} itens · ${fN(nf.itens.reduce((s,i)=>s+(+i.quantidade||0),0))} peças · produtos ${fR(soma)} · IPI ${fR(ipi)} · <b>custo total ${fR(custo)}</b>${nf.valorTotal?' · total da NF '+fR(nf.valorTotal):''}</p>
-  <div class="tw" style="max-height:380px"><table><thead><tr><th>Código</th><th>Produto</th><th class="n">Qtd</th><th class="n">V. unit</th><th class="n">V. total</th><th class="n">IPI</th><th class="n">Custo un.</th><th></th></tr></thead><tbody>
-  ${nf.itens.map((i,ix)=>`<tr><td><input value="${esc(i.codigo)}" style="width:110px" onchange="editaItem('${u}',${ix},'codigo',this.value)"></td><td><input value="${esc(i.descricao)}" style="min-width:320px" onchange="editaItem('${u}',${ix},'descricao',this.value)"></td>
-  <td class="n"><input class="n" value="${fN(i.quantidade,2)}" onchange="editaItem('${u}',${ix},'quantidade',this.value,1)"></td><td class="n"><input class="n" value="${fN(i.valorUnit,4)}" onchange="editaItem('${u}',${ix},'valorUnit',this.value,1)"></td>
-  <td class="n"><input class="n" value="${fN(i.valorTotal,2)}" onchange="editaItem('${u}',${ix},'valorTotal',this.value,1)"></td><td class="n"><input class="n" value="${fN(i.valorIPI,2)}" onchange="editaItem('${u}',${ix},'valorIPI',this.value,1)"></td>
-  <td class="n"><b>${fR(i.custoUnit)}</b></td><td><button class="btn ghost" onclick="removerItem('${u}',${ix})">✕</button></td></tr>`).join('')}
-  </tbody></table></div><button class="btn sec" style="margin-top:8px" onclick="addItem('${u}')">+ item</button></div>`;
-}
-function cardVenda(r){
-  const q=r.itens.reduce((s,i)=>s+(+i.quantidade||0),0), v=r.itens.reduce((s,i)=>s+(+i.valor||0),0); const u=r.uid;
-  const conf = r.totalValorRel!=null ? (Math.abs(v-r.totalValorRel)<0.05 && Math.abs(q-r.totalQtdRel)<0.01 ? `<span class="tag t-ok">confere com os totais do relatório</span>` : `<span class="tag t-bad">totais do relatório: ${fN(r.totalQtdRel)} pç / ${fR(r.totalValorRel)}</span>`) : '';
-  const inp=(c,val,w)=>`<input value="${esc(val)}" style="width:${w}px" onchange="editaFila('${u}','${c}',this.value)">`;
-  return `<div class="card prev" style="margin-bottom:14px">
-  <div class="mh"><h3>Relatório de vendas · <span class="muted small">${esc(r.arquivo)}</span></h3>${conf}<button class="btn ghost" onclick="removerFila('${u}')">descartar</button><button class="btn" onclick="salvarFila('${u}')">Salvar vendas</button></div>
-  <div class="row" style="margin-bottom:10px"><div class="fld">Data inicial${inp('dataInicial',r.dataInicial,110)}</div><div class="fld">Data final${inp('dataFinal',r.dataFinal,110)}</div><div class="fld">Filial${inp('filial',r.filial,160)}</div></div>
-  <p class="small muted" style="margin:0 0 8px">${fN(r.itens.length)} produtos · ${fN(q)} peças · ${fR(v)}</p>
-  <div class="tw" style="max-height:340px"><table><thead><tr><th>Código</th><th>Produto</th><th class="n">Vendas (qtd)</th><th class="n">Valor</th></tr></thead><tbody>
-  ${r.itens.slice(0,400).map(i=>`<tr><td><b>${esc(i.codigo)}</b></td><td class="desc">${esc(i.descricao)}</td><td class="n">${fN(i.quantidade)}</td><td class="n">${fR(i.valor)}</td></tr>`).join('')}
-  </tbody></table></div>${r.itens.length>400?`<p class="small muted">Prévia dos 400 primeiros; todos os ${fN(r.itens.length)} serão salvos.</p>`:''}</div>`;
-}
-const itemFila=u=>S.fila.find(x=>x.uid===u);
-function editaFila(u,c,v,num){ const x=itemFila(u); x[c]= num? numBR(v) : v; desenharFila(); }
-function editaItem(u,ix,c,v,num){ const x=itemFila(u); const i=x.itens[ix]; i[c]= num? numBR(v) : v;
-  if(c==='quantidade'||c==='valorUnit') i.valorTotal=Math.round(i.quantidade*i.valorUnit*100)/100; if(c==='valorTotal'&&i.quantidade) i.valorUnit=i.valorTotal/i.quantidade; desenharFila(); }
-function removerItem(u,ix){ itemFila(u).itens.splice(ix,1); desenharFila(); }
-function addItem(u){ itemFila(u).itens.push({codigo:'',descricao:'',quantidade:1,valorUnit:0,valorTotal:0,valorIPI:0}); desenharFila(); }
-function removerFila(u){ S.fila=S.fila.filter(x=>x.uid!==u); desenharFila(); }
 function b64Arquivo(f){ return new Promise(res=>{ if(!f||f.size>8e6) return res(null); const r=new FileReader(); r.onload=()=>res(String(r.result).split(',')[1]); r.onerror=()=>res(null); r.readAsDataURL(f); }); }
-async function salvarFila(u, forcar, substituir){
-  const x=itemFila(u); if(!x) return;
-  try{
-    if(x.tipo==='nf'){
-      if(!x.importadora){ toast('Informe a importadora'); return; }
-      const itens=x.itens.filter(i=>String(i.codigo).trim()); if(!itens.length){ toast('Nenhum item com código'); return; }
-      custosNota(x);
-      const arq = x.arquivo instanceof File ? x.arquivo : null;
-      const d={numero:x.numero,serie:x.serie,chave:x.chave,dataEmissao:x.dataEmissao,importadora:x.importadora.trim(),cnpj:x.cnpj,valorProdutos:x.valorProdutos,valorIPI:x.valorIPI,valorFrete:x.valorFrete,valorOutras:x.valorOutras,valorSeguro:x.valorSeguro,valorDesconto:x.valorDesconto,valorTotal:x.valorTotal,origem:x.origem,forcar:!!forcar,
-        itens:itens.map(i=>({codigo:String(i.codigo).trim(),descricao:i.descricao,ncm:i.ncm,unidade:i.unidade,quantidade:i.quantidade,valorUnit:i.valorUnit,valorTotal:i.valorTotal,valorIPI:i.valorIPI,rateio:i.rateio,custoUnit:i.custoUnit,custoTotal:i.custoTotal}))};
-      if(arq){ d.arquivoBase64=await b64Arquivo(arq); d.arquivoNome=arq.name; d.arquivoMime=arq.type||'application/octet-stream'; }
-      const r=await api('salvarNota',d);
-      if(r.duplicada){ if(confirm(`A NF ${r.numero} de ${r.importadora} já foi importada. Importar mesmo assim (duplicar)?`)) return salvarFila(u,true); return; }
-      toast(`NF ${x.numero} salva (${r.itens} itens)`);
-    } else {
-      const d={dataInicial:x.dataInicial,dataFinal:x.dataFinal,filial:x.filial,empresa:x.empresa,arquivo:x.arquivo,forcar:!!forcar,substituir:!!substituir,itens:x.itens.map(i=>({codigo:i.codigo,descricao:i.descricao,quantidade:i.quantidade,valor:i.valor}))};
-      const r=await api('salvarRelatorio',d);
-      if(r.duplicada){ if(confirm(`Já existe relatório de ${r.dataInicial} a ${r.dataFinal} para esta filial. SUBSTITUIR pelo novo? (Cancelar = não salvar)`)) return salvarFila(u,true,true); return; }
-      toast(`Vendas salvas (${fN(r.itens)} linhas)`);
-    }
-    removerFila(u); carregar(true);
-  }catch(e){ toast('Erro ao salvar: '+e.message,6000); }
-}
 
 
 /* =================== PEDIDOS PARA AS FILIAIS =================== */
@@ -1282,7 +960,7 @@ function vLogistica(){
   const f=(lbl,html,cls)=>`<label class="sf ${cls||''}"><span>${lbl}</span>${html}</label>`;
   const F=LG.f;
   return `<div class="slim">
-  <div class="sl-head"><h2>Controle de Logística</h2><span class="muted small">NF × cálculo (NC, X2, X3… ou BONIF) · verde = boletos OK · clique no campo da lista para alterar (salva sozinho)</span><span class="sp"></span><button class="btn sm" onclick="document.getElementById('lgInXls').click()" title="FORNECEDOR | FILIAL | DT CHEGADA | NOTA FISCAL | DT LANÇAMENTO | VALOR NF | CÁLCULO | RECEBIDO | BOLETOS | BOLETOS | OBS">⬆ Importar planilha Excel</button><input type="file" id="lgInXls" accept=".xlsx,.xls,.csv" class="hide" onchange="if(this.files[0]) lgLerPlanilha(this.files[0]); this.value=''"></div>
+  <div class="sl-head"><h2>Controle de Logística</h2><span class="muted small">NF × cálculo (NC, X2, X3… ou BONIF) · verde = boletos OK · clique no campo da lista para alterar (salva sozinho)</span><span class="sp"></span><button class="btn sec sm" onclick="RT.lancId='';document.getElementById('rtIn').click()" title="Anexo 'Rateio de Nota Fiscal por Filial' de uma NF recebida no CD">⇄ Distribuição do CD</button><input type="file" id="rtIn" accept=".pdf,.xlsx,.xls,.csv" class="hide" onchange="if(this.files[0]) rtLerArquivo(this.files[0]); this.value=''"><button class="btn sm" onclick="document.getElementById('lgInXls').click()" title="FORNECEDOR | FILIAL | DT CHEGADA | NOTA FISCAL | DT LANÇAMENTO | VALOR NF | CÁLCULO | RECEBIDO | BOLETOS | BOLETOS | OBS">⬆ Importar planilha Excel</button><input type="file" id="lgInXls" accept=".xlsx,.xls,.csv" class="hide" onchange="if(this.files[0]) lgLerPlanilha(this.files[0]); this.value=''"></div>
   <div class="card sl-form${ed?' sl-edit':''}" id="lgForm">
     ${ed?`<div class="sl-banner">✎ EDITANDO: <b>${esc(r.FORNECEDOR)}</b>${r.NOTA_FISCAL?' · NF '+esc(r.NOTA_FISCAL):''} — altere os campos e clique em <b>Salvar</b></div>`:''}
     ${f('Fornecedor',`<div class="acw"><input id="lgForn" autocomplete="off" value="${esc(r.FORNECEDOR||'')}" placeholder="Digite…"><div class="sugbox"></div></div>`,'w-forn')}
@@ -1347,7 +1025,7 @@ function lgLinha(r){ // cada célula é um campo: clique, digite e saia (Enter/T
     ${r.CALCULO==='BONIF'?'<td class="c" colspan="2"><span class="tag t-ok" title="Bonificado pelo fornecedor: sem boletos">BONIFICADO</span></td>':`<td class="c">${r.CALCULO==='NC'&&!isOK(r.BOLETO_PARTE_ESPECIAL)?'<span class="muted small">—</span>':chip('BOLETO_PARTE_ESPECIAL',isOK(r.BOLETO_PARTE_ESPECIAL),'OK','')}</td>
     <td class="c">${chip('BOLETOS_PARTE_NF',isOK(r.BOLETOS_PARTE_NF),'OK','')}</td>`}
     <td class="lg-obs">${inp('OBS',r.OBS||'','placeholder="—" title="'+esc(r.OBS||'')+'"')}</td>
-    <td class="c"><button class="ib del" title="Excluir lançamento" onclick="lgExcluir(this.closest('tr').dataset.id)">✕</button></td></tr>`;
+    <td class="c" style="white-space:nowrap">${rtBotao(r)}<button class="ib del" title="Excluir lançamento" onclick="lgExcluir(this.closest('tr').dataset.id)">✕</button></td></tr>`;
 }
 function lgRodape(L){
   const t=L.reduce((s,r)=>({n:s.n+1,nf:s.nf+(+r.VALOR_NF||0),c:s.c+(+r.VALOR_CALCULADO||0),ok:s.ok+(lgQuitado(r)?1:0)}),{n:0,nf:0,c:0,ok:0});
@@ -1434,7 +1112,7 @@ const rrNome = n => String(n||'').trim() || '(sem filial)';
 const MESES_ABR=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 function rrMes(r){ const d=isoBR(r.DATA_CHEGADA)||isoBR(r.DATA_LANCAMENTO); return d?d.slice(0,7):''; }
 const rrMesNome = k => k? MESES_ABR[+k.slice(5,7)-1]+'/'+k.slice(2,4) : 'sem data';
-function rrDados(){ const F=RR.f; return (S.dados.logistica||[]).filter(r=>!F.forn || up(r.FORNECEDOR)===up(F.forn)); }
+function rrDados(){ const F=RR.f; return rrExpandir((S.dados.logistica||[]).filter(r=>!F.forn || up(r.FORNECEDOR)===up(F.forn))); }
 function rrColunas(){ // sempre os 12 meses do ano escolhido (padrão: ano atual)
   const a=RR.f.ano||new Date().getFullYear(); return Array.from({length:12},(_,k)=>a+'-'+String(k+1).padStart(2,'0'));
 }
@@ -1470,21 +1148,22 @@ function rrCorpo(){
   const totM={}; let tot=0, n=0; fil.forEach(f=>{ cols.forEach(c=>totM[c]=(totM[c]||0)+(f.m[c]||0)); tot+=f.tot; n+=f.n; });
   const cel=v=>v?fR(v):'<span class="muted">·</span>';
   const qk=x=>esc(x).replace(/'/g,"\\'");
-  const head=`<th>Filial</th>${cols.map(c=>`<th class="n">${rrMesNome(c)}</th>`).join('')}<th class="n">Total</th><th>Filial</th>`;
+  // layout: Filial (à esquerda) | jan | fev | ... | Total — o nome da filial também aparece pequeno em cima de cada valor
+  const head=`<th>Filial</th>${cols.map(c=>`<th class="n">${rrMesNome(c)}</th>`).join('')}<th class="n">Total</th>`;
   // clique num valor → só os lançamentos daquela filial naquele mês · clique no nome/total → todos da filial
   const sel=RR.sel||null;
   const abre=(fil,mes)=>`event.stopPropagation();rrAbrir('${qk(fil)}','${mes}')`;
   const linhas=fil.map(f=>{ const ab=sel&&sel.fil===f.nome;
-    if(!f.n) return `<tr class="rr-vazia"><td><span class="rr-car"></span>${esc(f.nome)}</td>${cols.map(()=>'<td class="n"><span class="muted">·</span></td>').join('')}<td class="n muted">—</td><td class="rr-nd muted">${esc(f.nome)}</td></tr>`;
+    if(!f.n) return `<tr class="rr-vazia"><td><span class="rr-car"></span>${esc(f.nome)}</td>${cols.map(()=>'<td class="n"><span class="muted">·</span></td>').join('')}<td class="n muted">—</td></tr>`;
     const itens=ab? f.itens.filter(r=>sel.mes==='*'||rrMes(r)===sel.mes) : [];
     const totSel=itens.reduce((s,r)=>s+(+r.VALOR_CALCULADO||0),0);
-    return `<tr class="rr-fil${ab?' on':''}"><td class="clk" onclick="${abre(f.nome,'*')}" title="Ver todos os lançamentos da filial"><span class="rr-car">${ab?'▾':'▸'}</span><b>${esc(f.nome)}</b></td>${cols.map(c=>f.m[c]?`<td class="n rr-cel${ab&&sel.mes===c?' sel':''}" onclick="${abre(f.nome,c)}" title="Ver lançamentos de ${esc(f.nome)} em ${rrMesNome(c)}"><span class="rr-fn">${esc(f.nome)}</span>${fR(f.m[c])}</td>`:'<td class="n"><span class="muted">·</span></td>').join('')}<td class="n rr-cel${ab&&sel.mes==='*'?' sel':''}" onclick="${abre(f.nome,'*')}"><span class="rr-fn">${esc(f.nome)}</span><b>${fR(f.tot)}</b></td><td class="rr-nd clk" onclick="${abre(f.nome,'*')}"><b>${esc(f.nome)}</b></td></tr>`
-    + (ab ? `<tr class="rr-sub"><td colspan="${cols.length+3}"><table class="rr-mini"><thead><tr><th>Fornecedor</th><th>NF</th><th>Chegada</th><th class="n">Recebido</th></tr></thead><tbody>
-        ${itens.slice().sort((a,b)=>rrMes(b).localeCompare(rrMes(a))||(isoBR(b.DATA_CHEGADA)||'').localeCompare(isoBR(a.DATA_CHEGADA)||'')).map(r=>`<tr><td>${esc(r.FORNECEDOR)}</td><td>${esc(r.NOTA_FISCAL)||'—'}</td><td>${esc(r.DATA_CHEGADA)||esc(r.DATA_LANCAMENTO)||'—'}</td><td class="n"><b>${fR(+r.VALOR_CALCULADO)}</b></td></tr>`).join('')}
+    return `<tr class="rr-fil${ab?' on':''}"><td class="clk" onclick="${abre(f.nome,'*')}" title="Ver todos os lançamentos da filial"><span class="rr-car">${ab?'▾':'▸'}</span><b>${esc(f.nome)}</b></td>${cols.map(c=>f.m[c]?`<td class="n rr-cel${ab&&sel.mes===c?' sel':''}" onclick="${abre(f.nome,c)}" title="Ver lançamentos de ${esc(f.nome)} em ${rrMesNome(c)}"><span class="rr-fn">${esc(f.nome)}</span>${fR(f.m[c])}</td>`:'<td class="n"><span class="muted">·</span></td>').join('')}<td class="n rr-cel${ab&&sel.mes==='*'?' sel':''}" onclick="${abre(f.nome,'*')}"><span class="rr-fn">${esc(f.nome)}</span><b>${fR(f.tot)}</b></td></tr>`
+    + (ab ? `<tr class="rr-sub"><td colspan="${cols.length+2}"><table class="rr-mini"><thead><tr><th>Fornecedor</th><th>NF</th><th>Chegada</th><th class="n">Recebido</th></tr></thead><tbody>
+        ${itens.slice().sort((a,b)=>rrMes(b).localeCompare(rrMes(a))||(isoBR(b.DATA_CHEGADA)||'').localeCompare(isoBR(a.DATA_CHEGADA)||'')).map(r=>`<tr><td>${esc(r.FORNECEDOR)}${r._viaCD?' <span class="tag t-acc" title="Recebido no CD e distribuído para esta filial">via CD</span>':r._restoCD?' <span class="tag t-mut">não distribuído</span>':''}</td><td>${esc(r.NOTA_FISCAL)||'—'}</td><td>${esc(r.DATA_CHEGADA)||esc(r.DATA_LANCAMENTO)||'—'}</td><td class="n"><b>${fR(+r.VALOR_CALCULADO)}</b></td></tr>`).join('')}
         </tbody><tfoot><tr><td colspan="3">${itens.length} NF(s) · ${esc(f.nome)} · ${sel.mes==='*'?'todo o período':rrMesNome(sel.mes)}</td><td class="n">${fR(totSel)}</td></tr></tfoot></table></td></tr>` : ''); }).join('');
   return `<h3 class="rr-h">Recebimento por filial e mês${RR.f.forn?' · <span style="color:var(--acc-ink)">'+esc(RR.f.forn)+'</span>':''} <span class="muted small">— clique num valor para ver os lançamentos daquele mês · na filial para ver todos</span></h3>
   <div class="tw sl-tab rr-mat"><table><thead><tr>${head}</tr></thead><tbody>${linhas}</tbody>
-    <tfoot><tr><td>TOTAL · ${n} NF(s)</td>${cols.map(c=>`<td class="n">${totM[c]?fR(totM[c]):'—'}</td>`).join('')}<td class="n">${fR(tot)}</td><td>TOTAL</td></tr></tfoot></table></div>`;
+    <tfoot><tr><td>TOTAL · ${n} NF(s)</td>${cols.map(c=>`<td class="n">${totM[c]?fR(totM[c]):'—'}</td>`).join('')}<td class="n">${fR(tot)}</td></tr></tfoot></table></div>`;
 }
 function rrExportar(){
   const L=rrDados(); const cols=rrColunas(); if(L.some(r=>!rrMes(r))) cols.push('');
@@ -1556,6 +1235,105 @@ async function lgConfirmarImport(){
 
 // fecha qualquer lista de sugestões ao clicar fora dela
 document.addEventListener('mousedown',e=>{ if(!e.target.closest('.acw')) document.querySelectorAll('.acw .sugbox').forEach(b=>b.style.display='none'); },true);
+
+/* ---------- Distribuição do CD: anexo de rateio por filial ---------- */
+// Lançamento recebido no CD + anexo "Rateio de Nota Fiscal por Filial" → no Relatório de Recebimento
+// o valor sai do CD e vai para cada filial (valor transferido ÷ valor da NF × valor calculado).
+const isCD = n => { const t=semAcento(n).trim(); return /^CD\b/.test(t) || /CENTRO DE DISTRIBU/.test(t); };
+const RT = { lancId:'', dados:null, arquivo:null };
+const rateioDe = id => (S.dados.rateios||[]).filter(x=>String(x.LANC_ID)===String(id));
+function rtAuto(cod){ // sugere a filial para o código do anexo (ex.: "lon" → Londrina)
+  const c=semAcento(cod).trim(); if(!c) return '';
+  const a=(S.dados.rateioAlias||[]).find(x=>semAcento(x.CODIGO).trim()===c); if(a) return a.FILIAL;
+  const nomes=nomesLog('FILIAL').filter(n=>!isCD(n));
+  return nomes.find(n=>semAcento(n)===c) || (c.length>=3 ? nomes.find(n=>semAcento(n).startsWith(c)) : '') || '';
+}
+function rtBotao(r){
+  if(!isCD(r.FILIAL)) return '';
+  const n=rateioDe(r.ID).length;
+  return `<button class="ib rt-b${n?' on':''}" title="${n?'Distribuído para '+n+' filiais — ver / trocar':'Anexar a distribuição desta NF para as filiais'}" onclick="lgRateio(this.closest('tr').dataset.id)">⇄ ${n?n+' filiais':'Distribuir'}</button>`;
+}
+function lgRateio(id){ // abre a distribuição de um lançamento do CD
+  const r=lgAchar(id); if(!r) return; const ex=rateioDe(id);
+  if(!ex.length){ RT.lancId=id; document.getElementById('rtIn').click(); return; }
+  const tot=ex.reduce((s,x)=>s+(+x.PARTICIPACAO||0),0)||1; // % sempre somam 100% sobre o valor do sistema
+  modal(`<div class="mh"><h3>Distribuição · ${esc(r.FORNECEDOR)}${r.NOTA_FISCAL?' · NF '+esc(r.NOTA_FISCAL):''}</h3><button class="btn ghost" onclick="fecharModal()">✕</button></div>
+  <p class="small muted" style="margin-top:0">Recebido no CD: ${fR(+r.VALOR_NF)} (NF) · ${fR(+r.VALOR_CALCULADO)} calculado (${esc(r.CALCULO)}). No Relatório de Recebimento esse valor (do sistema) é dividido entre as filiais abaixo pelo % do anexo, e o CD fica zerado.</p>
+  <div class="tw sl-tab"><table class="rr-mini" style="width:100%"><thead><tr><th>Filial</th><th>Código no anexo</th><th class="n">Itens</th><th class="n">Valor no anexo</th><th class="n">% da distribuição</th><th class="n">Recebido</th></tr></thead><tbody>
+  ${ex.map(x=>`<tr><td><b>${esc(x.FILIAL)}</b></td><td class="muted">${esc(x.CODIGO_ORIGEM)}</td><td class="n">${fN(+x.ITENS)}</td><td class="n">${fR(+x.VALOR_TRANSFERIDO)}</td><td class="n">${(100*(+x.PARTICIPACAO)/tot).toLocaleString('pt-BR',{maximumFractionDigits:2})}%</td><td class="n"><b>${fR((+x.PARTICIPACAO)/tot*(+r.VALOR_CALCULADO))}</b></td></tr>`).join('')}
+  </tbody></table></div>
+  <div class="row" style="margin-top:12px;justify-content:flex-end">${ex[0]&&ex[0].ARQUIVO_URL?`<a class="btn ghost" href="${esc(ex[0].ARQUIVO_URL)}" target="_blank">Abrir anexo</a>`:''}
+    <button class="btn danger" onclick="rtExcluir('${esc(id)}')">Excluir distribuição</button><button class="btn" onclick="RT.lancId='${esc(id)}';document.getElementById('rtIn').click()">Trocar anexo</button></div>`);
+}
+async function rtExcluir(id){ if(!confirm('Excluir a distribuição? O valor volta a ficar todo no CD.')) return;
+  try{ await api('excluirRateio',{lancId:id}); fecharModal(); toast('Distribuição excluída'); await carregar(true); render(); }catch(e){ toast('Erro: '+e.message,6000); } }
+async function rtLerArquivo(f){ // lê o PDF (ou Excel) de rateio
+  try{
+    let d;
+    if(/\.pdf$/i.test(f.name)){
+      if(!window.pdfjsLib) throw new Error('leitor de PDF não carregou (verifique a internet)');
+      const doc=await pdfjsLib.getDocument({data:new Uint8Array(await f.arrayBuffer())}).promise; const it=[];
+      for(let p=1;p<=doc.numPages;p++){ const tc=await (await doc.getPage(p)).getTextContent(); tc.items.forEach(x=>{ if(x.str&&x.str.trim()) it.push({p,x:x.transform[4],y:x.transform[5],s:x.str.trim()}); }); }
+      d=parseRateio(it);
+    } else {
+      const rows=await linhasXLSX(f); const H=v=>semAcento(v).trim(); const hi=rows.findIndex(r=>(r||[]).some(c=>H(c)==='FILIAL')); if(hi<0) throw new Error('não achei a coluna FILIAL');
+      const h=rows[hi].map(H); const cf=h.indexOf('FILIAL'), cv=h.findIndex(x=>/^VALOR/.test(x)), ci=h.findIndex(x=>/^(ITENS|QTD|QUANT)/.test(x));
+      d={fornecedor:'',nf:'',data:'',total:0,linhas:rows.slice(hi+1).filter(r=>r&&String(r[cf]||'').trim()&&!/^TOTAL/i.test(r[cf])).map(r=>({codigo:String(r[cf]).trim(),valor:typeof r[cv]==='number'?r[cv]:numBR(String(r[cv]||'').replace(/[R$\s]/g,'')),itens:ci>=0?+r[ci]||0:0}))};
+    }
+    if(!d.linhas.length) throw new Error('não encontrei as filiais e valores no anexo');
+    RT.dados=d; RT.arquivo=f;
+    RT.dados.linhas.forEach(l=>{ l.filial=rtAuto(l.codigo); });
+    if(!RT.lancId){ // anexo pelo botão geral: acha o lançamento do CD pelo fornecedor/NF
+      const cds=(S.dados.logistica||[]).filter(r=>isCD(r.FILIAL));
+      const f1=cds.find(r=>d.nf&&String(r.NOTA_FISCAL).trim()===d.nf&&semAcento(r.FORNECEDOR).includes(semAcento(d.fornecedor).trim()))
+        || cds.find(r=>d.nf&&String(r.NOTA_FISCAL).trim()===d.nf)
+        || cds.filter(r=>d.fornecedor&&semAcento(r.FORNECEDOR).includes(semAcento(d.fornecedor).trim())&&!rateioDe(r.ID).length).sort((a,b)=>Math.abs((+a.VALOR_NF)-d.total)-Math.abs((+b.VALOR_NF)-d.total))[0];
+      RT.lancId=f1?f1.ID:'';
+    }
+    rtModal();
+  }catch(e){ toast(f.name+': '+e.message,7000); RT.lancId=''; }
+}
+function rtModal(){
+  const d=RT.dados; const cds=(S.dados.logistica||[]).filter(r=>isCD(r.FILIAL)).sort((a,b)=>lgOrdemCriacao(b).localeCompare(lgOrdemCriacao(a)));
+  const r=lgAchar(RT.lancId); const soma=d.linhas.reduce((s,l)=>s+(+l.valor||0),0);
+  const base=soma||1; const fator=r?(+r.VALOR_CALCULADO||0):0; // % = valor da filial ÷ soma do anexo, aplicado ao valor do sistema
+  const falta=d.linhas.filter(l=>!String(l.filial||'').trim()).length;
+  modal(`<div class="mh"><h3>Distribuição do CD · <span class="muted small">${esc(RT.arquivo?RT.arquivo.name:'')}</span></h3><button class="btn ghost" onclick="fecharModal();RT.lancId=''">✕</button></div>
+  <p class="small muted" style="margin-top:0">Anexo: ${esc(d.fornecedor)||'—'}${d.nf?' · NF '+esc(d.nf):''}${d.data?' · '+esc(d.data):''}${d.total?' · total '+fR(d.total):''}</p>
+  <div class="row" style="margin-bottom:10px;align-items:flex-end">
+    <label class="sf" style="flex:1 1 380px"><span>Lançamento recebido no CD</span><select onchange="RT.lancId=this.value;rtModal()"><option value="">Escolha o lançamento…</option>${cds.map(x=>`<option value="${esc(x.ID)}" ${String(x.ID)===String(RT.lancId)?'selected':''}>${esc(x.FORNECEDOR)} · NF ${esc(x.NOTA_FISCAL)||'—'} · ${esc(x.DATA_CHEGADA)||esc(x.DATA_LANCAMENTO)||'sem data'} · ${fR(+x.VALOR_NF)}${rateioDe(x.ID).length?' (já distribuído)':''}</option>`).join('')}</select></label>
+  </div>
+  ${!cds.length?'<div class="card" style="background:var(--warn-soft);color:var(--warn);border:0;margin-bottom:10px">Não há lançamentos com a filial CD no Controle de Logística. Lance a NF no CD primeiro.</div>':''}
+  ${r&&Math.abs(soma-(+r.VALOR_NF))>0.05?`<div class="card" style="background:var(--warn-soft);color:var(--warn);border:0;margin-bottom:10px;padding:8px 12px">O anexo soma ${fR(soma)} e a NF lançada no sistema é ${fR(+r.VALOR_NF)}. Vale o valor do sistema: cada filial recebe o seu % do anexo aplicado sobre ${fR(+r.VALOR_NF)} (${fR(fator)} calculado).</div>`:''}
+  <div class="tw sl-tab" style="max-height:55vh"><table style="width:100%"><thead><tr><th>Código no anexo</th><th>Filial no sistema</th><th class="n">Itens</th><th class="n">Valor no anexo</th><th class="n">% da distribuição</th><th class="n">Valor NF no sistema</th><th class="n">Recebido${r?' ('+esc(r.CALCULO)+')':''}</th></tr></thead><tbody>
+  ${d.linhas.map((l,i)=>`<tr><td><b>${esc(l.codigo)}</b></td><td><input class="lgi" list="dlFilRt" value="${esc(l.filial||'')}" placeholder="escolha a filial…" style="min-width:180px;${l.filial?'':'border-color:var(--bad)'}" onchange="RT.dados.linhas[${i}].filial=this.value.trim();this.style.borderColor=this.value.trim()?'':'var(--bad)';rtFalta()"></td>
+    <td class="n">${fN(+l.itens||0)}</td><td class="n">${fR(+l.valor)}</td><td class="n">${(100*(+l.valor)/base).toLocaleString('pt-BR',{maximumFractionDigits:2})}%</td><td class="n">${r?fR((+l.valor)/base*(+r.VALOR_NF||0)):'—'}</td><td class="n"><b>${r?fR((+l.valor)/base*fator):'—'}</b></td></tr>`).join('')}
+  </tbody><tfoot><tr><td colspan="3">${d.linhas.length} filial(is)</td><td class="n">${fR(soma)}</td><td class="n">100%</td><td class="n">${r?fR(+r.VALOR_NF||0):'—'}</td><td class="n">${r?fR(fator):'—'}</td></tr></tfoot></table></div>
+  <datalist id="dlFilRt">${nomesLog('FILIAL').filter(n=>!isCD(n)).map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
+  <div class="row" style="margin-top:12px;align-items:center"><span class="small muted"><span class="bad" id="rtFalta">${falta?falta+' código(s) sem filial — escolha a filial de cada um.':''}</span> O código fica lembrado para os próximos anexos.</span><span class="sp"></span>
+    <button class="btn" id="rtSalvar" onclick="rtSalvar()" ${!r||falta?'disabled':''}>Salvar distribuição</button></div>`);
+}
+function rtFalta(){ const n=RT.dados.linhas.filter(l=>!String(l.filial||'').trim()).length; const el=document.getElementById('rtFalta'); if(el) el.textContent=n?n+' código(s) sem filial — escolha a filial de cada um.':'';
+  const bt=document.getElementById('rtSalvar'); if(bt) bt.disabled=!lgAchar(RT.lancId)||n>0; }
+async function rtSalvar(){
+  const bt=document.getElementById('rtSalvar'); bt.disabled=true; bt.textContent='Salvando…';
+  try{
+    const dd={lancId:RT.lancId,linhas:RT.dados.linhas.map(l=>({codigo:l.codigo,filial:l.filial,valor:+l.valor,itens:+l.itens||0}))};
+    if(RT.arquivo){ dd.arquivoBase64=await b64Arquivo(RT.arquivo); dd.arquivoNome=RT.arquivo.name; dd.arquivoMime=RT.arquivo.type||'application/pdf'; }
+    const res=await api('salvarRateio',dd); fecharModal(); RT.lancId=''; RT.dados=null; RT.arquivo=null;
+    toast(`Distribuição salva: ${res.filiais} filiais`,4000); await carregar(true); render();
+  }catch(e){ bt.disabled=false; bt.textContent='Salvar distribuição'; toast('Erro: '+e.message,7000); }
+}
+// Relatório: troca cada lançamento distribuído do CD pelas partes de cada filial (o que não foi distribuído fica no CD)
+function rrExpandir(L){ // o valor lançado no sistema é dividido pelo % de cada filial no anexo (sempre 100%)
+  const out=[];
+  L.forEach(r=>{ const rt=rateioDe(r.ID);
+    if(!rt.length){ out.push(r); return; }
+    const tot=rt.reduce((s,x)=>s+(+x.PARTICIPACAO||0),0)||1;
+    rt.forEach(x=>{ const p=(+x.PARTICIPACAO||0)/tot; out.push({...r,FILIAL:x.FILIAL,VALOR_NF:(+r.VALOR_NF||0)*p,VALOR_CALCULADO:Math.round((+r.VALOR_CALCULADO||0)*p*100)/100,_viaCD:true}); });
+  });
+  return out;
+}
 
 
 /* =================== PEDIDOS A FATURAR =================== */
@@ -1645,6 +1423,7 @@ function faExportar(){
 
 /* =================== CONFIGURAÇÕES (somente master) =================== */
 const CFG = { usuarios:null };
+const ABAS_NOMES = [['pedidos','Pedidos'],['faturar','Pedidos a faturar'],['logistica','Controle de Logística'],['relreceb','Relatórios de Recebimento']];
 function vConfig(){
   if(!S.master) return '<div class="card muted">Somente o usuário master (senha YY17) acessa as Configurações.</div>';
   if(CFG.usuarios===null){ cfgCarregarUsuarios(); }
@@ -1653,12 +1432,14 @@ function vConfig(){
   <div class="sl-head"><h2>Configurações</h2><span class="muted small">Acesso master. Usuários entram com login e senha próprios; a senha master continua valendo para entrar.</span></div>
   <div class="grid two" style="align-items:start">
     <div class="card">
-      <b>Usuários</b><div class="small muted" style="margin:2px 0 10px">Login e senha para entrar no sistema.</div>
+      <b>Usuários</b><div class="small muted" style="margin:2px 0 10px">Login e senha para entrar no sistema. Marque abaixo de cada usuário as abas que ele pode acessar.</div>
       <div class="row" style="margin-bottom:10px">
         <label class="sf" style="flex:1 1 140px"><span>Login</span><input id="cfgLogin" autocomplete="off" placeholder="ex.: joao"></label>
         <label class="sf" style="flex:1 1 140px"><span>Senha</span><input id="cfgSenha" type="password" autocomplete="new-password" placeholder="mín. 3 caracteres" onkeydown="if(event.key==='Enter')cfgSalvarUsuario()"></label>
         <div class="sf w-act"><button class="btn" onclick="cfgSalvarUsuario()">+ Adicionar</button></div>
       </div>
+      <div class="cfg-novo"><span class="muted small" style="font-weight:700">Abas que o novo usuário poderá acessar:</span><br>${ABAS_NOMES.map(([k,n])=>`<label class="cfg-ck"><input type="checkbox" class="cfgNovoAba" value="${k}" checked> ${n}</label>`).join('')}</div>
+      <div id="cfgAviso"></div>
       <div class="tw sl-tab"><table><thead><tr><th>Login</th><th>Criado</th><th>Alterado</th><th></th></tr></thead><tbody id="cfgUsers">${cfgUsuariosHTML()}</tbody></table></div>
       <div class="small muted" style="margin-top:6px">Para trocar a senha de alguém, adicione o mesmo login com a senha nova.</div>
     </div>
@@ -1678,17 +1459,22 @@ function vConfig(){
 }
 function cfgUsuariosHTML(){
   if(CFG.usuarios===null) return '<tr><td colspan="4" class="muted">Carregando…</td></tr>';
-  return CFG.usuarios.map(u=>`<tr><td><b>${esc(u.login)}</b></td><td class="small muted">${esc(u.criado)}</td><td class="small muted">${esc(u.atualizado)}${u.por?' · '+esc(u.por):''}</td><td class="c"><button class="ib del" title="Excluir usuário" data-l="${esc(u.login)}" onclick="cfgExcluirUsuario(this.dataset.l)">✕</button></td></tr>`).join('')
+  return CFG.usuarios.map(u=>`<tr class="cfg-u"><td><b style="font-size:14px">👤 ${esc(u.login)}</b></td><td class="small muted">${esc(u.criado)}</td><td class="small muted">${esc(u.atualizado)}${u.por?' · '+esc(u.por):''}</td><td class="c"><button class="ib del" title="Excluir usuário" data-l="${esc(u.login)}" onclick="cfgExcluirUsuario(this.dataset.l)">✕</button></td></tr>
+    <tr class="cfg-abas"><td colspan="4"><div class="cfg-abas-box"><span class="muted small" style="font-weight:700">Abas liberadas:</span> ${ABAS_NOMES.map(([k,n])=>`<label class="cfg-ck"><input type="checkbox" data-l="${esc(u.login)}" data-aba="${k}" ${(u.abas||[]).includes(k)?'checked':''} onchange="cfgPermissao(this)"> ${n}</label>`).join('')}</div></td></tr>`).join('')
     || '<tr><td colspan="4" class="muted">Nenhum usuário cadastrado.</td></tr>';
 }
 async function cfgCarregarUsuarios(){
   try{ CFG.usuarios=await api('listarUsuarios'); }catch(e){ CFG.usuarios=[]; toast('Erro: '+e.message,6000); }
   const el=document.getElementById('cfgUsers'); if(el) el.innerHTML=cfgUsuariosHTML();
+  const av=document.getElementById('cfgAviso'); if(av) av.innerHTML=(CFG.usuarios||[]).some(u=>!Array.isArray(u.abas))?'<div class="card" style="background:var(--bad-soft);color:var(--bad);border:0;padding:8px 12px;margin-bottom:10px">O Apps Script está numa versão antiga e ainda não guarda as abas de cada usuário. Cole o Code.gs novo e faça Implantar &gt; Gerenciar implantações &gt; Editar &gt; Nova versão.</div>':'';
 }
 async function cfgSalvarUsuario(){
   const l=document.getElementById('cfgLogin'), s=document.getElementById('cfgSenha');
   if(!l.value.trim()){ toast('Informe o login'); l.focus(); return; } if(s.value.trim().length<3){ toast('A senha precisa ter pelo menos 3 caracteres'); s.focus(); return; }
-  try{ const r=await api('salvarUsuario',{login:l.value.trim(),senha:s.value.trim()}); toast(r.novo?'Usuário '+r.login+' criado':'Senha de '+r.login+' alterada'); l.value=''; s.value=''; await cfgCarregarUsuarios(); }
+  const abas=[...document.querySelectorAll('.cfgNovoAba')].filter(i=>i.checked).map(i=>i.value);
+  try{ const r=await api('salvarUsuario',{login:l.value.trim(),senha:s.value.trim()});
+    if(r.novo) await api('salvarPermissoes',{login:r.login,abas});
+    toast(r.novo?'Usuário '+r.login+' criado com '+abas.length+' aba(s)':'Senha de '+r.login+' alterada'); l.value=''; s.value=''; await cfgCarregarUsuarios(); }
   catch(e){ toast('Erro: '+e.message,6000); }
 }
 async function cfgExcluirUsuario(login){
@@ -1714,6 +1500,13 @@ async function cfgRenomear(inp){ // muda o nome da filial em todo o sistema
   if(!confirm(msg)){ inp.value=antigo; return; }
   try{ const r=await api('renomearFilial',{antigo,novo}); toast(`Filial renomeada para ${r.destino} (${r.movidos} lançamento(s))`,5000); await carregar(true); render(); }
   catch(e){ inp.value=antigo; toast('Erro: '+e.message,6000); }
+}
+
+async function cfgPermissao(ck){ // libera/bloqueia uma aba para o usuário
+  const login=ck.dataset.l; const u=(CFG.usuarios||[]).find(x=>x.login===login); if(!u) return;
+  const abas=[...document.querySelectorAll(`.cfg-ck input[data-l="${CSS.escape(login)}"]`)].filter(i=>i.checked).map(i=>i.dataset.aba);
+  try{ const r=await api('salvarPermissoes',{login,abas}); u.abas=r.abas; toast(`${login}: ${r.abas.length?r.abas.length+' aba(s) liberada(s)':'nenhuma aba liberada'}`); }
+  catch(e){ ck.checked=!ck.checked; toast('Erro: '+e.message,6000); }
 }
 
 iniciar();
