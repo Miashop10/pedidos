@@ -67,6 +67,13 @@ tfoot td{border-top:2px solid var(--line)}
 .w-forn{flex:2 1 170px}.w-fil{flex:1.4 1 130px}.w-dt{flex:0 0 128px}.w-nf{flex:0 0 84px}.w-val{flex:1 1 104px}.w-calc{flex:0 0 86px}.w-ok{flex:0 0 auto;align-items:center}
 .w-obs{flex:1.2 1 140px}
 td.lg-obs{min-width:150px;padding-top:1px;padding-bottom:1px}
+#tbLog td{padding-top:1px;padding-bottom:1px}
+.lgi{width:100%;height:26px;padding:2px 6px;font-size:12.5px;border:1px solid transparent;background:transparent;border-radius:6px;color:var(--ink);font-family:inherit}
+.lgi:hover{border-color:var(--line);background:var(--card)}
+.lgi:focus{border-color:var(--acc);background:var(--card);box-shadow:0 0 0 2px var(--acc-soft);outline:none}
+.lgi[type=date]{padding:2px 4px;min-width:118px}
+.lgi[type=date]::-webkit-calendar-picker-indicator{opacity:.35}
+#tbLog td.w-f{min-width:175px}#tbLog td.w-l{min-width:110px}#tbLog td.w-n{min-width:74px}#tbLog td.w-v{min-width:96px}#tbLog td.w-c{min-width:74px}
 td.lg-obs input{width:100%;height:24px;padding:2px 6px;font-size:12px;border-color:transparent;background:transparent}
 td.lg-obs input:hover,td.lg-obs input:focus{border-color:var(--line);background:var(--card)}
 .w-act{flex:0 0 auto;flex-direction:row;gap:6px;align-items:center}.w-act .btn{height:32px;padding:0 14px}
@@ -113,6 +120,10 @@ tr.lg-ed td{background:var(--acc-soft)}
 .rr-k{padding:10px 14px}.rr-k .v{font-size:20px}
 .rr-h{font-size:14px;margin:16px 0 6px}
 tr.rr-fil.on td{background:var(--acc-soft)}
+.rr-cel{cursor:pointer}
+.rr-cel:hover{background:var(--acc-soft)!important;color:var(--acc-ink);text-decoration:underline}
+.rr-cel.sel{background:var(--acc)!important;color:#fff!important;border-radius:4px}
+.rr-cel.sel b{color:#fff}
 .rr-car{display:inline-block;width:16px;color:var(--acc-ink)}
 tr.rr-sub>td{padding:4px 8px 10px 26px;background:var(--soft)}
 tr.rr-sub table{background:var(--card);border:1px solid var(--line);border-radius:8px;overflow:hidden}
@@ -1259,7 +1270,7 @@ function vLogistica(){
   const f=(lbl,html,cls)=>`<label class="sf ${cls||''}"><span>${lbl}</span>${html}</label>`;
   const F=LG.f;
   return `<div class="slim">
-  <div class="sl-head"><h2>Controle de Logística</h2><span class="muted small">Cálculo = valor da NF × fator (NC = nota cheia · X2, X3, X4… qualquer número · BONIF = bonificado, sem boletos). Linha verde = boletos OK.</span><span class="sp"></span><button class="btn sm" onclick="document.getElementById('lgInXls').click()" title="FORNECEDOR | FILIAL | DT CHEGADA | NOTA FISCAL | DT LANÇAMENTO | VALOR NF | CÁLCULO | RECEBIDO | BOLETOS | BOLETOS | OBS">⬆ Importar planilha Excel</button><input type="file" id="lgInXls" accept=".xlsx,.xls,.csv" class="hide" onchange="if(this.files[0]) lgLerPlanilha(this.files[0]); this.value=''"></div>
+  <div class="sl-head"><h2>Controle de Logística</h2><span class="muted small">NF × cálculo (NC, X2, X3… ou BONIF) · verde = boletos OK · clique no campo da lista para alterar (salva sozinho)</span><span class="sp"></span><button class="btn sm" onclick="document.getElementById('lgInXls').click()" title="FORNECEDOR | FILIAL | DT CHEGADA | NOTA FISCAL | DT LANÇAMENTO | VALOR NF | CÁLCULO | RECEBIDO | BOLETOS | BOLETOS | OBS">⬆ Importar planilha Excel</button><input type="file" id="lgInXls" accept=".xlsx,.xls,.csv" class="hide" onchange="if(this.files[0]) lgLerPlanilha(this.files[0]); this.value=''"></div>
   <div class="card sl-form${ed?' sl-edit':''}" id="lgForm">
     ${ed?`<div class="sl-banner">✎ EDITANDO: <b>${esc(r.FORNECEDOR)}</b>${r.NOTA_FISCAL?' · NF '+esc(r.NOTA_FISCAL):''} — altere os campos e clique em <b>Salvar</b></div>`:''}
     ${f('Fornecedor',`<div class="acw"><input id="lgForn" autocomplete="off" value="${esc(r.FORNECEDOR||'')}" placeholder="Digite…"><div class="sugbox"></div></div>`,'w-forn')}
@@ -1280,6 +1291,7 @@ function vLogistica(){
     <span class="sp"></span><button class="btn sec sm" onclick="lgExportar()">Excel</button>
   </div>
   <div class="tw sl-tab"><table id="tbLog">${lgTabela()}</table></div>
+  <datalist id="dlForn">${nomesLog('FORNECEDOR').map(n=>`<option value="${esc(n)}">`).join('')}</datalist><datalist id="dlFil">${nomesLog('FILIAL').map(n=>`<option value="${esc(n)}">`).join('')}</datalist>${document.getElementById('lgCalcLista')?'':`<datalist id="lgCalcLista">${CALCULOS.map(([c])=>`<option value="${c}">`).join('')}</datalist>`}
   </div>`;
 }
 function ligarLogistica(){
@@ -1307,23 +1319,35 @@ function lgFiltrados(){
   return L.sort((a,b)=>{ const x=val(a),y=val(b); return (x<y?-1:x>y?1:0)*LG.sort.d || lgOrdemCriacao(b).localeCompare(lgOrdemCriacao(a)); });
 }
 function lgOrdenar(k){ LG.sort = LG.sort.k===k ? {k,d:-LG.sort.d} : {k,d:['vnf','vcalc','chegada','lanc'].includes(k)?-1:1}; lgAtualizar(); }
-function lgTabela(){
-  const L=lgFiltrados(); const t=L.reduce((s,r)=>({n:s.n+1,nf:s.nf+(+r.VALOR_NF||0),c:s.c+(+r.VALOR_CALCULADO||0),rec:s.rec+(r.RECEBIDO==='SIM'?1:0),ok:s.ok+(lgQuitado(r)?1:0)}),{n:0,nf:0,c:0,rec:0,ok:0});
-  const F=LG.f, filtrando=F.q||F.forn||F.fil||F.rec||F.calc||F.bol||F.de||F.ate;
-  const th=(k,l,c)=>`<th class="${c||''}" onclick="lgOrdenar('${k}')">${l}${LG.sort.k===k?(LG.sort.d>0?' ▲':' ▼'):''}</th>`;
-  const chip=(id,campo,on,lbl,off)=>`<button class="okb sm${on?' on':''}" onclick="lgAlternar('${id}','${campo}')" title="Clique para alterar">${on?lbl:off}</button>`;
-  return `<thead><tr>${th('forn','Fornecedor')}${th('fil','Filial')}${th('chegada','Chegada')}${th('nf','NF')}${th('lanc','Lançamento')}${th('vnf','Valor NF','n')}${th('calc','Cálc.','c')}${th('vcalc','Calculado','n')}${th('besp','Bol. especial','c')}${th('bnf','Bol. NF','c')}${th('obs','Obs')}<th></th></tr></thead>
-  <tbody>${L.map(r=>{ const q=lgQuitado(r); return `<tr class="${q?'lg-ok':''}${LG.edit&&String(LG.edit.ID)===String(r.ID)?' lg-ed':''}" data-id="${esc(r.ID)}" ondblclick="if(!event.target.closest('button,input')) lgEditar(this.dataset.id)">
-    <td class="ell" title="${esc(r.FORNECEDOR)}"><b>${esc(r.FORNECEDOR)}</b></td><td class="ell" title="${esc(r.FILIAL)}">${esc(r.FILIAL)}</td>
-    <td>${esc(r.DATA_CHEGADA)}</td><td>${esc(r.NOTA_FISCAL)}</td><td>${esc(r.DATA_LANCAMENTO)}</td>
-    <td class="n">${fR(+r.VALOR_NF)}</td><td class="c">${esc(r.CALCULO)}</td>
+function lgLinha(r){ // cada célula é um campo: clique, digite e saia (Enter/Tab) que já salva
+  const q=lgQuitado(r);
+  const chip=(campo,on,lbl,off)=>`<button class="okb sm${on?' on':''}" onclick="lgAlternar(this.closest('tr').dataset.id,'${campo}')" title="Clique para alterar">${on?lbl:off}</button>`;
+  const inp=(campo,val,extra)=>`<input class="lgi" data-campo="${campo}" value="${esc(val)}" ${extra||''} onchange="lgCampo(this)" onkeydown="if(event.key==='Enter'){this.blur()}else if(event.key==='Escape'){this.value=this.defaultValue;this.blur()}">`;
+  return `<tr class="${q?'lg-ok':''}" data-id="${esc(r.ID)}">
+    <td class="w-f">${inp('FORNECEDOR',r.FORNECEDOR||'','list="dlForn" style="font-weight:700"')}</td>
+    <td class="w-l">${inp('FILIAL',r.FILIAL||'','list="dlFil" placeholder="—"')}</td>
+    <td class="w-d"><input class="lgi" type="date" data-campo="DATA_CHEGADA" value="${isoBR(r.DATA_CHEGADA)}" onchange="lgCampo(this)"></td>
+    <td class="w-n">${inp('NOTA_FISCAL',r.NOTA_FISCAL||'','placeholder="—"')}</td>
+    <td class="w-d"><input class="lgi" type="date" data-campo="DATA_LANCAMENTO" value="${isoBR(r.DATA_LANCAMENTO)}" onchange="lgCampo(this)"></td>
+    <td class="n w-v">${inp('VALOR_NF',fN(+r.VALOR_NF,2),'inputmode="decimal" style="text-align:right"')}</td>
+    <td class="c w-c">${inp('CALCULO',r.CALCULO||'NC','list="lgCalcLista" style="text-align:center" title="NC, BONIF ou X + número"')}</td>
     <td class="n" title="${+r.VALOR_PARTE_ESPECIAL?'Parte especial: '+fR(+r.VALOR_PARTE_ESPECIAL):''}"><b>${fR(+r.VALOR_CALCULADO)}</b></td>
-    ${r.CALCULO==='BONIF'?'<td class="c" colspan="2"><span class="tag t-ok" title="Bonificado pelo fornecedor: sem boletos">BONIFICADO</span></td>':`<td class="c">${r.CALCULO==='NC'&&!isOK(r.BOLETO_PARTE_ESPECIAL)?'<span class="muted small">—</span>':chip(r.ID,'BOLETO_PARTE_ESPECIAL',isOK(r.BOLETO_PARTE_ESPECIAL),'OK','')}</td>
-    <td class="c">${chip(r.ID,'BOLETOS_PARTE_NF',isOK(r.BOLETOS_PARTE_NF),'OK','')}</td>`}
-    <td class="lg-obs"><input value="${esc(r.OBS||'')}" placeholder="—" title="${esc(r.OBS||'')}" onchange="lgSalvarObs('${r.ID}',this)"></td>
-    <td class="c" style="white-space:nowrap"><button class="ib" title="Editar" data-id="${esc(r.ID)}" onclick="lgEditar(this.dataset.id)">✎ Editar</button><button class="ib del" title="Excluir" data-id="${esc(r.ID)}" onclick="lgExcluir(this.dataset.id)">✕</button></td></tr>`; }).join('')
-    ||`<tr><td colspan="12" class="muted">${(S.dados.logistica||[]).length?'Nenhum lançamento com esses filtros.':'Nenhum lançamento ainda. Preencha a linha acima.'}</td></tr>`}</tbody>
-  <tfoot><tr><td colspan="5">${filtrando?'TOTAL DO FILTRO':'TOTAL GERAL'} · ${t.n} lanç. · ${t.ok} boletos OK</td><td class="n">${fR(t.nf)}</td><td></td><td class="n">${fR(t.c)}</td><td colspan="4"></td></tr></tfoot>`;
+    ${r.CALCULO==='BONIF'?'<td class="c" colspan="2"><span class="tag t-ok" title="Bonificado pelo fornecedor: sem boletos">BONIFICADO</span></td>':`<td class="c">${r.CALCULO==='NC'&&!isOK(r.BOLETO_PARTE_ESPECIAL)?'<span class="muted small">—</span>':chip('BOLETO_PARTE_ESPECIAL',isOK(r.BOLETO_PARTE_ESPECIAL),'OK','')}</td>
+    <td class="c">${chip('BOLETOS_PARTE_NF',isOK(r.BOLETOS_PARTE_NF),'OK','')}</td>`}
+    <td class="lg-obs">${inp('OBS',r.OBS||'','placeholder="—" title="'+esc(r.OBS||'')+'"')}</td>
+    <td class="c"><button class="ib del" title="Excluir lançamento" onclick="lgExcluir(this.closest('tr').dataset.id)">✕</button></td></tr>`;
+}
+function lgRodape(L){
+  const t=L.reduce((s,r)=>({n:s.n+1,nf:s.nf+(+r.VALOR_NF||0),c:s.c+(+r.VALOR_CALCULADO||0),ok:s.ok+(lgQuitado(r)?1:0)}),{n:0,nf:0,c:0,ok:0});
+  return `<tr><td colspan="5">${LG.f.q?'TOTAL DA BUSCA':'TOTAL GERAL'} · ${t.n} lanç. · ${t.ok} boletos OK</td><td class="n">${fR(t.nf)}</td><td></td><td class="n">${fR(t.c)}</td><td colspan="4"></td></tr>`;
+}
+function lgTabela(){
+  const L=lgFiltrados();
+  const th=(k,l,c)=>`<th class="${c||''}" onclick="lgOrdenar('${k}')">${l}${LG.sort.k===k?(LG.sort.d>0?' ▲':' ▼'):''}</th>`;
+  return `<thead><tr>${th('forn','Fornecedor')}${th('fil','Filial')}${th('chegada','Chegada')}${th('nf','NF')}${th('lanc','Lançamento')}${th('vnf','Valor NF','n')}${th('calc','Cálc.','c')}${th('vcalc','Calculado','n')}${th('besp','Bol. especial','c')}${th('bnf','Bol. NF','c')}${th('obs','Obs')}<th></th></tr></thead>
+  <tbody>${L.map(lgLinha).join('')
+    ||`<tr><td colspan="12" class="muted">${(S.dados.logistica||[]).length?'Nenhum lançamento encontrado.':'Nenhum lançamento ainda. Preencha a linha acima.'}</td></tr>`}</tbody>
+  <tfoot>${lgRodape(L)}</tfoot>`;
 }
 function lgAtualizar(){ const t=document.getElementById('tbLog'); if(!t) return; t.innerHTML=lgTabela(); ajustarTabelas(t.parentElement.parentElement); }
 
@@ -1354,13 +1378,34 @@ function lgEditar(id){ // carrega o lançamento no formulário do topo para alte
 }
 async function lgExcluir(id){ const r=lgAchar(id); if(!confirm(`Excluir o lançamento de ${r?r.FORNECEDOR:''}${r&&r.NOTA_FISCAL?' (NF '+r.NOTA_FISCAL+')':''}?`)) return;
   try{ await api('excluirLogistica',{id}); toast('Lançamento excluído'); if(LG.edit&&String(LG.edit.ID)===String(id)) LG.edit=null; await carregar(true); render(); }catch(e){ toast('Erro: '+e.message,6000); } }
-async function lgSalvarObs(id,inp){ // obs editada direto na lista
-  const r=lgAchar(id); if(!r) return; const antes=r.OBS; r.OBS=inp.value.trim(); inp.title=r.OBS;
-  try{ await api('salvarLogistica',lgPayload(r)); toast('Obs salva'); }catch(e){ r.OBS=antes; inp.value=antes||''; toast('Erro: '+e.message,6000); }
+async function lgCampo(inp){ // edição direto na linha: salva assim que o campo é alterado
+  const tr=inp.closest('tr'); const r=lgAchar(tr.dataset.id); if(!r) return; const campo=inp.dataset.campo;
+  const antes={...r}; let v=inp.value;
+  const volta=msg=>{ inp.value=inp.defaultValue; if(msg) toast(msg,5000); };
+  if(campo==='DATA_CHEGADA'||campo==='DATA_LANCAMENTO') v=brISO(v);
+  else if(campo==='VALOR_NF'){ v=numBR(v); if(!v) return volta('Informe um valor válido'); }
+  else if(campo==='CALCULO'){ v=calcNorm(v); if(!v) return volta('Cálculo inválido: use NC, BONIF ou X + número (ex.: X4)'); }
+  else { v=String(v).trim(); if(campo==='FORNECEDOR'&&!v) return volta('O fornecedor não pode ficar vazio'); }
+  if(String(r[campo]??'')===String(v)) { inp.value=campo==='VALOR_NF'?fN(v,2):(campo.startsWith('DATA_')?isoBR(v):v); return; }
+  if((campo==='NOTA_FISCAL'||campo==='FORNECEDOR')){ const forn=campo==='FORNECEDOR'?v:r.FORNECEDOR, nf=campo==='NOTA_FISCAL'?v:String(r.NOTA_FISCAL||'').trim();
+    const dup=nf&&(S.dados.logistica||[]).find(x=>String(x.ID)!==String(r.ID)&&up(x.FORNECEDOR)===up(forn)&&String(x.NOTA_FISCAL).trim()===nf);
+    if(dup && !confirm(`A NF ${nf} de ${dup.FORNECEDOR} já está lançada (filial ${dup.FILIAL||'—'}). Manter mesmo assim?`)) return volta(); }
+  r[campo]=v;
+  if(campo==='VALOR_NF'||campo==='CALCULO'){ const f=fatorDe(r.CALCULO); r.FATOR=f; r.VALOR_CALCULADO=Math.round((+r.VALOR_NF||0)*f*100)/100; r.VALOR_PARTE_ESPECIAL=Math.round((r.VALOR_CALCULADO-(+r.VALOR_NF||0))*100)/100;
+    if(r.CALCULO==='BONIF'){ r.BOLETO_PARTE_ESPECIAL='OK'; r.BOLETOS_PARTE_NF='OK'; } }
+  setTimeout(()=>{ const t=document.querySelector(`#tbLog tr[data-id="${CSS.escape(String(r.ID))}"]`); if(t) lgRedesenharLinha(t,r); },0); // espera o Tab mover o cursor
+  try{ await api('salvarLogistica',lgPayload(r)); toast('Salvo ✓',1500); }
+  catch(e){ Object.assign(r,antes); const t2=document.querySelector(`#tbLog tr[data-id="${CSS.escape(String(r.ID))}"]`); if(t2) lgRedesenharLinha(t2,r); toast('Erro ao salvar: '+e.message,6000); }
+}
+function lgRedesenharLinha(tr,r){ // troca a linha mantendo o cursor no campo em que o usuário está
+  const ativo=document.activeElement; const naLinha=ativo&&tr.contains(ativo)?ativo.dataset.campo:null;
+  const tmp=document.createElement('tbody'); tmp.innerHTML=lgLinha(r); const novo=tmp.firstElementChild; tr.replaceWith(novo);
+  if(naLinha){ const el=novo.querySelector(`[data-campo="${naLinha}"]`); if(el){ el.focus(); if(el.select&&el.type!=='date') el.select(); } }
+  const tf=document.querySelector('#tbLog tfoot'); if(tf) tf.innerHTML=lgRodape(lgFiltrados());
 }
 async function lgAlternar(id,campo){ // marca/desmarca Recebido ou boletos direto na tabela
   const r=lgAchar(id); if(!r) return; const antes=r[campo];
-  r[campo] = campo==='RECEBIDO' ? (r.RECEBIDO==='SIM'?'NÃO':'SIM') : (isOK(r[campo])?'':'OK'); lgAtualizar();
+  r[campo] = campo==='RECEBIDO' ? (r.RECEBIDO==='SIM'?'NÃO':'SIM') : (isOK(r[campo])?'':'OK'); const tr=document.querySelector(`#tbLog tr[data-id="${CSS.escape(String(r.ID))}"]`); if(tr) lgRedesenharLinha(tr,r); else lgAtualizar();
   try{ await api('salvarLogistica',lgPayload(r)); }
   catch(e){ r[campo]=antes; lgAtualizar(); toast('Erro: '+e.message,6000); }
 }
@@ -1398,6 +1443,7 @@ function vRelReceb(){
   </div>
   <div id="rrCorpo">${rrCorpo()}</div></div>`;
 }
+function rrAbrir(fil,mes){ RR.sel = (RR.sel&&RR.sel.fil===fil&&RR.sel.mes===mes) ? null : {fil,mes}; rrAtualizar(); }
 function rrAtualizar(){ const el=document.getElementById('rrCorpo'); if(!el) return; el.innerHTML=rrCorpo(); ajustarTabelas(el); }
 function rrMatriz(L,cols,chave){ // {nome, m:{mes:valor}, tot, n, itens}
   const g={}; const dentro=new Set(cols);
@@ -1417,13 +1463,18 @@ function rrCorpo(){
   const cel=v=>v?fR(v):'<span class="muted">·</span>';
   const qk=x=>esc(x).replace(/'/g,"\\'");
   const head=`<th>Filial</th>${cols.map(c=>`<th class="n">${rrMesNome(c)}</th>`).join('')}<th class="n">Total</th>`;
-  const linhas=fil.map(f=>{ const ab=RR.abertas[f.nome];
+  // clique num valor → só os lançamentos daquela filial naquele mês · clique no nome/total → todos da filial
+  const sel=RR.sel||null;
+  const abre=(fil,mes)=>`event.stopPropagation();rrAbrir('${qk(fil)}','${mes}')`;
+  const linhas=fil.map(f=>{ const ab=sel&&sel.fil===f.nome;
     if(!f.n) return `<tr class="rr-vazia"><td><span class="rr-car"></span>${esc(f.nome)}</td>${cols.map(()=>'<td class="n"><span class="muted">·</span></td>').join('')}<td class="n muted">—</td></tr>`;
-    return `<tr class="clk rr-fil${ab?' on':''}" onclick="RR.abertas['${qk(f.nome)}']=!RR.abertas['${qk(f.nome)}'];rrAtualizar()"><td><span class="rr-car">${ab?'▾':'▸'}</span><b>${esc(f.nome)}</b></td>${cols.map(c=>`<td class="n">${cel(f.m[c])}</td>`).join('')}<td class="n"><b>${fR(f.tot)}</b></td></tr>`
+    const itens=ab? f.itens.filter(r=>sel.mes==='*'||rrMes(r)===sel.mes) : [];
+    const totSel=itens.reduce((s,r)=>s+(+r.VALOR_CALCULADO||0),0);
+    return `<tr class="rr-fil${ab?' on':''}"><td class="clk" onclick="${abre(f.nome,'*')}" title="Ver todos os lançamentos da filial"><span class="rr-car">${ab?'▾':'▸'}</span><b>${esc(f.nome)}</b></td>${cols.map(c=>f.m[c]?`<td class="n rr-cel${ab&&sel.mes===c?' sel':''}" onclick="${abre(f.nome,c)}" title="Ver lançamentos de ${esc(f.nome)} em ${rrMesNome(c)}">${fR(f.m[c])}</td>`:'<td class="n"><span class="muted">·</span></td>').join('')}<td class="n rr-cel${ab&&sel.mes==='*'?' sel':''}" onclick="${abre(f.nome,'*')}"><b>${fR(f.tot)}</b></td></tr>`
     + (ab ? `<tr class="rr-sub"><td colspan="${cols.length+2}"><table><thead><tr><th>Mês</th><th>Fornecedor</th><th>NF</th><th>Chegada</th><th>Lançamento</th><th class="n">Valor NF</th><th class="c">Cálc.</th><th class="n">Recebido</th></tr></thead><tbody>
-        ${f.itens.slice().sort((a,b)=>rrMes(b).localeCompare(rrMes(a))||(isoBR(b.DATA_CHEGADA)||'').localeCompare(isoBR(a.DATA_CHEGADA)||'')).map(r=>`<tr class="${lgQuitado(r)?'lg-ok':''}"><td>${rrMesNome(rrMes(r))}</td><td>${esc(r.FORNECEDOR)}</td><td>${esc(r.NOTA_FISCAL)||'—'}</td><td>${esc(r.DATA_CHEGADA)||'—'}</td><td>${esc(r.DATA_LANCAMENTO)||'—'}</td><td class="n">${fR(+r.VALOR_NF)}</td><td class="c">${esc(r.CALCULO)}</td><td class="n"><b>${fR(+r.VALOR_CALCULADO)}</b></td></tr>`).join('')}
-        </tbody><tfoot><tr><td colspan="7">${f.n} NF(s) recebida(s) em ${esc(f.nome)} no período</td><td class="n">${fR(f.tot)}</td></tr></tfoot></table></td></tr>` : ''); }).join('');
-  return `<h3 class="rr-h">Recebimento por filial e mês${RR.f.forn?' · <span style="color:var(--acc-ink)">'+esc(RR.f.forn)+'</span>':''} <span class="muted small">— clique na filial para ver as NFs</span></h3>
+        ${itens.slice().sort((a,b)=>rrMes(b).localeCompare(rrMes(a))||(isoBR(b.DATA_CHEGADA)||'').localeCompare(isoBR(a.DATA_CHEGADA)||'')).map(r=>`<tr class="${lgQuitado(r)?'lg-ok':''}"><td>${rrMesNome(rrMes(r))}</td><td>${esc(r.FORNECEDOR)}</td><td>${esc(r.NOTA_FISCAL)||'—'}</td><td>${esc(r.DATA_CHEGADA)||'—'}</td><td>${esc(r.DATA_LANCAMENTO)||'—'}</td><td class="n">${fR(+r.VALOR_NF)}</td><td class="c">${esc(r.CALCULO)}</td><td class="n"><b>${fR(+r.VALOR_CALCULADO)}</b></td></tr>`).join('')}
+        </tbody><tfoot><tr><td colspan="7">${itens.length} NF(s) · ${esc(f.nome)} · ${sel.mes==='*'?'todo o período':rrMesNome(sel.mes)}</td><td class="n">${fR(totSel)}</td></tr></tfoot></table></td></tr>` : ''); }).join('');
+  return `<h3 class="rr-h">Recebimento por filial e mês${RR.f.forn?' · <span style="color:var(--acc-ink)">'+esc(RR.f.forn)+'</span>':''} <span class="muted small">— clique num valor para ver os lançamentos daquele mês · na filial para ver todos</span></h3>
   <div class="tw sl-tab rr-mat"><table><thead><tr>${head}</tr></thead><tbody>${linhas}</tbody>
     <tfoot><tr><td>TOTAL · ${n} NF(s)</td>${cols.map(c=>`<td class="n">${totM[c]?fR(totM[c]):'—'}</td>`).join('')}<td class="n">${fR(tot)}</td></tr></tfoot></table></div>`;
 }
