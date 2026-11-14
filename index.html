@@ -61,7 +61,7 @@ tfoot td{border-top:2px solid var(--line)}
 .sl-edit{border-color:var(--acc);box-shadow:0 0 0 3px var(--acc-soft)}
 .sf{display:flex;flex-direction:column;gap:2px;font-size:10.5px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.03em;min-width:0}
 .sf input,.sf select{height:32px;padding:4px 8px;font-size:13px;text-transform:none;letter-spacing:0;font-weight:400;width:100%}
-.w-forn{flex:2 1 170px}.w-fil{flex:1.4 1 130px}.w-dt{flex:0 0 128px}.w-nf{flex:0 0 84px}.w-val{flex:1 1 104px}.w-calc{flex:0 0 78px}.w-ok{flex:0 0 auto;align-items:center}
+.w-forn{flex:2 1 170px}.w-fil{flex:1.4 1 130px}.w-dt{flex:0 0 128px}.w-nf{flex:0 0 84px}.w-val{flex:1 1 104px}.w-calc{flex:0 0 86px}.w-ok{flex:0 0 auto;align-items:center}
 .w-obs{flex:1.2 1 140px}
 td.lg-obs{min-width:150px;padding-top:1px;padding-bottom:1px}
 td.lg-obs input{width:100%;height:24px;padding:2px 6px;font-size:12px;border-color:transparent;background:transparent}
@@ -1198,8 +1198,15 @@ async function removerLogo(){ try{ await api('salvarLogo',{dataUrl:''}); S.dados
 
 
 /* =================== CONTROLE DE LOGÍSTICA =================== */
-const CALCULOS = [['NC',1],['X1,5',1.5],['X2',2],['X2,5',2.5],['X3',3],['BONIF',1]]; // BONIF = bonificado (sem boletos)
-const fatorDe = c => (CALCULOS.find(x=>x[0]===c)||['NC',1])[1];
+// Cálculo livre: NC, BONIF (bonificado, sem boletos) ou X + qualquer número (X2, X3, X4, X5, X7,5…). Lista abaixo = só sugestões.
+const CALCULOS = [['NC',1],['X1,5',1.5],['X2',2],['X2,5',2.5],['X3',3],['X4',4],['X5',5],['BONIF',1]];
+function calcNorm(v){ // devolve o cálculo padronizado ou null se inválido
+  let t=String(v==null?'':v).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,''); if(!t) return 'NC';
+  if(/^BONIF/.test(t)) return 'BONIF'; if(/^(NC|NOTACHEIA|CHEIA)$/.test(t)) return 'NC';
+  const n=parseFloat(t.replace(/^X/,'').replace(/X$/,'').replace(',','.')); if(isNaN(n)||n<=0||n>1000) return null;
+  const r=Math.round(n*1000)/1000; return r===1?'NC':'X'+String(r).replace('.',',');
+}
+const fatorDe = c => { const k=calcNorm(c); if(!k||k==='NC'||k==='BONIF') return 1; return parseFloat(k.slice(1).replace(',','.')); };
 const LG = { edit:null, f:{q:'',forn:'',fil:'',rec:'',calc:'',bol:'',de:'',ate:''}, sort:{k:'chegada',d:-1} };
 const isoBR = br => { const m=String(br||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); return m? m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0') : ''; };
 const brISO = iso => { const m=String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m? m[3]+'/'+m[2]+'/'+m[1] : ''; };
@@ -1242,7 +1249,7 @@ function vLogistica(){
   const f=(lbl,html,cls)=>`<label class="sf ${cls||''}"><span>${lbl}</span>${html}</label>`;
   const F=LG.f;
   return `<div class="slim">
-  <div class="sl-head"><h2>Controle de Logística</h2><span class="muted small">Cálculo = valor da NF × fator (NC = nota cheia · BONIF = bonificado, sem boletos). Linha verde = boletos OK.</span><span class="sp"></span><button class="btn sm" onclick="document.getElementById('lgInXls').click()" title="FORNECEDOR | FILIAL | DT CHEGADA | NOTA FISCAL | DT LANÇAMENTO | VALOR NF | CÁLCULO | RECEBIDO | BOLETOS | BOLETOS | OBS">⬆ Importar planilha Excel</button><input type="file" id="lgInXls" accept=".xlsx,.xls,.csv" class="hide" onchange="if(this.files[0]) lgLerPlanilha(this.files[0]); this.value=''"></div>
+  <div class="sl-head"><h2>Controle de Logística</h2><span class="muted small">Cálculo = valor da NF × fator (NC = nota cheia · X2, X3, X4… qualquer número · BONIF = bonificado, sem boletos). Linha verde = boletos OK.</span><span class="sp"></span><button class="btn sm" onclick="document.getElementById('lgInXls').click()" title="FORNECEDOR | FILIAL | DT CHEGADA | NOTA FISCAL | DT LANÇAMENTO | VALOR NF | CÁLCULO | RECEBIDO | BOLETOS | BOLETOS | OBS">⬆ Importar planilha Excel</button><input type="file" id="lgInXls" accept=".xlsx,.xls,.csv" class="hide" onchange="if(this.files[0]) lgLerPlanilha(this.files[0]); this.value=''"></div>
   <div class="card sl-form${ed?' sl-edit':''}" id="lgForm">
     ${f('Fornecedor',`<div class="acw"><input id="lgForn" autocomplete="off" value="${esc(r.FORNECEDOR||'')}" placeholder="Digite…"><div class="sugbox"></div></div>`,'w-forn')}
     ${f('Filial',`<div class="acw"><input id="lgFil" autocomplete="off" value="${esc(r.FILIAL||'')}" placeholder="Digite…"><div class="sugbox"></div></div>`,'w-fil')}
@@ -1250,7 +1257,7 @@ function vLogistica(){
     ${f('NF',`<input id="lgNF" value="${esc(r.NOTA_FISCAL||'')}" placeholder="Nº">`,'w-nf')}
     ${f('Lançamento',`<input type="date" id="lgLanc" value="${isoBR(r.DATA_LANCAMENTO)}">`,'w-dt')}
     ${f('Valor NF',`<input id="lgValor" inputmode="decimal" value="${r.VALOR_NF!==undefined&&r.VALOR_NF!==''?fN(+r.VALOR_NF,2):''}" placeholder="0,00" oninput="lgPrevCalc()">`,'w-val')}
-    ${f('Cálculo',`<select id="lgCalc" onchange="lgPrevCalc()">${CALCULOS.map(([c])=>`<option ${c===(r.CALCULO||'NC')?'selected':''}>${c}</option>`).join('')}</select>`,'w-calc')}
+    ${f('Cálculo',`<input id="lgCalc" list="lgCalcLista" value="${esc(r.CALCULO||'NC')}" autocomplete="off" title="NC, BONIF ou X + qualquer número (X2, X4, X7,5…)" oninput="lgPrevCalc()" onfocus="this.select()" onblur="const c=calcNorm(this.value); if(c) this.value=c; lgPrevCalc()"><datalist id="lgCalcLista">${CALCULOS.map(([c])=>`<option value="${c}">`).join('')}</datalist>`,'w-calc')}
     ${f('Calculado',`<div id="lgCalcVal" class="lg-calc">—</div>`,'w-val')}
     ${f('Recebido',okBtn('lgRec',r.RECEBIDO==='SIM','SIM'),'w-ok')}
     ${f('Bol. especial',okBtn('lgBolEsp',isOK(r.BOLETO_PARTE_ESPECIAL),'OK'),'w-ok')}
@@ -1264,7 +1271,7 @@ function vLogistica(){
     <select onchange="LG.f.fil=this.value;lgAtualizar()"><option value="">Filial: todas</option>${nomesLog('FILIAL').filter(n=>usoNome('FILIAL',n)).map(n=>`<option ${n===F.fil?'selected':''}>${esc(n)}</option>`).join('')}</select>
     <select onchange="LG.f.rec=this.value;lgAtualizar()"><option value="">Recebido: todos</option><option value="SIM" ${F.rec==='SIM'?'selected':''}>Recebido: sim</option><option value="NÃO" ${F.rec==='NÃO'?'selected':''}>Recebido: não</option></select>
     <select onchange="LG.f.bol=this.value;lgAtualizar()"><option value="">Boletos: todos</option><option value="ok" ${F.bol==='ok'?'selected':''}>Boletos: OK (verde)</option><option value="pend" ${F.bol==='pend'?'selected':''}>Boletos: pendentes</option></select>
-    <select onchange="LG.f.calc=this.value;lgAtualizar()"><option value="">Cálculo: todos</option>${CALCULOS.map(([c])=>`<option value="${c}" ${c===F.calc?'selected':''}>Cálculo: ${c}</option>`).join('')}</select>
+    <select onchange="LG.f.calc=this.value;lgAtualizar()"><option value="">Cálculo: todos</option>${[...new Set((S.dados.logistica||[]).map(r=>r.CALCULO).filter(Boolean))].sort((a,b)=>(a==='BONIF')-(b==='BONIF')||fatorDe(a)-fatorDe(b)).map(c=>`<option value="${c}" ${c===F.calc?'selected':''}>Cálculo: ${c}</option>`).join('')}</select>
     <span class="muted small">chegada</span><input type="date" value="${F.de}" onchange="LG.f.de=this.value;lgAtualizar()" title="Chegada de"><span class="muted small">a</span><input type="date" value="${F.ate}" onchange="LG.f.ate=this.value;lgAtualizar()" title="Chegada até">
     <button class="btn ghost sm" onclick="LG.f={q:'',forn:'',fil:'',rec:'',calc:'',bol:'',de:'',ate:''};render()">limpar</button>
     <button class="btn sec sm" onclick="lgExportar()">Excel</button>
@@ -1276,8 +1283,9 @@ function ligarLogistica(){
   const f=document.getElementById('lgForn'), l=document.getElementById('lgFil'); if(!f) return;
   acLigar(f,'FORNECEDOR','lgFil'); acLigar(l,'FILIAL','lgCheg'); lgPrevCalc();
 }
-function lgPrevCalc(){ const el=document.getElementById('lgCalcVal'); if(!el) return; const v=numBR(document.getElementById('lgValor').value), c=document.getElementById('lgCalc').value;
+function lgPrevCalc(){ const el=document.getElementById('lgCalcVal'); if(!el) return; const v=numBR(document.getElementById('lgValor').value), c=calcNorm(document.getElementById('lgCalc').value)||document.getElementById('lgCalc').value;
   ['lgBolEsp','lgBolNF'].forEach(id=>{ const b=document.getElementById(id); if(!b) return; if(c==='BONIF'){ b.classList.add('on'); b.disabled=true; b.title='Bonificado: sem boletos'; } else if(b.disabled){ b.disabled=false; b.classList.remove('on'); b.title=''; } });
+  if(calcNorm(c)===null){ el.innerHTML='<span class="bad">cálculo inválido</span>'; return; }
   el.innerHTML = v ? `<b>${fR(Math.round(v*fatorDe(c)*100)/100)}</b>` : '—'; el.title = v&&c!=='NC' ? 'Parte especial: '+fR(Math.round((v*fatorDe(c)-v)*100)/100) : ''; }
 
 function lgFiltrados(){
@@ -1317,13 +1325,14 @@ function lgAtualizar(){ const t=document.getElementById('tbLog'); if(!t) return;
 function lgLerForm(){
   const g=id=>document.getElementById(id), on=id=>g(id).classList.contains('on');
   return { id:LG.edit?LG.edit.ID:'', fornecedor:g('lgForn').value.trim(), filial:g('lgFil').value.trim(), dataChegada:brISO(g('lgCheg').value), notaFiscal:g('lgNF').value.trim(),
-    dataLancamento:brISO(g('lgLanc').value), valorNF:numBR(g('lgValor').value), calculo:g('lgCalc').value, recebido:on('lgRec'), boletoEspecial:on('lgBolEsp'), boletosNF:on('lgBolNF'), obs:g('lgObs').value.trim() };
+    dataLancamento:brISO(g('lgLanc').value), valorNF:numBR(g('lgValor').value), calculo:calcNorm(g('lgCalc').value), recebido:on('lgRec'), boletoEspecial:on('lgBolEsp'), boletosNF:on('lgBolNF'), obs:g('lgObs').value.trim() };
 }
 function lgPayload(r){ return {id:r.ID,fornecedor:r.FORNECEDOR,filial:r.FILIAL,dataChegada:r.DATA_CHEGADA,notaFiscal:r.NOTA_FISCAL,dataLancamento:r.DATA_LANCAMENTO,valorNF:+r.VALOR_NF,calculo:r.CALCULO,recebido:r.RECEBIDO==='SIM',boletoEspecial:isOK(r.BOLETO_PARTE_ESPECIAL),boletosNF:isOK(r.BOLETOS_PARTE_NF),obs:r.OBS||''}; }
 async function lgSalvar(){
   const d=lgLerForm();
   if(!d.fornecedor){ toast('Informe o fornecedor'); document.getElementById('lgForn').focus(); return; }
   if(!d.valorNF){ toast('Informe o valor da NF'); document.getElementById('lgValor').focus(); return; }
+  if(!d.calculo){ toast('Cálculo inválido: use NC, BONIF ou X + número (ex.: X4)'); document.getElementById('lgCalc').focus(); return; }
   if(d.notaFiscal){ const dup=(S.dados.logistica||[]).find(r=>r.ID!==d.id && up(r.FORNECEDOR)===up(d.fornecedor) && String(r.NOTA_FISCAL).trim()===d.notaFiscal);
     if(dup && !confirm(`A NF ${d.notaFiscal} de ${dup.FORNECEDOR} já está lançada (filial ${dup.FILIAL||'—'}). Lançar mesmo assim?`)) return; }
   const bt=document.getElementById('lgSalvar'); bt.disabled=true;
@@ -1414,14 +1423,7 @@ function rrExportar(){
 // Colunas: FORNECEDOR | FILIAL | DT CHEGADA | NOTA FISCAL | DT LANÇAMENTO | VALOR NF | CÁLCULO | RECEBIDO | BOLETOS | BOLETOS
 // (1ª coluna BOLETOS = parte especial, 2ª = parte NF; se houver só uma, vale para as duas)
 const LG_IMP = { linhas:[], pularDup:true };
-function lgCalcNorm(v){
-  let t=semAcento(v).replace(/\s+/g,''); if(!t) return 'NC';
-  if(/^BONIF/.test(t)) return 'BONIF';
-  if(/^(NC|NOTACHEIA|CHEIA)$/.test(t)) return 'NC';
-  t=t.replace(/^X/,'').replace(/X$/,'').replace('.',',');
-  const n=parseFloat(t.replace(',','.')); if(isNaN(n)) return null;
-  if(n===1) return 'NC'; const c='X'+String(n).replace('.',','); return CALCULOS.some(x=>x[0]===c)?c:null;
-}
+const lgCalcNorm = calcNorm;
 const lgSim = v => /^(SIM|S|OK|X|TRUE|VERDADEIRO|1|RECEBIDO|PAGO)$/.test(semAcento(v).trim());
 const lgData = v => { if(v===''||v==null) return ''; if(v instanceof Date) return String(v.getDate()).padStart(2,'0')+'/'+String(v.getMonth()+1).padStart(2,'0')+'/'+v.getFullYear(); return dataExcel(v); };
 async function lgLerPlanilha(f){
