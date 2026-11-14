@@ -123,7 +123,13 @@ tr.lg-ed td{background:var(--acc-soft)}
 .rr-k{padding:10px 14px}.rr-k .v{font-size:20px}
 .rr-h{font-size:14px;margin:16px 0 6px}
 tr.rr-fil.on td{background:var(--acc-soft)}
-.rr-cel{cursor:pointer}
+.rr-cel{cursor:pointer;line-height:1.15;padding-top:4px!important;padding-bottom:4px!important}
+.rr-fn{display:block;font-size:9.5px;font-weight:600;color:var(--mut);letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px;margin-left:auto}
+.rr-cel.sel .rr-fn{color:#fff;opacity:.85}
+.rr-mat tbody tr:nth-child(4n+1) td,.rr-mat tbody tr:nth-child(4n+3) td{}
+.rr-mat tbody tr.rr-fil:hover td{background:var(--acc-soft)}
+.rr-nd{white-space:nowrap;border-left:1px solid var(--line);padding-left:10px!important}
+
 .rr-cel:hover{background:var(--acc-soft)!important;color:var(--acc-ink);text-decoration:underline}
 .rr-cel.sel{background:var(--acc)!important;color:#fff!important;border-radius:4px}
 .rr-cel.sel b{color:#fff}
@@ -1423,27 +1429,23 @@ function lgExportar(){
 /* =================== RELATÓRIOS DE RECEBIMENTO =================== */
 // Valor recebido = valor da NF × cálculo (ex.: NF R$ 5.000,00 em X2 = R$ 10.000,00 recebidos)
 // Tabela principal: filiais nas linhas × meses nas colunas (mês da data de chegada; sem chegada usa a data de lançamento)
-const RR = { f:{meses:12,forn:''}, abertas:{} };
+const RR = { f:{ano:new Date().getFullYear(),forn:''}, abertas:{} };
 const rrNome = n => String(n||'').trim() || '(sem filial)';
 const MESES_ABR=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 function rrMes(r){ const d=isoBR(r.DATA_CHEGADA)||isoBR(r.DATA_LANCAMENTO); return d?d.slice(0,7):''; }
 const rrMesNome = k => k? MESES_ABR[+k.slice(5,7)-1]+'/'+k.slice(2,4) : 'sem data';
 function rrDados(){ const F=RR.f; return (S.dados.logistica||[]).filter(r=>!F.forn || up(r.FORNECEDOR)===up(F.forn)); }
-function rrColunas(L){ // meses do período escolhido (até o mês atual ou o último com dados)
-  const ms=L.map(rrMes).filter(Boolean).sort(); const hoje=new Date(); let fim=hoje.getFullYear()+'-'+String(hoje.getMonth()+1).padStart(2,'0');
-  if(ms.length && ms[ms.length-1]>fim) fim=ms[ms.length-1];
-  const ini0=ms[0]||fim; const cols=[]; let [a,m]=fim.split('-').map(Number);
-  const n=RR.f.meses||600;
-  while(cols.length<n){ const k=a+'-'+String(m).padStart(2,'0'); cols.unshift(k); if(k<=ini0 && cols.length>=Math.min(n,3)) break; m--; if(m<1){m=12;a--;} }
-  return cols;
+function rrColunas(){ // sempre os 12 meses do ano escolhido (padrão: ano atual)
+  const a=RR.f.ano||new Date().getFullYear(); return Array.from({length:12},(_,k)=>a+'-'+String(k+1).padStart(2,'0'));
 }
+function rrAnos(){ const s=new Set([new Date().getFullYear()]); (S.dados.logistica||[]).forEach(r=>{ const m=rrMes(r); if(m) s.add(+m.slice(0,4)); }); return [...s].sort((a,b)=>b-a); }
 function vRelReceb(){
   if(!S.dados) return '<p class="muted">Carregando…</p>';
   const F=RR.f;
   return `<div class="slim">
-  <div class="sl-head"><h2>Relatórios de Recebimento</h2><span class="muted small">Recebimento de mercadorias por filial e mês · valor = NF × cálculo (NF de R$ 5.000,00 em X2 = R$ 10.000,00) · mês da data de chegada.</span></div>
+  <div class="sl-head"><h2>Relatórios de Recebimento</h2><span class="muted small">Recebimento de mercadorias por filial e mês do ano · valor = NF × cálculo · mês da data de chegada.</span></div>
   <div class="sl-filtros">
-    <select style="max-width:none" onchange="RR.f.meses=+this.value;rrAtualizar()">${[[3,'Últimos 3 meses'],[6,'Últimos 6 meses'],[12,'Últimos 12 meses'],[24,'Últimos 24 meses'],[0,'Todos os meses']].map(([v,l])=>`<option value="${v}" ${v===F.meses?'selected':''}>${l}</option>`).join('')}</select>
+    <select style="max-width:none" onchange="RR.f.ano=+this.value;RR.sel=null;rrAtualizar()">${rrAnos().map(a=>`<option value="${a}" ${a===RR.f.ano?'selected':''}>Ano ${a}</option>`).join('')}</select>
     <select style="max-width:220px" onchange="RR.f.forn=this.value;rrAtualizar()"><option value="">Fornecedor: todos</option>${nomesLog('FORNECEDOR').filter(n=>usoNome('FORNECEDOR',n)).map(n=>`<option ${n===F.forn?'selected':''}>${esc(n)}</option>`).join('')}</select>
     <span class="sp"></span><button class="btn sec sm" onclick="rrExportar()">Excel</button>
   </div>
@@ -1463,36 +1465,36 @@ function rrTodasFiliais(lista){ const m={}; lista.forEach(o=>m[up(o.nome)]=o);
 function rrCorpo(){
   const L=rrDados();
   if(!(S.dados.logistica||[]).length) return `<div class="card muted">Ainda não há lançamentos no Controle de Logística.</div>`;
-  const cols=rrColunas(L.length?L:(S.dados.logistica||[])); if(L.some(r=>!rrMes(r))) cols.push('');
+  const cols=rrColunas(); if(L.some(r=>!rrMes(r))) cols.push('');
   const fil=rrTodasFiliais(rrMatriz(L,cols,r=>rrNome(r.FILIAL)));
   const totM={}; let tot=0, n=0; fil.forEach(f=>{ cols.forEach(c=>totM[c]=(totM[c]||0)+(f.m[c]||0)); tot+=f.tot; n+=f.n; });
   const cel=v=>v?fR(v):'<span class="muted">·</span>';
   const qk=x=>esc(x).replace(/'/g,"\\'");
-  const head=`<th>Filial</th>${cols.map(c=>`<th class="n">${rrMesNome(c)}</th>`).join('')}<th class="n">Total</th>`;
+  const head=`<th>Filial</th>${cols.map(c=>`<th class="n">${rrMesNome(c)}</th>`).join('')}<th class="n">Total</th><th>Filial</th>`;
   // clique num valor → só os lançamentos daquela filial naquele mês · clique no nome/total → todos da filial
   const sel=RR.sel||null;
   const abre=(fil,mes)=>`event.stopPropagation();rrAbrir('${qk(fil)}','${mes}')`;
   const linhas=fil.map(f=>{ const ab=sel&&sel.fil===f.nome;
-    if(!f.n) return `<tr class="rr-vazia"><td><span class="rr-car"></span>${esc(f.nome)}</td>${cols.map(()=>'<td class="n"><span class="muted">·</span></td>').join('')}<td class="n muted">—</td></tr>`;
+    if(!f.n) return `<tr class="rr-vazia"><td><span class="rr-car"></span>${esc(f.nome)}</td>${cols.map(()=>'<td class="n"><span class="muted">·</span></td>').join('')}<td class="n muted">—</td><td class="rr-nd muted">${esc(f.nome)}</td></tr>`;
     const itens=ab? f.itens.filter(r=>sel.mes==='*'||rrMes(r)===sel.mes) : [];
     const totSel=itens.reduce((s,r)=>s+(+r.VALOR_CALCULADO||0),0);
-    return `<tr class="rr-fil${ab?' on':''}"><td class="clk" onclick="${abre(f.nome,'*')}" title="Ver todos os lançamentos da filial"><span class="rr-car">${ab?'▾':'▸'}</span><b>${esc(f.nome)}</b></td>${cols.map(c=>f.m[c]?`<td class="n rr-cel${ab&&sel.mes===c?' sel':''}" onclick="${abre(f.nome,c)}" title="Ver lançamentos de ${esc(f.nome)} em ${rrMesNome(c)}">${fR(f.m[c])}</td>`:'<td class="n"><span class="muted">·</span></td>').join('')}<td class="n rr-cel${ab&&sel.mes==='*'?' sel':''}" onclick="${abre(f.nome,'*')}"><b>${fR(f.tot)}</b></td></tr>`
-    + (ab ? `<tr class="rr-sub"><td colspan="${cols.length+2}"><table class="rr-mini"><thead><tr><th>Fornecedor</th><th>NF</th><th>Chegada</th><th class="n">Recebido</th></tr></thead><tbody>
+    return `<tr class="rr-fil${ab?' on':''}"><td class="clk" onclick="${abre(f.nome,'*')}" title="Ver todos os lançamentos da filial"><span class="rr-car">${ab?'▾':'▸'}</span><b>${esc(f.nome)}</b></td>${cols.map(c=>f.m[c]?`<td class="n rr-cel${ab&&sel.mes===c?' sel':''}" onclick="${abre(f.nome,c)}" title="Ver lançamentos de ${esc(f.nome)} em ${rrMesNome(c)}"><span class="rr-fn">${esc(f.nome)}</span>${fR(f.m[c])}</td>`:'<td class="n"><span class="muted">·</span></td>').join('')}<td class="n rr-cel${ab&&sel.mes==='*'?' sel':''}" onclick="${abre(f.nome,'*')}"><span class="rr-fn">${esc(f.nome)}</span><b>${fR(f.tot)}</b></td><td class="rr-nd clk" onclick="${abre(f.nome,'*')}"><b>${esc(f.nome)}</b></td></tr>`
+    + (ab ? `<tr class="rr-sub"><td colspan="${cols.length+3}"><table class="rr-mini"><thead><tr><th>Fornecedor</th><th>NF</th><th>Chegada</th><th class="n">Recebido</th></tr></thead><tbody>
         ${itens.slice().sort((a,b)=>rrMes(b).localeCompare(rrMes(a))||(isoBR(b.DATA_CHEGADA)||'').localeCompare(isoBR(a.DATA_CHEGADA)||'')).map(r=>`<tr><td>${esc(r.FORNECEDOR)}</td><td>${esc(r.NOTA_FISCAL)||'—'}</td><td>${esc(r.DATA_CHEGADA)||esc(r.DATA_LANCAMENTO)||'—'}</td><td class="n"><b>${fR(+r.VALOR_CALCULADO)}</b></td></tr>`).join('')}
         </tbody><tfoot><tr><td colspan="3">${itens.length} NF(s) · ${esc(f.nome)} · ${sel.mes==='*'?'todo o período':rrMesNome(sel.mes)}</td><td class="n">${fR(totSel)}</td></tr></tfoot></table></td></tr>` : ''); }).join('');
   return `<h3 class="rr-h">Recebimento por filial e mês${RR.f.forn?' · <span style="color:var(--acc-ink)">'+esc(RR.f.forn)+'</span>':''} <span class="muted small">— clique num valor para ver os lançamentos daquele mês · na filial para ver todos</span></h3>
   <div class="tw sl-tab rr-mat"><table><thead><tr>${head}</tr></thead><tbody>${linhas}</tbody>
-    <tfoot><tr><td>TOTAL · ${n} NF(s)</td>${cols.map(c=>`<td class="n">${totM[c]?fR(totM[c]):'—'}</td>`).join('')}<td class="n">${fR(tot)}</td></tr></tfoot></table></div>`;
+    <tfoot><tr><td>TOTAL · ${n} NF(s)</td>${cols.map(c=>`<td class="n">${totM[c]?fR(totM[c]):'—'}</td>`).join('')}<td class="n">${fR(tot)}</td><td>TOTAL</td></tr></tfoot></table></div>`;
 }
 function rrExportar(){
-  const L=rrDados(); const cols=rrColunas(L.length?L:(S.dados.logistica||[])); if(L.some(r=>!rrMes(r))) cols.push('');
+  const L=rrDados(); const cols=rrColunas(); if(L.some(r=>!rrMes(r))) cols.push('');
   const wb=XLSX.utils.book_new();
   const folha=(lista,rot)=>{ const rows=lista.map(o=>{ const x={[rot]:o.nome}; cols.forEach(c=>x[rrMesNome(c)]=o.m[c]?+o.m[c].toFixed(2):''); x['Total']=+o.tot.toFixed(2); return x; });
     const t={[rot]:'TOTAL'}; cols.forEach(c=>{ const v=lista.reduce((s,o)=>s+(o.m[c]||0),0); t[rrMesNome(c)]=v?+v.toFixed(2):''; }); t['Total']=+lista.reduce((s,o)=>s+o.tot,0).toFixed(2); rows.push(t); return XLSX.utils.json_to_sheet(rows); };
   const fil=rrTodasFiliais(rrMatriz(L,cols,r=>rrNome(r.FILIAL)));
   XLSX.utils.book_append_sheet(wb,folha(fil,'Filial'),RR.f.forn?String(RR.f.forn).replace(/[\\/?*\[\]:]/g,'').slice(0,31):'Filial x mês');
   XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(fil.flatMap(f=>f.itens).map(r=>({'Mês':rrMesNome(rrMes(r)),'Filial':rrNome(r.FILIAL),'Fornecedor':r.FORNECEDOR,'NF':r.NOTA_FISCAL,'Chegada':r.DATA_CHEGADA,'Lançamento':r.DATA_LANCAMENTO,'Valor NF':+r.VALOR_NF,'Cálculo':r.CALCULO,'Recebido (R$)':+r.VALOR_CALCULADO}))),'NFs');
-  XLSX.writeFile(wb,'relatorio-recebimento-'+(RR.f.forn?String(RR.f.forn).replace(/[\\/:*?"<>|]/g,'')+'-':'')+hojeBR().replace(/\//g,'-')+'.xlsx');
+  XLSX.writeFile(wb,'relatorio-recebimento-'+RR.f.ano+'-'+(RR.f.forn?String(RR.f.forn).replace(/[\\/:*?"<>|]/g,'')+'-':'')+hojeBR().replace(/\//g,'-')+'.xlsx');
 }
 
 /* ---------- importar lançamentos por planilha Excel ---------- */
@@ -1586,7 +1588,7 @@ function faturarDados(){
     o.valor+=+p.VALOR_TOTAL||0; o.pedidos.push({p,pars});
     pars.forEach(x=>{ o.meses[x.mes]=(o.meses[x.mes]||0)+x.valor; meses.add(x.mes); });
   });
-  const nibo={}; (S.dados.nibo||[]).forEach(r=>{ const k=String(r.MES); if(PF2.anteriores||k>=hoje){ nibo[k]=+r.VALOR||0; meses.add(k); } });
+  const nibo={}; // linha NIBO removida
   // sempre mostra pelo menos do mês atual até 6 meses à frente
   const d=new Date(); for(let i=0;i<7;i++){ meses.add(mesKey(new Date(d.getFullYear(),d.getMonth()+i,1))); }
   const L=[...meses].sort(); // preenche meses intermediários vazios
@@ -1597,7 +1599,7 @@ function faturarDados(){
 function vFaturar(){
   if(!S.dados) return '<p class="muted">Carregando…</p>';
   return `<div class="slim">
-  <div class="sl-head"><h2>Pedidos a faturar</h2><span class="muted small">Valor de cada pedido dividido em parcelas pelo prazo, contado da data do pedido. A linha NIBO é digitada aqui.</span></div>
+  <div class="sl-head"><h2>Pedidos a faturar</h2><span class="muted small">Valor de cada pedido dividido em parcelas pelo prazo, contado da data do pedido.</span></div>
   <div class="sl-filtros">
     <input type="search" class="w-q" value="${esc(PF2.q)}" placeholder="Buscar fornecedor…" oninput="PF2.q=this.value;faAtualizar()">
     <label class="check small"><input type="checkbox" ${PF2.anteriores?'checked':''} onchange="PF2.anteriores=this.checked;faAtualizar()"> mostrar meses anteriores</label>
@@ -1616,9 +1618,7 @@ function faTabela(){
   const k=n=>esc(n).replace(/'/g,"\\'");
   return `<thead><tr><th>Fornecedor</th><th class="n">Pedido</th>${cols.map(c=>`<th class="n">${mesNome(c)}</th>`).join('')}</tr></thead>
   <tbody>
-    <tr class="fa-nibo"><td><b>NIBO</b></td><td></td>${cols.map(c=>`<td class="n"><input class="fa-in" inputmode="decimal" value="${nibo[c]?fN(nibo[c],2):''}" placeholder="—" onchange="faSalvarNibo('${c}',this)"></td>`).join('')}</tr>
-    <tr class="fa-tot"><td><b>PEDIDOS</b></td><td class="n">${fR(valorTot)}</td>${cols.map(c=>`<td class="n">${cel(totPed[c])}</td>`).join('')}</tr>
-    <tr class="fa-tot fa-total"><td><b>TOTAL</b></td><td></td>${cols.map(c=>`<td class="n"><b>${cel((nibo[c]||0)+(totPed[c]||0))}</b></td>`).join('')}</tr>
+    <tr class="fa-tot fa-total"><td><b>TOTAL</b></td><td></td>${cols.map(c=>`<td class="n"><b>${cel(totPed[c]||0)}</b></td>`).join('')}</tr>
     <tr class="fa-sep"><td colspan="${cols.length+2}"></td></tr>
     ${lista.map(f=>{ const ab=PF2.abertos[up(f.nome)];
       return `<tr class="clk${ab?' fa-ab':''}" onclick="PF2.abertos['${k(up(f.nome))}']=!PF2.abertos['${k(up(f.nome))}'];faAtualizar()"><td><span class="rr-car">${ab?'▾':'▸'}</span><b>${esc(f.nome)}</b> <span class="muted small">${f.pedidos.length} pedido(s)</span></td><td class="n">${fR(f.valor)}</td>${cols.map(c=>`<td class="n">${cel(f.meses[c])}</td>`).join('')}</tr>`
@@ -1637,7 +1637,7 @@ function faExportar(){
   const {cols,lista,nibo}=faturarDados(); const rows=[];
   const totPed={}; lista.forEach(f=>cols.forEach(c=>{ totPed[c]=(totPed[c]||0)+(f.meses[c]||0); }));
   const linha=(nome,ped,fn)=>{ const o={'':nome,'PEDIDO':ped}; cols.forEach(c=>o[mesNome(c)]=fn(c)||''); rows.push(o); };
-  linha('NIBO','',c=>nibo[c]); linha('PEDIDOS',+lista.reduce((s,f)=>s+f.valor,0).toFixed(2),c=>totPed[c]?+totPed[c].toFixed(2):''); linha('TOTAL','',c=>+(((nibo[c]||0)+(totPed[c]||0)).toFixed(2))||'');
+  linha('TOTAL','',c=>totPed[c]?+totPed[c].toFixed(2):'');
   rows.push({}); lista.forEach(f=>linha(f.nome,+f.valor.toFixed(2),c=>f.meses[c]?+f.meses[c].toFixed(2):''));
   const ws=XLSX.utils.json_to_sheet(rows); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'A faturar'); XLSX.writeFile(wb,'pedidos-a-faturar-'+hojeBR().replace(/\//g,'-')+'.xlsx');
 }
@@ -1663,15 +1663,15 @@ function vConfig(){
       <div class="small muted" style="margin-top:6px">Para trocar a senha de alguém, adicione o mesmo login com a senha nova.</div>
     </div>
     <div class="card">
-      <b>Agrupar filiais</b><div class="small muted" style="margin:2px 0 10px">Junta filiais com nomes diferentes que são a mesma (ex.: JDA → JD AMER). Os lançamentos da primeira passam para a segunda e o nome da primeira é apagado.</div>
+      <b>Filiais: editar nome e agrupar</b><div class="small muted" style="margin:2px 0 10px">Junta filiais com nomes diferentes que são a mesma (ex.: JDA → JD AMER). Os lançamentos da primeira passam para a segunda e o nome da primeira é apagado.</div>
       <div class="row" style="margin-bottom:10px;align-items:flex-end">
         <label class="sf" style="flex:1 1 150px"><span>Filial que será apagada</span><select id="cfgOrigem">${['<option value="">Escolha…</option>'].concat(fil.map(f=>`<option value="${esc(f.n)}">${esc(f.n)} (${f.u})</option>`)).join('')}</select></label>
         <span style="padding:0 2px 8px;font-weight:800;color:var(--acc-ink)">→</span>
         <label class="sf" style="flex:1 1 150px"><span>Juntar dentro de</span><select id="cfgDestino">${['<option value="">Escolha…</option>'].concat(fil.map(f=>`<option value="${esc(f.n)}">${esc(f.n)} (${f.u})</option>`)).join('')}</select></label>
         <div class="sf w-act"><button class="btn" onclick="cfgAgrupar()">Agrupar</button></div>
       </div>
-      <div class="tw sl-tab" style="max-height:52vh"><table><thead><tr><th>Filial</th><th class="n">Lançamentos</th></tr></thead><tbody>
-        ${fil.map(f=>`<tr><td>${esc(f.n)}</td><td class="n">${f.u||'<span class="muted">0</span>'}</td></tr>`).join('')||'<tr><td colspan="2" class="muted">Nenhuma filial lançada ainda.</td></tr>'}
+      <div class="tw sl-tab" style="max-height:52vh"><table><thead><tr><th>Filial <span class="muted" style="text-transform:none;font-weight:500">— clique no nome para editar</span></th><th class="n">Lançamentos</th></tr></thead><tbody>
+        ${fil.map(f=>`<tr><td class="lg-obs"><input class="lgi" value="${esc(f.n)}" data-antigo="${esc(f.n)}" title="Clique para editar o nome" onchange="cfgRenomear(this)" onkeydown="if(event.key==='Enter')this.blur();else if(event.key==='Escape'){this.value=this.dataset.antigo;this.blur()}"></td><td class="n">${f.u||'<span class="muted">0</span>'}</td></tr>`).join('')||'<tr><td colspan="2" class="muted">Nenhuma filial lançada ainda.</td></tr>'}
       </tbody></table></div>
     </div>
   </div></div>`;
@@ -1697,11 +1697,23 @@ async function cfgExcluirUsuario(login){
 }
 async function cfgAgrupar(){
   const o=document.getElementById('cfgOrigem').value, d=document.getElementById('cfgDestino').value;
-  if(!o||!d){ toast('Escolha as duas filiais'); return; } if(up(o)===up(d)){ toast('Escolha filiais diferentes'); return; }
+  if(!o||!d){ toast('Escolha as duas filiais'); return; } if(o===d){ toast('Escolha filiais diferentes'); return; }
   const n=usoNome('FILIAL',o);
   if(!confirm(`Agrupar "${o}" dentro de "${d}"?\n\n${n} lançamento(s) de "${o}" passarão para "${d}" e o nome "${o}" será apagado.`)) return;
   try{ const r=await api('agruparFiliais',{origem:o,destino:d}); toast(`${r.movidos} lançamento(s) passaram para ${r.destino}`,5000); await carregar(true); render(); }
   catch(e){ toast('Erro: '+e.message,6000); }
+}
+
+async function cfgRenomear(inp){ // muda o nome da filial em todo o sistema
+  const antigo=inp.dataset.antigo, novo=inp.value.trim();
+  if(!novo){ inp.value=antigo; toast('O nome não pode ficar vazio'); return; }
+  if(novo===antigo) return;
+  const existe=nomesLog('FILIAL').some(n=>up(n)===up(novo)&&up(n)!==up(antigo));
+  const n=usoNome('FILIAL',antigo);
+  const msg=existe?`Já existe a filial "${novo}". Juntar "${antigo}" dentro dela?\n\n${n} lançamento(s) passarão para "${novo}".`:`Renomear "${antigo}" para "${novo}"?\n\nO nome muda em ${n} lançamento(s) e em todo o sistema.`;
+  if(!confirm(msg)){ inp.value=antigo; return; }
+  try{ const r=await api('renomearFilial',{antigo,novo}); toast(`Filial renomeada para ${r.destino} (${r.movidos} lançamento(s))`,5000); await carregar(true); render(); }
+  catch(e){ inp.value=antigo; toast('Erro: '+e.message,6000); }
 }
 
 iniciar();
