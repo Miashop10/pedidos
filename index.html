@@ -109,6 +109,8 @@ td.lg-obs input:hover,td.lg-obs input:focus{border-color:var(--line);background:
 .fa-tab tr.fa-total td{background:#FFE866}
 .fa-tab tr.fa-sep td{background:var(--acc);padding:3px}
 .fa-tab tr.fa-ab td{background:var(--acc-soft)}
+.fa-ini{display:inline-flex;align-items:center;gap:6px;margin-left:10px;font-size:11.5px;color:var(--mut)}
+.fa-ini input{height:24px;padding:1px 6px;font-size:12px;width:140px}
 .fa-tab tr.fa-ped td{background:var(--soft);font-size:12px;color:var(--mut);padding-left:24px}
 .btn.sm{height:30px}
 .sl-tab th{padding:6px 8px;font-size:10.5px}
@@ -649,7 +651,7 @@ function b64Arquivo(f){ return new Promise(res=>{ if(!f||f.size>8e6) return res(
 
 
 /* =================== PEDIDOS PARA AS FILIAIS =================== */
-const PD = { atual:null, form:{importadora:'',prazo:'',data:'',obs:''} };
+const PD = { atual:null, form:{importadora:'',prazo:'',data:'',obs:'',inicio:''} };
 function filiaisMap(){ const m={}; (S.dados&&S.dados.filiais||[]).forEach(f=>{ m[String(f.NUMERO).trim()]=f; }); return m; }
 function ordemFilial(a,b){ return (+a)-(+b); }
 function descPorCodigo(cod){ const p=P.find(x=>x.k===up(cod)); return p?p.descricao:''; }
@@ -704,6 +706,7 @@ function vPedidos(){
     <div class="row">
       <div class="fld" style="flex:2;min-width:240px">Importadora (para quem vai o pedido)<div style="position:relative"><input id="pdImp" autocomplete="off" value="${esc(F.importadora)}" oninput="PD.form.importadora=this.value;sugerirImportadora(this)" onfocus="sugerirImportadora(this)" onblur="setTimeout(()=>{const b=document.getElementById('pdImpSug');if(b)b.style.display='none'},150)" onkeydown="teclaImportadora(event)" placeholder="Comece a digitar… ex.: INTERPONTE" style="width:100%"><div id="pdImpSug" class="sugbox"></div></div></div>
       <div class="fld" style="flex:1;min-width:200px">Prazo acordado<input id="pdPrazo" value="${esc(F.prazo)}" oninput="PD.form.prazo=this.value" placeholder="Ex.: 30/60/90 dias"></div>
+      <div class="fld" title="Use quando o pagamento começa depois (ex.: compra em março, 1º vencimento em dezembro). Vazio = pela data do pedido + prazo.">1º pagamento (opcional)<input type="month" id="pdInicio" value="${esc(F.inicio||'')}" oninput="PD.form.inicio=this.value" style="width:160px"></div>
       <div class="fld">Data do pedido<input id="pdData" value="${esc(F.data)}" oninput="PD.form.data=this.value" style="width:120px"></div>
     </div>
     <div class="drop" id="dropPD" style="margin-top:12px;padding:20px"><b>Anexar pedido em Excel</b><small>.xlsx, .xls ou .csv — primeira linha com os números das filiais</small><input type="file" id="inPD" accept=".xlsx,.xls,.csv" class="hide"></div>
@@ -829,12 +832,12 @@ async function transformarPedido(){
   if(sem.length && !confirm('Filial(is) sem CNPJ cadastrado: '+sem.join(', ')+'. Gerar mesmo assim?')) return;
   const bt=document.getElementById('btTransf'); bt.disabled=true; bt.textContent='Gerando…';
   try{
-    const d={importadora:F.importadora.trim(),prazo:F.prazo.trim(),data:F.data,obs:F.obs,itens};
+    const d={importadora:F.importadora.trim(),prazo:F.prazo.trim(),data:F.data,obs:F.obs,inicio:F.inicio||'',itens};
     if(r.arquivo){ d.arquivoBase64=await b64Arquivo(r.arquivo); d.arquivoNome=r.arquivo.name; d.arquivoMime=r.arquivo.type; }
     const s=await api('salvarPedido',d);
     await gerarZip({id:s.id,numero:s.numero,importadora:d.importadora,prazo:d.prazo,data:d.data,obs:d.obs},itens,true);
     toast(`Pedido ${s.numero} gerado: 1 PDF com ${resumoFiliais(itens).length} filial(is)`,5000);
-    PD.atual=null; PD.form={importadora:'',prazo:'',data:'',obs:''}; await carregar(true);
+    PD.atual=null; PD.form={importadora:'',prazo:'',data:'',obs:'',inicio:''}; await carregar(true);
   }catch(e){ toast('Erro: '+e.message,6000); bt.disabled=false; bt.textContent='Transformar em pedido'; }
 }
 async function itensPedidoSalvo(id){
@@ -1361,10 +1364,21 @@ function prazoDias(prazo){ // "30/60/90 dias" → [30,60,90] · "60 dias" → [6
   return [0];
 }
 // cada 30 dias de prazo = 1 mês depois do mês do pedido (30/60/90 em dezembro → janeiro, fevereiro e março)
+// início do pagamento: se o pedido tiver um mês definido (INICIO_PAGTO), a 1ª parcela cai nesse mês e as demais seguem o intervalo do prazo
 function parcelasPedido(p){
-  const m=String(p.DATA||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); const base=m?new Date(+m[3],+m[2]-1,1):new Date();
-  const dias=prazoDias(p.PRAZO); const total=Math.round((+p.VALOR_TOTAL||0)*100); const n=dias.length;
-  return dias.map((d,i)=>{ const dt=new Date(base.getFullYear(),base.getMonth()+Math.round(d/30),1); const cent=i<n-1?Math.floor(total/n):total-Math.floor(total/n)*(n-1); return {mes:mesKey(dt),valor:cent/100,dias:d}; });
+  const m=String(p.DATA||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); const dias=prazoDias(p.PRAZO);
+  const ini=String(p.INICIO_PAGTO||'').match(/^(\d{4})-(\d{2})$/);
+  let base, desloc;
+  if(ini){ base=new Date(+ini[1],+ini[2]-1,1); desloc=Math.round(dias[0]/30); }
+  else { base=m?new Date(+m[3],+m[2]-1,1):new Date(); desloc=0; }
+  const total=Math.round((+p.VALOR_TOTAL||0)*100); const n=dias.length;
+  return dias.map((d,i)=>{ const dt=new Date(base.getFullYear(),base.getMonth()+Math.round(d/30)-desloc,1); const cent=i<n-1?Math.floor(total/n):total-Math.floor(total/n)*(n-1); return {mes:mesKey(dt),valor:cent/100,dias:d}; });
+}
+async function faSalvarInicio(id,inp){
+  const p=(S.dados.pedidos||[]).find(x=>String(x.ID)===String(id)); if(!p) return; const antes=p.INICIO_PAGTO||'';
+  p.INICIO_PAGTO=inp.value||''; faAtualizar();
+  try{ await api('salvarInicioPedido',{id,inicio:p.INICIO_PAGTO}); toast(p.INICIO_PAGTO?'1º pagamento em '+mesNome(p.INICIO_PAGTO):'Início automático (pela data do pedido)'); }
+  catch(e){ p.INICIO_PAGTO=antes; faAtualizar(); toast('Erro: '+e.message,6000); }
 }
 function faturarDados(){
   const hoje=mesKey(new Date()); const q=semAcento(PF2.q).trim();
@@ -1395,7 +1409,7 @@ function vFaturar(){
     <button class="btn sec sm" onclick="faExportar()">Excel</button>
   </div>
   <div class="tw sl-tab fa-tab"><table id="tbFat">${faTabela()}</table></div>
-  <p class="small muted" style="margin-top:6px">Clique no fornecedor para ver cada pedido e as parcelas. Prazo lido do campo "Prazo acordado", cada 30 dias = 1 mês após o mês do pedido: "30/60/90 dias" = 3 parcelas · "60 dias" = 1 parcela em 2 meses · "3x" = 30/60/90 · sem número = no mês do pedido.</p>
+  <p class="small muted" style="margin-top:6px">Clique no fornecedor para ver cada pedido e as parcelas. Prazo lido do campo "Prazo acordado", cada 30 dias = 1 mês após o mês do pedido (ou a partir do "1º pagamento" definido no pedido): "30/60/90 dias" = 3 parcelas · "60 dias" = 1 parcela em 2 meses · "3x" = 30/60/90 · sem número = no mês do pedido.</p>
   </div>`;
 }
 function faTabela(){
@@ -1411,7 +1425,8 @@ function faTabela(){
     ${lista.map(f=>{ const ab=PF2.abertos[up(f.nome)];
       return `<tr class="clk${ab?' fa-ab':''}" onclick="PF2.abertos['${k(up(f.nome))}']=!PF2.abertos['${k(up(f.nome))}'];faAtualizar()"><td><span class="rr-car">${ab?'▾':'▸'}</span><b>${esc(f.nome)}</b> <span class="muted small">${f.pedidos.length} pedido(s)</span></td><td class="n">${fR(f.valor)}</td>${cols.map(c=>`<td class="n">${cel(f.meses[c])}</td>`).join('')}</tr>`
       + (ab ? f.pedidos.map(({p,pars})=>{ const m={}; pars.forEach(x=>m[x.mes]=(m[x.mes]||0)+x.valor);
-          return `<tr class="fa-ped"><td title="Prazo: ${esc(p.PRAZO)}">Pedido ${esc(p.NUMERO)} · ${esc(p.DATA)} · <span class="muted">${esc(p.PRAZO)||'sem prazo'} → ${prazoDias(p.PRAZO).length} parc.</span></td><td class="n">${fR(+p.VALOR_TOTAL)}</td>${cols.map(c=>`<td class="n">${cel(m[c])}</td>`).join('')}</tr>`; }).join('') : '');
+          return `<tr class="fa-ped"><td title="Prazo: ${esc(p.PRAZO)}">Pedido ${esc(p.NUMERO)} · ${esc(p.DATA)} · <span class="muted">${esc(p.PRAZO)||'sem prazo'} → ${prazoDias(p.PRAZO).length} parc.</span>
+            <div class="fa-ini" onclick="event.stopPropagation()"><span>1º pagamento:</span><input type="month" value="${esc(p.INICIO_PAGTO||'')}" onchange="faSalvarInicio('${esc(p.ID)}',this)" title="Mês do 1º vencimento. Vazio = automático pela data do pedido + prazo">${p.INICIO_PAGTO?`<button class="ib" title="Voltar ao automático" onclick="this.previousElementSibling.value='';faSalvarInicio('${esc(p.ID)}',this.previousElementSibling)">↺</button>`:'<span class="muted small">automático</span>'}</div></td><td class="n">${fR(+p.VALOR_TOTAL)}</td>${cols.map(c=>`<td class="n">${cel(m[c])}</td>`).join('')}</tr>`; }).join('') : '');
     }).join('') || `<tr><td colspan="${cols.length+2}" class="muted">Nenhum pedido gerado em "Pedidos".</td></tr>`}
   </tbody>`;
 }
