@@ -132,6 +132,9 @@ tr.lg-ed td{background:var(--acc-soft)}
 .rr-k{padding:10px 14px}.rr-k .v{font-size:20px}
 .rr-h{font-size:14px;margin:16px 0 6px}
 tr.rr-fil.on td{background:var(--acc-soft)}
+.rr-th{cursor:pointer;user-select:none}
+.rr-th:hover{color:var(--acc-ink)}
+.rr-th.on{background:var(--acc)!important;color:#fff!important}
 .rr-cel{cursor:pointer;line-height:1.15;padding-top:4px!important;padding-bottom:4px!important}
 .rr-fn{display:block;font-size:9.5px;font-weight:600;color:var(--mut);letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px;margin-left:auto}
 .rr-cel.sel .rr-fn{color:#fff;opacity:.85}
@@ -1129,6 +1132,11 @@ function vRelReceb(){
   </div>
   <div id="rrCorpo">${rrCorpo()}</div></div>`;
 }
+// clique no mês (ou Total) ordena as filiais do maior para o menor valor; clique de novo volta à ordem alfabética
+function rrOrdem(k){ RR.ordem = (RR.ordem===k) ? '' : k; rrAtualizar(); }
+function rrOrdenar(lista){ const k=RR.ordem||''; if(!k) return lista;
+  const v=f=>k==='*'?f.tot:(f.m[k]||0);
+  return lista.slice().sort((a,b)=>v(b)-v(a)||a.nome.localeCompare(b.nome,'pt-BR')); }
 function rrAbrir(fil,mes){ RR.sel = (RR.sel&&RR.sel.fil===fil&&RR.sel.mes===mes) ? null : {fil,mes}; rrAtualizar(); }
 function rrAtualizar(){ const el=document.getElementById('rrCorpo'); if(!el) return; el.innerHTML=rrCorpo(); ajustarTabelas(el); }
 function rrMatriz(L,cols,chave){ // {nome, m:{mes:valor}, tot, n, itens}
@@ -1144,12 +1152,14 @@ function rrCorpo(){
   const L=rrDados();
   if(!(S.dados.logistica||[]).length) return `<div class="card muted">Ainda não há lançamentos no Controle de Logística.</div>`;
   const cols=rrColunas(); if(L.some(r=>!rrMes(r))) cols.push('');
-  const fil=rrTodasFiliais(rrMatriz(L,cols,r=>rrNome(r.FILIAL)));
+  const fil=rrOrdenar(rrTodasFiliais(rrMatriz(L,cols,r=>rrNome(r.FILIAL))));
   const totM={}; let tot=0, n=0; fil.forEach(f=>{ cols.forEach(c=>totM[c]=(totM[c]||0)+(f.m[c]||0)); tot+=f.tot; n+=f.n; });
   const cel=v=>v?fR(v):'<span class="muted">·</span>';
   const qk=x=>esc(x).replace(/'/g,"\\'");
   // layout: Filial (à esquerda) | jan | fev | ... | Total — o nome da filial também aparece pequeno em cima de cada valor
-  const head=`<th>Filial</th>${cols.map(c=>`<th class="n">${rrMesNome(c)}</th>`).join('')}<th class="n">Total</th>`;
+  const ord=RR.ordem||'';
+  const seta=k=>ord===k?' ▼':'';
+  const head=`<th class="rr-th" onclick="rrOrdem('')" title="Ordem alfabética">Filial${ord===''?' ▲':''}</th>${cols.map(c=>`<th class="n rr-th${ord===c?' on':''}" onclick="rrOrdem('${c}')" title="Ordenar filiais pelo valor de ${rrMesNome(c)} (maior → menor)">${rrMesNome(c)}${seta(c)}</th>`).join('')}<th class="n rr-th${ord==='*'?' on':''}" onclick="rrOrdem('*')" title="Ordenar pelo total (maior → menor)">Total${seta('*')}</th>`;
   // clique num valor → só os lançamentos daquela filial naquele mês · clique no nome/total → todos da filial
   const sel=RR.sel||null;
   const abre=(fil,mes)=>`event.stopPropagation();rrAbrir('${qk(fil)}','${mes}')`;
@@ -1161,7 +1171,7 @@ function rrCorpo(){
     + (ab ? `<tr class="rr-sub"><td colspan="${cols.length+2}"><table class="rr-mini"><thead><tr><th>Fornecedor</th><th>NF</th><th>Chegada</th><th class="n">Recebido</th></tr></thead><tbody>
         ${itens.slice().sort((a,b)=>rrMes(b).localeCompare(rrMes(a))||(isoBR(b.DATA_CHEGADA)||'').localeCompare(isoBR(a.DATA_CHEGADA)||'')).map(r=>`<tr><td>${esc(r.FORNECEDOR)}${r._viaCD?' <span class="tag t-acc" title="Recebido no CD e distribuído para esta filial">via CD</span>':r._restoCD?' <span class="tag t-mut">não distribuído</span>':''}</td><td>${esc(r.NOTA_FISCAL)||'—'}</td><td>${esc(r.DATA_CHEGADA)||esc(r.DATA_LANCAMENTO)||'—'}</td><td class="n"><b>${fR(+r.VALOR_CALCULADO)}</b></td></tr>`).join('')}
         </tbody><tfoot><tr><td colspan="3">${itens.length} NF(s) · ${esc(f.nome)} · ${sel.mes==='*'?'todo o período':rrMesNome(sel.mes)}</td><td class="n">${fR(totSel)}</td></tr></tfoot></table></td></tr>` : ''); }).join('');
-  return `<h3 class="rr-h">Recebimento por filial e mês${RR.f.forn?' · <span style="color:var(--acc-ink)">'+esc(RR.f.forn)+'</span>':''} <span class="muted small">— clique num valor para ver os lançamentos daquele mês · na filial para ver todos</span></h3>
+  return `<h3 class="rr-h">Recebimento por filial e mês${RR.f.forn?' · <span style="color:var(--acc-ink)">'+esc(RR.f.forn)+'</span>':''} <span class="muted small">— clique no mês para ordenar do maior para o menor · num valor para ver os lançamentos</span></h3>
   <div class="tw sl-tab rr-mat"><table><thead><tr>${head}</tr></thead><tbody>${linhas}</tbody>
     <tfoot><tr><td>TOTAL · ${n} NF(s)</td>${cols.map(c=>`<td class="n">${totM[c]?fR(totM[c]):'—'}</td>`).join('')}<td class="n">${fR(tot)}</td></tr></tfoot></table></div>`;
 }
