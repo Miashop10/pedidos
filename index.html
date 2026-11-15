@@ -110,7 +110,10 @@ td.lg-obs input:hover,td.lg-obs input:focus{border-color:var(--line);background:
 .fa-tab tr.fa-sep td{background:var(--acc);padding:3px}
 .fa-tab tr.fa-ab td{background:var(--acc-soft)}
 .fa-ini{display:inline-flex;align-items:center;gap:6px;margin-left:10px;font-size:11.5px;color:var(--mut)}
-.fa-ini input{height:24px;padding:1px 6px;font-size:12px;width:140px}
+.selma{display:inline-flex;gap:4px}
+.fa-ini select{height:24px;padding:1px 4px;font-size:12px}
+#pdInicio select{height:38px}
+.selma select:disabled{opacity:.45}
 .fa-tab tr.fa-ped td{background:var(--soft);font-size:12px;color:var(--mut);padding-left:24px}
 .btn.sm{height:30px}
 .sl-tab th{padding:6px 8px;font-size:10.5px}
@@ -706,7 +709,7 @@ function vPedidos(){
     <div class="row">
       <div class="fld" style="flex:2;min-width:240px">Importadora (para quem vai o pedido)<div style="position:relative"><input id="pdImp" autocomplete="off" value="${esc(F.importadora)}" oninput="PD.form.importadora=this.value;sugerirImportadora(this)" onfocus="sugerirImportadora(this)" onblur="setTimeout(()=>{const b=document.getElementById('pdImpSug');if(b)b.style.display='none'},150)" onkeydown="teclaImportadora(event)" placeholder="Comece a digitar… ex.: INTERPONTE" style="width:100%"><div id="pdImpSug" class="sugbox"></div></div></div>
       <div class="fld" style="flex:1;min-width:200px">Prazo acordado<input id="pdPrazo" value="${esc(F.prazo)}" oninput="PD.form.prazo=this.value" placeholder="Ex.: 30/60/90 dias"></div>
-      <div class="fld" title="Use quando o pagamento começa depois (ex.: compra em março, 1º vencimento em dezembro). Vazio = pela data do pedido + prazo.">1º pagamento (opcional)<input type="month" id="pdInicio" value="${esc(F.inicio||'')}" oninput="PD.form.inicio=this.value" style="width:160px"></div>
+      <div class="fld" title="Use quando o pagamento começa depois (ex.: compra em março, 1º vencimento em dezembro). Vazio = pela data do pedido + prazo.">1º pagamento (opcional)<div id="pdInicio">${selMesAno(F.inicio,"PD.form.inicio=lerMesAno(this);this.closest('.selma').querySelector('[data-p=a]').disabled=!PD.form.inicio")}</div></div>
       <div class="fld">Data do pedido<input id="pdData" value="${esc(F.data)}" oninput="PD.form.data=this.value" style="width:120px"></div>
     </div>
     <div class="drop" id="dropPD" style="margin-top:12px;padding:20px"><b>Anexar pedido em Excel</b><small>.xlsx, .xls ou .csv — primeira linha com os números das filiais</small><input type="file" id="inPD" accept=".xlsx,.xls,.csv" class="hide"></div>
@@ -1374,10 +1377,16 @@ function parcelasPedido(p){
   const total=Math.round((+p.VALOR_TOTAL||0)*100); const n=dias.length;
   return dias.map((d,i)=>{ const dt=new Date(base.getFullYear(),base.getMonth()+Math.round(d/30)-desloc,1); const cent=i<n-1?Math.floor(total/n):total-Math.floor(total/n)*(n-1); return {mes:mesKey(dt),valor:cent/100,dias:d}; });
 }
-async function faSalvarInicio(id,inp){
+// seletor de mês + ano (sem digitação, funciona em qualquer navegador)
+function selMesAno(v,onchg){ const m=String(v||'').match(/^(\d{4})-(\d{2})$/); const a0=new Date().getFullYear();
+  const anos=[]; for(let a=a0-1;a<=a0+3;a++) anos.push(a); if(m&&!anos.includes(+m[1])) anos.push(+m[1]);
+  return `<span class="selma"><select data-p="m" onchange="${onchg}"><option value="">automático</option>${MESES_PT.map((n,k)=>`<option value="${String(k+1).padStart(2,'0')}" ${m&&+m[2]===k+1?'selected':''}>${n}</option>`).join('')}</select><select data-p="a" onchange="${onchg}" ${m?'':'disabled'}>${anos.map(a=>`<option ${m?(+m[1]===a?'selected':''):(a===a0?'selected':'')}>${a}</option>`).join('')}</select></span>`; }
+function lerMesAno(el){ const w=el.closest('.selma'); const mm=w.querySelector('[data-p=m]').value, aa=w.querySelector('[data-p=a]').value; return mm?aa+'-'+mm:''; }
+async function faSalvarInicio(id,el){
   const p=(S.dados.pedidos||[]).find(x=>String(x.ID)===String(id)); if(!p) return; const antes=p.INICIO_PAGTO||'';
-  p.INICIO_PAGTO=inp.value||''; faAtualizar();
-  try{ await api('salvarInicioPedido',{id,inicio:p.INICIO_PAGTO}); toast(p.INICIO_PAGTO?'1º pagamento em '+mesNome(p.INICIO_PAGTO):'Início automático (pela data do pedido)'); }
+  const v=lerMesAno(el); if(v===antes) return;
+  p.INICIO_PAGTO=v; faAtualizar();
+  try{ await api('salvarInicioPedido',{id,inicio:v}); toast(v?'1º pagamento em '+mesNome(v):'Início automático (pela data do pedido)'); }
   catch(e){ p.INICIO_PAGTO=antes; faAtualizar(); toast('Erro: '+e.message,6000); }
 }
 function faturarDados(){
@@ -1426,7 +1435,7 @@ function faTabela(){
       return `<tr class="clk${ab?' fa-ab':''}" onclick="PF2.abertos['${k(up(f.nome))}']=!PF2.abertos['${k(up(f.nome))}'];faAtualizar()"><td><span class="rr-car">${ab?'▾':'▸'}</span><b>${esc(f.nome)}</b> <span class="muted small">${f.pedidos.length} pedido(s)</span></td><td class="n">${fR(f.valor)}</td>${cols.map(c=>`<td class="n">${cel(f.meses[c])}</td>`).join('')}</tr>`
       + (ab ? f.pedidos.map(({p,pars})=>{ const m={}; pars.forEach(x=>m[x.mes]=(m[x.mes]||0)+x.valor);
           return `<tr class="fa-ped"><td title="Prazo: ${esc(p.PRAZO)}">Pedido ${esc(p.NUMERO)} · ${esc(p.DATA)} · <span class="muted">${esc(p.PRAZO)||'sem prazo'} → ${prazoDias(p.PRAZO).length} parc.</span>
-            <div class="fa-ini" onclick="event.stopPropagation()"><span>1º pagamento:</span><input type="month" value="${esc(p.INICIO_PAGTO||'')}" onchange="faSalvarInicio('${esc(p.ID)}',this)" title="Mês do 1º vencimento. Vazio = automático pela data do pedido + prazo">${p.INICIO_PAGTO?`<button class="ib" title="Voltar ao automático" onclick="this.previousElementSibling.value='';faSalvarInicio('${esc(p.ID)}',this.previousElementSibling)">↺</button>`:'<span class="muted small">automático</span>'}</div></td><td class="n">${fR(+p.VALOR_TOTAL)}</td>${cols.map(c=>`<td class="n">${cel(m[c])}</td>`).join('')}</tr>`; }).join('') : '');
+            <div class="fa-ini" onclick="event.stopPropagation()"><span>1º pagamento:</span>${selMesAno(p.INICIO_PAGTO,`faSalvarInicio('${esc(p.ID)}',this)`)}</div></td><td class="n">${fR(+p.VALOR_TOTAL)}</td>${cols.map(c=>`<td class="n">${cel(m[c])}</td>`).join('')}</tr>`; }).join('') : '');
     }).join('') || `<tr><td colspan="${cols.length+2}" class="muted">Nenhum pedido gerado em "Pedidos".</td></tr>`}
   </tbody>`;
 }
