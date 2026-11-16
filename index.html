@@ -147,6 +147,12 @@ td.lg-obs input:hover,td.lg-obs input:focus{border-color:var(--line);background:
 .fn-cola:focus{border-color:var(--acc);outline:0;background:var(--card)}
 .fn-colatab th select{font-size:12px;padding:3px 4px;min-width:130px;font-weight:700}
 .fn-colatab th select.on{border-color:var(--acc);background:var(--acc-soft);color:var(--acc-ink)}
+.fn-selbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 8px;padding:6px 8px;background:var(--card);border:1px solid var(--line);border-radius:10px}
+.fn-selbar .del{color:var(--bad)}
+tr.fn-sel td{background:var(--acc-soft)!important}
+.fn-lote-l{display:flex;align-items:flex-start;gap:12px;padding:8px 0;border-bottom:1px solid var(--line)}
+.fn-lote-l #fmCCs .fnd-ccl{grid-template-columns:1fr 130px 30px}.fn-lote-l #fmCCs .fnd-pv:has(.cc-v){display:none}
+.fn-lote-l .off{opacity:.35;pointer-events:none}
 .fnd-drop{display:block;border:2px dashed var(--line);border-radius:10px;padding:9px 12px;margin:0 0 10px;font-size:13px;cursor:pointer;background:var(--card);text-align:center}
 .fnd-drop:hover,.fnd-drop.on{border-color:var(--acc);background:var(--acc-soft)}
 .fnd-drop.lendo{opacity:.7;pointer-events:none}
@@ -204,6 +210,8 @@ tr.fn-venc td:first-child{box-shadow:inset 3px 0 var(--bad)}
 .dre tr.dre-res td:first-child{background:var(--acc-soft)}
 .dre tr.dre-res2 td,.dre tr.dre-res2 td:first-child{font-weight:800;background:var(--soft);border-top:1px solid var(--line)}
 .dre .dre-tg{cursor:pointer;user-select:none;white-space:nowrap}.dre .dre-tg:hover{color:var(--acc)}.dre-ar{display:inline-block;width:14px;color:var(--acc)}
+.dre tr.dre-sub td,.dre tr.dre-sub td:first-child{font-weight:800;background:#fdecea;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.dre tr.dre-esp td,.dre tr.dre-esp td:first-child{height:22px;padding:0;background:transparent;border:0}
 .dre .dre-lk{cursor:pointer;border-bottom:1px dotted currentColor}.dre .dre-lk:hover{color:var(--acc)!important;border-bottom-style:solid}
 .dre tr.dre-cat td:first-child{padding-left:22px;color:var(--mut)}
 .dre tr.dre-res td{font-weight:800;background:var(--acc-soft);border-top:2px solid var(--acc)}
@@ -1957,15 +1965,15 @@ async function fnBaixar(id){ const g=i=>document.getElementById(i).value;
   try{ await api('finBaixar',{id,data:brISO(g('fbData')),valor:numBR(g('fbValor')),contaId:g('fbConta')}); fecharModal(); toast('Baixa registrada ✓'); await fnRecarregar(); render(); }catch(e){ toast('Erro: '+e.message,6000); } }
 async function fnEstornar(id){ if(!confirm('Estornar? O lançamento volta a ficar em aberto (e sai da conciliação).')) return;
   try{ await api('finEstornar',{id}); toast('Estornado'); await fnRecarregar(); render(); }catch(e){ toast('Erro: '+e.message,6000); } }
-function fnTabelaLanc(L,quitadas){
-  const hoje=hojeISO(); const tot=L.reduce((s,l)=>s+(+(quitadas?l.VALOR_PAGO:l.VALOR)||0),0);
-  return `<div class="tw sl-tab"><table><thead><tr><th>${quitadas?'Pago/recebido em':'Vencimento'}</th>${quitadas?'<th>Vencimento</th>':''}<th>Nome</th><th>Descrição</th><th>NF</th><th>Categoria</th><th>Centro de custo</th><th class="n">Valor</th>${quitadas?'<th>Conta</th>':''}<th></th></tr></thead><tbody>
+function fnTabelaLanc(L,quitadas,sel){
+  const hoje=hojeISO(); FN.sel=FN.sel||new Set(); const tot=L.reduce((s,l)=>s+(+(quitadas?l.VALOR_PAGO:l.VALOR)||0),0);
+  return `<div class="tw sl-tab"><table><thead><tr>${sel?`<th class="c" style="width:30px"><input type="checkbox" title="Marcar/desmarcar todos os filtrados" ${L.length&&L.every(l=>FN.sel.has(l.ID))?'checked':''} onchange="fnSelTodos(this.checked)"></th>`:''}<th>${quitadas?'Pago/recebido em':'Vencimento'}</th>${quitadas?'<th>Vencimento</th>':''}<th>Nome</th><th>Descrição</th><th>NF</th><th>Categoria</th><th>Centro de custo</th><th class="n">Valor</th>${quitadas?'<th>Conta</th>':''}<th></th></tr></thead><tbody>
   ${L.map(l=>{ const venc=!quitadas&&isoBR(l.VENCIMENTO)&&isoBR(l.VENCIMENTO)<hoje;
-    return `<tr class="${venc?'fn-venc':''}"><td>${esc(quitadas?l.DATA_PAGAMENTO:l.VENCIMENTO)}${venc?' <span class="tag t-bad">vencido</span>':''}</td>${quitadas?`<td class="muted">${esc(l.VENCIMENTO)}</td>`:''}<td><b>${esc(l.NOME)}</b>${/CART/i.test(l.FORMA_PAGAMENTO||'')?' <span class="tag t-warn" title="Cartão de crédito">💳 cartão</span>':''}</td><td style="white-space:normal">${esc(l.DESCRICAO)}${l.OBS?`<div class="muted small" title="Observações">📝 ${esc(l.OBS)}</div>`:''}</td><td>${esc(l.NOTA_FISCAL)}</td><td>${esc(l.CATEGORIA)||'<span class="muted">—</span>'}</td><td style="white-space:normal">${fnCCHtml(l.CENTRO_CUSTO)}</td>
+    return `<tr class="${venc?'fn-venc':''}${sel&&FN.sel.has(l.ID)?' fn-sel':''}">${sel?`<td class="c"><input type="checkbox" class="fn-ck" data-id="${esc(l.ID)}" ${FN.sel.has(l.ID)?'checked':''} onchange="fnSelUm(this)"></td>`:''}<td>${esc(quitadas?l.DATA_PAGAMENTO:l.VENCIMENTO)}${venc?' <span class="tag t-bad">vencido</span>':''}</td>${quitadas?`<td class="muted">${esc(l.VENCIMENTO)}</td>`:''}<td><b>${esc(l.NOME)}</b>${/CART/i.test(l.FORMA_PAGAMENTO||'')?' <span class="tag t-warn" title="Cartão de crédito">💳 cartão</span>':''}</td><td style="white-space:normal">${esc(l.DESCRICAO)}${l.OBS?`<div class="muted small" title="Observações">📝 ${esc(l.OBS)}</div>`:''}</td><td>${esc(l.NOTA_FISCAL)}</td><td>${esc(l.CATEGORIA)||'<span class="muted">—</span>'}</td><td style="white-space:normal">${fnCCHtml(l.CENTRO_CUSTO)}</td>
     <td class="n"><b>${fR(+(quitadas?l.VALOR_PAGO:l.VALOR))}</b></td>${quitadas?`<td>${esc((fnConta(l.CONTA_ID)||{}).NOME||'—')}${l.EXTRATO_ID?' <span class="tag t-ok" title="Conciliado com o extrato">✓</span>':''}</td>`:''}
     <td class="c" style="white-space:nowrap">${quitadas?`<button class="ib" onclick="fnEstornar('${esc(l.ID)}')">Estornar</button>`:`<button class="ib" onclick="fnModalBaixa('${esc(l.ID)}')">✓ ${l.TIPO==='RECEBER'?'Receber':'Pagar'}</button>`}<button class="ib" onclick="fnModalLanc('${esc(l.ID)}')">✎</button><button class="ib del" onclick="fnExcluirLanc('${esc(l.ID)}')">✕</button></td></tr>`; }).join('')
     ||`<tr><td colspan="10" class="muted">Nenhum lançamento.</td></tr>`}</tbody>
-  <tfoot><tr><td colspan="${quitadas?7:6}">TOTAL · ${L.length} lançamento(s)</td><td class="n">${fR(tot)}</td><td colspan="${quitadas?2:1}"></td></tr></tfoot></table></div>`;
+  <tfoot><tr><td colspan="${(quitadas?7:6)+(sel?1:0)}">TOTAL · ${L.length} lançamento(s)</td><td class="n">${fR(tot)}</td><td colspan="${quitadas?2:1}"></td></tr></tfoot></table></div>`;
 }
 
 /* ---------- importar lançamentos (Excel) ---------- */
@@ -2072,7 +2080,7 @@ function fnRelatorio(sub){
     <select onchange="FN.cc=this.value;fnAtualizar()" style="max-width:200px"><option value="">Centro de custo: todos</option>${fnCentros().map(c=>`<option ${c===FN.cc?'selected':''}>${esc(c)}</option>`).join('')}</select>
     <button class="btn ghost sm" onclick="FN.q='';FN.de='';FN.ate='';FN.cat='';FN.cc='';fnAtualizar()">limpar</button>
     ${vencidos.length?`<span class="tag t-bad">${vencidos.length} vencido(s) · ${fR(vencidos.reduce((s,l)=>s+(+l.VALOR||0),0))}</span>`:''}
-  </div>${fnTabelaLanc(L,quit)}`;
+  </div>${fnBarraSel(L)}${fnTabelaLanc(L,quit,true)}`;
 }
 function fnExportar(){ const sub=FN.sub.rel, quit=(sub==='pagas'||sub==='recebidas');
   const rows=fnFiltrados(sub).map(l=>({'Vencimento':l.VENCIMENTO,'Pago/recebido em':l.DATA_PAGAMENTO||'','Nome':l.NOME,'Descrição':l.DESCRICAO,'Nota fiscal':l.NOTA_FISCAL,'Categoria':l.CATEGORIA,'Centro de custo':l.CENTRO_CUSTO||'','Forma de pagamento':l.FORMA_PAGAMENTO||'CONTA CORRENTE','Observações':l.OBS||'','Valor':+l.VALOR,'Valor pago':quit?+l.VALOR_PAGO:'','Conta':(fnConta(l.CONTA_ID)||{}).NOME||'','Conciliado':l.EXTRATO_ID?'SIM':''}));
@@ -2099,9 +2107,9 @@ function fnDREToggle(td,key,g){ const k=key+g; FN.dreAb[k]=!FN.dreAb[k]; const t
 function fnDRETodos(abrir){ ['r','a','rp','ap'].forEach(k=>['A','B','C','D','E'].forEach(g=>FN.dreAb[k+g]=abrir)); fnAtualizar(); }
 function fnDREAbrir(key,g,nome,m){
   const D=FN.dreItens[key]; if(!D) return; const {realizado,part}=D;
-  const L=D.itens.filter(x=>x.g===g&&(!nome||x.nome===nome)&&(!m||x.m===m)).sort((a,b)=>(isoBR(realizado?a.l.DATA_PAGAMENTO:a.l.VENCIMENTO)||'').localeCompare(isoBR(realizado?b.l.DATA_PAGAMENTO:b.l.VENCIMENTO)||''));
+  const L=D.itens.filter(x=>g.includes(x.g)&&(!nome||x.nome===nome)&&(!m||x.m===m)).sort((a,b)=>(isoBR(realizado?a.l.DATA_PAGAMENTO:a.l.VENCIMENTO)||'').localeCompare(isoBR(realizado?b.l.DATA_PAGAMENTO:b.l.VENCIMENTO)||''));
   const tot=L.reduce((s,x)=>s+x.v,0);
-  const rotG=part?{A:'Receitas',B:'Despesas'}[g]:{A:'Receitas operacionais',B:'Despesas operacionais',C:'Folha de pagamento',D:'Produtos',E:'Despesas montagem'}[g];
+  const rotG=part?{A:'Receitas',B:'Despesas'}[g]:{A:'Receitas operacionais',B:'Despesas operacionais',C:'Folha de pagamento',D:'Produtos',E:'Despesas montagem',BC:'Despesas operacionais + folha de pagamento'}[g];
   modal(`<div class="mh"><h3>${part?'DRE particular':'DRE Miashop'} · ${realizado?'Realizado':'Agendado'} — ${esc(nome||rotG)}${m?' · '+rrMesNome(m):' · '+FN.ano}</h3><button class="btn ghost" onclick="fecharModal()">✕</button></div>
   <p class="small muted" style="margin-top:0">${L.length} lançamento(s) · total <b>${fR(tot)}</b>${FN.dreCC?` · centro de custo <b>${esc(FN.dreCC)}</b> (valores proporcionais ao % do centro)`:''}</p>
   <div class="tw sl-tab" style="max-height:62vh"><table><thead><tr><th>${realizado?'Pago/recebido em':'Vencimento'}</th><th>Nome</th><th>Descrição</th><th>NF</th>${nome?'':'<th>Categoria</th>'}<th>Centro de custo</th><th class="n">Valor</th><th></th></tr></thead><tbody>
@@ -2134,6 +2142,8 @@ function fnTabelaDRE(meses,realizado,part){
     ${linhaGrupo('A · RECEITAS OPERACIONAIS',A,false,'A')}${linhasCat('A')}
     ${linhaGrupo('B · DESPESAS OPERACIONAIS',B,true,'B')}${linhasCat('B',true)}
     ${linhaGrupo('C · FOLHA DE PAGAMENTO',C,true,'C')}${linhasCat('C',true)}
+    ${(()=>{ const BC={}; meses.forEach(m=>BC[m]=(B[m]||0)+(C[m]||0)); return `<tr class="dre-sub"><td>TOTAL DESPESAS OPERACIONAIS + FOLHA (B + C)</td>${meses.map(m=>`<td class="n">${cel(BC[m],true,'BC','',m)}</td>`).join('')}<td class="n">${cel(tot(BC),true,'BC','','')}</td></tr>`; })()}
+    <tr class="dre-esp"><td colspan="${meses.length+2}"></td></tr>
     ${linhaGrupo('D · PRODUTOS',D,true,'D')}${linhasCat('D',true)}
     ${linhaGrupo('E · DESPESAS MONTAGEM',E,true,'E')}${linhasCat('E',true)}
     ${res('F · RESULTADO REAL (A − B − C − D − E = F)',F,'dre-res')}
@@ -2145,8 +2155,9 @@ function fnOptGrupo(c){ const g=fnGrupoCat(c); return FIN_GRUPOS.filter(([k])=>!
 function fnCategoriasTela(){
   const C=fin().categorias.slice().sort((a,b)=>(a.TIPO+a.NOME).localeCompare(b.TIPO+b.NOME,'pt-BR'));
   const linha=c=>`<tr class="fn-cfg"><td><input class="lgi" value="${esc(c.NOME)}" data-antigo="${esc(c.NOME)}" data-c="nome" onchange="fnSalvarCat(this)" onkeydown="if(event.key==='Enter') this.blur()"></td><td><select data-c="tipo" onchange="fnSalvarCat(this)"><option value="RECEITA" ${c.TIPO==='RECEITA'?'selected':''}>Receita</option><option value="DESPESA" ${c.TIPO!=='RECEITA'?'selected':''}>Despesa</option></select></td><td><select data-c="grupo" onchange="fnSalvarCat(this)">${fnOptGrupo(c)}</select></td>
-    <td class="c" style="white-space:nowrap"><button class="ib" onclick="fnSalvarCat(this)">Salvar</button><button class="ib del" onclick="fnExcluirCat(this)">✕</button></td></tr>`;
-  return `<div class="card" style="padding:12px;margin-bottom:12px"><b>Nova categoria</b>
+    <td class="c" style="white-space:nowrap"><button class="ib" onclick="fnSalvarCat(this)">Salvar</button><button class="ib" title="Juntar esta categoria em outra" onclick="fnModalAgrupar(this.closest('tr').querySelector('[data-c=nome]').dataset.antigo)">⇢ Agrupar</button><button class="ib del" onclick="fnExcluirCat(this)">✕</button></td></tr>`;
+  return `<div class="row" style="margin-bottom:10px"><span class="sp"></span><button class="btn sec" onclick="fnModalAgrupar('')">⇢ Agrupar categorias</button></div>
+  <div class="card" style="padding:12px;margin-bottom:12px"><b>Nova categoria</b>
     <div class="row" style="align-items:flex-end;margin-top:8px" id="fnCatNova"><label class="sf" style="flex:2 1 220px"><span>Nome</span><input data-c="nome" data-antigo="" placeholder="Ex.: Marketing"></label>
     <label class="sf" style="flex:0 0 140px"><span>Tipo</span><select data-c="tipo"><option value="DESPESA">Despesa</option><option value="RECEITA">Receita</option></select></label>
     <label class="sf" style="flex:0 0 190px"><span>Grupo</span><select data-c="grupo">${FIN_GRUPOS.map(([k,n])=>`<option value="${k}">${n}</option>`).join('')}</select></label>
@@ -2159,7 +2170,7 @@ function fnCategoriasTela(){
      ['E · Despesas montagem','Entram em E do DRE da Miashop',c=>fnGrupoCat(c)==='MONTAGEM','warn'],
      ['DRE particular','Não entram no DRE da Miashop — só no DRE particular',c=>fnGrupoCat(c)==='PARTICULAR','acc']].map(([t,sub,fl,cor])=>{ const L=C.filter(fl);
     return `<div class="fn-catbox fc-${cor}"><div class="fn-cath"><b>${t}</b><span class="muted small">${sub}</span><span class="sp"></span><span class="tag t-mut">${L.length}</span></div>
-    <div class="tw sl-tab"><table><thead><tr><th>Categoria</th><th style="width:130px">Tipo</th><th style="width:200px">Grupo</th><th style="width:110px"></th></tr></thead><tbody>${L.map(linha).join('')||'<tr><td colspan="4" class="muted">Nenhuma categoria neste grupo.</td></tr>'}</tbody></table></div></div>`; }).join('')}`;
+    <div class="tw sl-tab"><table><thead><tr><th>Categoria</th><th style="width:130px">Tipo</th><th style="width:200px">Grupo</th><th style="width:190px"></th></tr></thead><tbody>${L.map(linha).join('')||'<tr><td colspan="4" class="muted">Nenhuma categoria neste grupo.</td></tr>'}</tbody></table></div></div>`; }).join('')}`;
 }
 async function fnSalvarCat(bt){ const tr=bt.closest('#fnCatNova')||bt.closest('tr'); if(tr.dataset.salvando) return; const g=c=>tr.querySelector(`[data-c=${c}]`); const ni=g('nome'); const nome=ni.value.trim(), antigo=ni.dataset.antigo||'';
   if(!nome){ if(antigo){ ni.value=antigo; toast('O nome não pode ficar vazio'); } else toast('Informe o nome'); return; }
@@ -2174,13 +2185,14 @@ async function fnExcluirCat(bt){ const n=bt.closest('tr').querySelector('[data-c
   try{ await api('finExcluirCategoria',{nome:n}); await fnRecarregar(); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
 function fnCentrosTela(){
   const C=fnCentros(); const uso=n=>fin().lanc.filter(l=>fnCCPeso(l,n));
-  return `<div class="card" style="padding:12px;margin-bottom:12px"><b>Novo centro de custo</b>
+  return `<div class="row" style="margin-bottom:10px"><span class="sp"></span><button class="btn sec" onclick="fnModalAgrupar('',true)">⇢ Agrupar centros de custo</button></div>
+  <div class="card" style="padding:12px;margin-bottom:12px"><b>Novo centro de custo</b>
     <div class="row" style="align-items:flex-end;margin-top:8px"><label class="sf" style="flex:1 1 280px"><span>Nome</span><input id="fnCCNovo" placeholder="Ex.: Loja Londrina, E-commerce, Administrativo" onkeydown="if(event.key==='Enter') fnSalvarCC('')"></label>
     <button class="btn" onclick="fnSalvarCC('')">+ Criar centro de custo</button></div></div>
   <div class="tw sl-tab"><table><thead><tr><th>Centro de custo</th><th class="n">Lançamentos</th><th class="n">A receber/recebido</th><th class="n">A pagar/pago</th><th></th></tr></thead><tbody>
   ${C.map(n=>{ const L=uso(n); const sm=t=>L.filter(l=>l.TIPO===t).reduce((s,l)=>s+(+l.VALOR||0)*fnCCPeso(l,n),0);
     return `<tr><td><input class="lgi" value="${esc(n)}" data-antigo="${esc(n)}" onchange="fnSalvarCC(this)" onkeydown="if(event.key==='Enter') this.blur()"></td><td class="n muted">${L.length}</td><td class="n">${fR(sm('RECEBER'))}</td><td class="n">${fR(sm('PAGAR'))}</td>
-    <td class="c" style="white-space:nowrap"><button class="ib" onclick="fnSalvarCC(this)">Salvar</button><button class="ib del" onclick="fnExcluirCC(this)">✕</button></td></tr>`; }).join('')||'<tr><td colspan="5" class="muted">Nenhum centro de custo cadastrado.</td></tr>'}
+    <td class="c" style="white-space:nowrap"><button class="ib" onclick="fnSalvarCC(this)">Salvar</button><button class="ib" title="Juntar este centro de custo em outro" onclick="fnModalAgrupar(this.closest('tr').querySelector('input').dataset.antigo,true)">⇢ Agrupar</button><button class="ib del" onclick="fnExcluirCC(this)">✕</button></td></tr>`; }).join('')||'<tr><td colspan="5" class="muted">Nenhum centro de custo cadastrado.</td></tr>'}
   </tbody></table></div>`;
 }
 async function fnSalvarCC(bt){ let nome,antigo='';
@@ -2208,6 +2220,83 @@ async function fnDesfazer(id){
   try{ let r=await api('finDesfazer',{id});
     if(r&&r.conflito){ if(!confirm(`Atenção: ${r.conflito} de ${r.total} registro(s) desta ação foram alterados depois por outras ações.\n\nO ideal é desfazer antes as ações mais recentes. Desfazer mesmo assim (volta esses registros para como estavam antes desta ação)?`)) return; r=await api('finDesfazer',{id,forcar:true}); }
     toast('Ação desfeita ✓',4000); await fnRecarregar(); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,7000); }
+}
+
+/* agrupar categorias / centros de custo: o 1º é apagado e os lançamentos passam para o 2º */
+function fnModalAgrupar(origem,cc){
+  FN.agCC=!!cc; const C=cc?fnCentros():fin().categorias.map(c=>c.NOME).sort((a,b)=>a.localeCompare(b,'pt-BR')); const opt=sel=>C.map(n=>`<option ${n===sel?'selected':''}>${esc(n)}</option>`).join('');
+  const nm=cc?'centro de custo':'categoria';
+  modal(`<div class="mh"><h3>Agrupar ${cc?'centros de custo':'categorias'}</h3><button class="btn ghost" onclick="fecharModal()">✕</button></div>
+  <p class="small muted" style="margin-top:0">O primeiro ${nm} será <b>apagado</b> e todos os lançamentos dele passam para o segundo.${cc?' Se um lançamento já tiver os dois centros, os % são somados.':''}</p>
+  <div class="row" style="align-items:flex-end;gap:12px"><label class="sf" style="flex:1 1 220px"><span>${cc?'Centro de custo':'Categoria'} que será apagado(a)</span><select id="agOrig" onchange="fnAgruparInfo()"><option value="">— escolha —</option>${opt(origem)}</select></label>
+    <span style="font-size:22px;padding-bottom:6px">⇢</span>
+    <label class="sf" style="flex:1 1 220px"><span>Juntar em</span><select id="agDest" onchange="fnAgruparInfo()"><option value="">— escolha —</option>${opt('')}</select></label></div>
+  <div id="agInfo" class="small" style="margin:12px 0;min-height:20px"></div>
+  <div class="row" style="justify-content:flex-end"><button class="btn" id="agBt" onclick="fnAgrupar()" disabled>Agrupar</button></div>`);
+  fnAgruparInfo();
+}
+function fnAgruparInfo(){
+  const o=document.getElementById('agOrig').value, d=document.getElementById('agDest').value, el=document.getElementById('agInfo'), bt=document.getElementById('agBt'); const cc=FN.agCC;
+  const n=!o?0:cc?fin().lanc.filter(l=>fnCCPeso(l,o)).length:fin().lanc.filter(l=>up(String(l.CATEGORIA||'').trim())===up(o)).length;
+  const co=!cc&&fin().categorias.find(c=>c.NOME===o), cd=!cc&&fin().categorias.find(c=>c.NOME===d);
+  bt.disabled=!(o&&d&&o!==d);
+  el.innerHTML=!o||!d?'<span class="muted">Escolha os dois.</span>':o===d?'<span class="bad">Escolha diferentes.</span>'
+    :`<b>${n}</b> lançamento(s) de <b>${esc(o)}</b> passarão para <b>${esc(d)}</b> e <b>${esc(o)}</b> será apagado(a).`
+      +(co&&cd&&(co.TIPO!==cd.TIPO||fnGrupoCat(co)!==fnGrupoCat(cd))?`<div class="warn" style="margin-top:6px">⚠ As categorias estão em grupos diferentes do DRE (${esc(co.TIPO==='RECEITA'?'receita':'despesa')} · ${esc((FIN_GRUPOS.find(g=>g[0]===fnGrupoCat(co))||[])[1])} → ${esc(cd.TIPO==='RECEITA'?'receita':'despesa')} · ${esc((FIN_GRUPOS.find(g=>g[0]===fnGrupoCat(cd))||[])[1])}). Os valores vão mudar de linha no DRE.</div>`:'');
+}
+async function fnAgrupar(){
+  const o=document.getElementById('agOrig').value, d=document.getElementById('agDest').value, cc=FN.agCC; if(!confirm(`Agrupar "${o}" em "${d}"?\n\n"${o}" será apagado(a). (Dá para desfazer em Histórico de ações.)`)) return;
+  const bt=document.getElementById('agBt'); bt.disabled=true; bt.textContent='Agrupando…';
+  try{ const r=await api(cc?'finAgruparCentro':'finAgruparCategoria',{origem:o,destino:d}); fecharModal(); toast(`${r.transferidos} lançamento(s) transferido(s) para ${r.destino} · ${o} apagado(a) ✓`,6000); await fnRecarregar(); fnAtualizar(); }
+  catch(e){ bt.disabled=false; bt.textContent='Agrupar'; toast('Erro: '+e.message,7000); }
+}
+
+/* ---------- seleção e edição em lote (relatórios) ---------- */
+function fnBarraSel(L){ FN.sel=FN.sel||new Set(); FN.selVis=L.map(l=>l.ID); const k=L.filter(l=>FN.sel.has(l.ID)).length;
+  return `<div class="fn-selbar" id="fnSelBar">
+    <button class="btn ghost sm" onclick="fnSelTodos(true)">☑ Selecionar todos os filtrados (${L.length})</button>
+    <button class="btn ghost sm" onclick="fnSelTodos(false)" ${k?'':'disabled'}>Limpar seleção</button>
+    <span class="small" id="fnSelInfo">${k?`<b>${k}</b> selecionado(s) · ${fR(L.filter(l=>FN.sel.has(l.ID)).reduce((s,l)=>s+(+l.VALOR||0),0))}`:'<span class="muted">Marque os lançamentos ou selecione todos os filtrados</span>'}</span><span class="sp"></span>
+    <button class="btn sm" onclick="fnModalLote()" ${k?'':'disabled'}>✎ Editar selecionados${k?' ('+k+')':''}</button>
+    <button class="btn ghost sm del" onclick="fnExcluirSel()" ${k?'':'disabled'}>✕ Excluir selecionados</button></div>`; }
+function fnSelIds(){ return (FN.selVis||[]).filter(i=>FN.sel.has(i)); }
+function fnSelTodos(on){ (FN.selVis||[]).forEach(i=>on?FN.sel.add(i):FN.sel.delete(i)); fnAtualizar(); }
+function fnSelUm(ck){ ck.checked?FN.sel.add(ck.dataset.id):FN.sel.delete(ck.dataset.id); ck.closest('tr').classList.toggle('fn-sel',ck.checked);
+  const L=fnFiltrados(FN.sub.rel); const bar=document.getElementById('fnSelBar'); if(bar) bar.outerHTML=fnBarraSel(L); }
+function fnModalLote(){
+  const ids=fnSelIds(); if(!ids.length) return; const L=ids.map(fnLanc).filter(Boolean); const tipo=L[0].TIPO;
+  const tot=L.reduce((s,l)=>s+(+l.VALOR||0),0);
+  const f=(k,lb,html)=>`<div class="fn-lote-l"><label class="fnd-rd" style="margin:0;min-width:180px"><input type="checkbox" id="lk_${k}" onchange="document.getElementById('lf_${k}').classList.toggle('off',!this.checked)"> ${lb}</label><div id="lf_${k}" class="off" style="flex:1">${html}</div></div>`;
+  modal(`<div class="mh"><h3>Editar ${ids.length} lançamento(s) de uma vez</h3><button class="btn ghost" onclick="fecharModal()">✕</button></div>
+  <p class="small muted" style="margin-top:0">Total dos selecionados: <b>${fR(tot)}</b>. Marque só o que quer alterar — o resto de cada lançamento continua como está. Dá para desfazer em Histórico de ações.</p>
+  ${f('cat','Categoria',`<input id="lv_cat" list="dlFnCatL" placeholder="Nova categoria" style="width:100%"><datalist id="dlFnCatL">${fnCats(tipo).map(n=>`<option value="${esc(n)}">`).join('')}</datalist>`)}
+  ${f('cc','Centro de custo',`<div id="fmCCs">${fnDrLinhaCC({nome:'',pct:100})}</div><button class="btn ghost sm" onclick="fnDrAddCC()">+ Adicionar centro de custo</button> <span class="small" id="fmCCSoma"></span><input type="hidden" id="fmValor" value="${fN(100,2)}">`)}
+  ${f('venc','Vencimento',`<input type="date" id="lv_venc">`)}
+  ${f('nome','Nome',`<input id="lv_nome" list="dlFnNomeL" style="width:100%"><datalist id="dlFnNomeL">${fnNomes(tipo).map(n=>`<option value="${esc(n)}">`).join('')}</datalist>`)}
+  ${f('desc','Descrição',`<input id="lv_desc" style="width:100%">`)}
+  ${f('fp','Forma de pagamento',`<select id="lv_fp"><option>CONTA CORRENTE</option><option>CARTÃO DE CRÉDITO</option></select>`)}
+  ${f('obs','Observações',`<input id="lv_obs" style="width:100%">`)}
+  <datalist id="dlFnCC">${fnCentros().map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
+  <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn" id="loteBt" onclick="fnSalvarLote()">Aplicar em ${ids.length} lançamento(s)</button></div>`);
+  FN.dr={modo:'pct'}; fnDrRecalc();
+}
+async function fnSalvarLote(){
+  const ids=fnSelIds(); const on=k=>document.getElementById('lk_'+k).checked, v=k=>document.getElementById('lv_'+k).value.trim(); const c={};
+  if(on('cat')){ if(!v('cat')){ toast('Informe a categoria'); return; } c.categoria=v('cat'); }
+  if(on('cc')){ const cc=fnDrLerCC(); const sm=cc.reduce((s,x)=>s+x.pct,0); if(cc.length&&Math.abs(sm-100)>=0.01){ toast(`Centros de custo somam ${fN(sm,2)}% — precisa dar 100%`); return; } c.centroCusto=fnCCTexto(cc); }
+  if(on('venc')){ if(!v('venc')){ toast('Informe o vencimento'); return; } c.vencimento=brISO(v('venc')); }
+  if(on('nome')){ if(!v('nome')){ toast('Informe o nome'); return; } c.nome=v('nome'); }
+  if(on('desc')) c.descricao=v('desc'); if(on('fp')) c.formaPagamento=v('fp'); if(on('obs')) c.obs=v('obs');
+  if(!Object.keys(c).length){ toast('Marque pelo menos um campo para alterar'); return; }
+  if(!confirm(`Alterar ${ids.length} lançamento(s)?`)) return;
+  const bt=document.getElementById('loteBt'); bt.disabled=true; bt.textContent='Aplicando…';
+  try{ const r=await api('finEditarLote',{ids,campos:c}); fecharModal(); FN.dr=null; toast(`${r.alterados} lançamento(s) alterado(s) ✓`,5000); await fnRecarregar(); fnAtualizar(); }
+  catch(e){ bt.disabled=false; bt.textContent='Aplicar'; toast('Erro: '+e.message,7000); }
+}
+async function fnExcluirSel(){
+  const ids=fnSelIds(); if(!ids.length) return; const tot=ids.map(fnLanc).filter(Boolean).reduce((s,l)=>s+(+l.VALOR||0),0);
+  if(!confirm(`EXCLUIR ${ids.length} lançamento(s) · ${fR(tot)}?\n\nDá para desfazer em Configurações → Histórico de ações.`)) return;
+  try{ const r=await api('finExcluirLote',{ids}); ids.forEach(i=>FN.sel.delete(i)); toast(`${r.excluidos} lançamento(s) excluído(s)`,5000); await fnRecarregar(); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,7000); }
 }
 
 iniciar();
