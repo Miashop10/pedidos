@@ -119,7 +119,7 @@ td.lg-obs input:hover,td.lg-obs input:focus{border-color:var(--line);background:
 .fn-catbox{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--mut);border-radius:12px;padding:10px 12px 12px;margin-bottom:14px}
 .fn-catbox .sl-tab{box-shadow:none}
 .fn-cath{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}.fn-cath b{font-size:16px}
-.fc-ok{border-left-color:var(--ok)}.fc-bad{border-left-color:var(--bad)}.fc-warn{border-left-color:var(--warn)}.fc-acc{border-left-color:var(--acc)}.fc-prod{border-left-color:#3b5bdb}
+.fc-ok{border-left-color:var(--ok)}.fc-bad{border-left-color:var(--bad)}.fc-warn{border-left-color:var(--warn)}.fc-acc{border-left-color:var(--acc)}.fc-prod{border-left-color:#3b5bdb}.fc-folha{border-left-color:#7b3fbf}
 #fnDrawer .fnd-bg{position:fixed;inset:0;background:rgba(20,20,20,0);z-index:40;transition:background .2s;pointer-events:none}
 #fnDrawer.on .fnd-bg{background:rgba(20,20,20,.45);pointer-events:auto}
 #fnDrawer .fnd{position:fixed;top:0;right:0;bottom:0;width:min(860px,100vw);z-index:41;background:var(--card);box-shadow:-8px 0 30px rgba(0,0,0,.18);display:flex;flex-direction:column;transform:translateX(100%);transition:transform .22s ease}
@@ -2081,26 +2081,26 @@ function fnExportar(){ const sub=FN.sub.rel, quit=(sub==='pagas'||sub==='recebid
 // Realizado = contas pagas/recebidas pela data de pagamento · Agendado = contas em aberto pelo vencimento
 // A Receitas operacionais · B Despesas operacionais · C Resultado não operacional · D = A − B + C
 // grupo da categoria: OPERACIONAL (A/B) · MONTAGEM (C, só despesa) · PARTICULAR (vai só para o DRE particular)
-function fnGrupoCat(c){ const g=(c&&c.GRUPO)||'OPERACIONAL'; if(g==='PARTICULAR') return 'PARTICULAR'; if((g==='MONTAGEM'||g==='PRODUTOS')&&c.TIPO!=='RECEITA') return g; return 'OPERACIONAL'; }
+function fnGrupoCat(c){ const g=(c&&c.GRUPO)||'OPERACIONAL'; if(g==='PARTICULAR') return 'PARTICULAR'; if((g==='MONTAGEM'||g==='PRODUTOS'||g==='FOLHA')&&c.TIPO!=='RECEITA') return g; return 'OPERACIONAL'; }
 function fnDRE(part){
   const ano=FN.ano; const meses=Array.from({length:12},(_,k)=>ano+'-'+String(k+1).padStart(2,'0'));
   const anos=new Set([new Date().getFullYear()]); fin().lanc.forEach(l=>{ [l.VENCIMENTO,l.DATA_PAGAMENTO].forEach(d=>{ const i=isoBR(d); if(i) anos.add(+i.slice(0,4)); }); });
   const nPart=fin().categorias.filter(c=>fnGrupoCat(c)==='PARTICULAR').length;
   return `<div class="sl-filtros"><select onchange="FN.ano=+this.value;fnAtualizar()">${[...anos].sort((a,b)=>b-a).map(a=>`<option ${a===ano?'selected':''}>${a}</option>`).join('')}</select>
     <select onchange="FN.dreCC=this.value;fnAtualizar()" style="max-width:220px"><option value="">Centro de custo: todos</option>${fnCentros().map(c=>`<option ${c===FN.dreCC?'selected':''}>${esc(c)}</option>`).join('')}</select>
-    <span class="muted small">${part?(nPart?`${nPart} categoria(s) no DRE particular — elas não entram no DRE da Miashop.`:'Nenhuma categoria marcada como “DRE particular” ainda.'):'O grupo de cada categoria (operacional, produtos, montagem ou DRE particular) é definido em'}</span><button class="btn ghost sm" onclick="fnIr('config','cats')">⚙ Categorias</button><span class="sp"></span><button class="btn ghost sm" onclick="FN.dreAb=FN.dreAb||{};fnDRETodos(true)">▾ Abrir todas</button><button class="btn ghost sm" onclick="FN.dreAb=FN.dreAb||{};fnDRETodos(false)">▸ Fechar todas</button></div>
+    <span class="muted small">${part?(nPart?`${nPart} categoria(s) no DRE particular — elas não entram no DRE da Miashop.`:'Nenhuma categoria marcada como “DRE particular” ainda.'):'O grupo de cada categoria (operacional, produtos, folha, montagem ou DRE particular) é definido em'}</span><button class="btn ghost sm" onclick="fnIr('config','cats')">⚙ Categorias</button><span class="sp"></span><button class="btn ghost sm" onclick="FN.dreAb=FN.dreAb||{};fnDRETodos(true)">▾ Abrir todas</button><button class="btn ghost sm" onclick="FN.dreAb=FN.dreAb||{};fnDRETodos(false)">▸ Fechar todas</button></div>
   <h3 class="rr-h">${part?'DRE particular':'DRE Miashop'} · Realizado <span class="muted small">— contas pagas e recebidas, pela data do pagamento</span></h3>${fnTabelaDRE(meses,true,part)}
   <h3 class="rr-h">${part?'DRE particular':'DRE Miashop'} · Agendado <span class="muted small">— contas a pagar e a receber em aberto, pelo vencimento</span></h3>${fnTabelaDRE(meses,false,part)}`;
 }
 // clicar num valor do DRE: lista os lançamentos que formam aquele número
 function fnDREToggle(td,key,g){ const k=key+g; FN.dreAb[k]=!FN.dreAb[k]; const tb=td.closest('tbody');
   tb.querySelectorAll(`tr.dre-cat[data-g="${g}"]`).forEach(r=>r.style.display=FN.dreAb[k]?'':'none'); td.querySelector('.dre-ar').textContent=FN.dreAb[k]?'▾':'▸'; }
-function fnDRETodos(abrir){ ['r','a','rp','ap'].forEach(k=>['A','B','C','D'].forEach(g=>FN.dreAb[k+g]=abrir)); fnAtualizar(); }
+function fnDRETodos(abrir){ ['r','a','rp','ap'].forEach(k=>['A','B','C','D','E'].forEach(g=>FN.dreAb[k+g]=abrir)); fnAtualizar(); }
 function fnDREAbrir(key,g,nome,m){
   const D=FN.dreItens[key]; if(!D) return; const {realizado,part}=D;
   const L=D.itens.filter(x=>x.g===g&&(!nome||x.nome===nome)&&(!m||x.m===m)).sort((a,b)=>(isoBR(realizado?a.l.DATA_PAGAMENTO:a.l.VENCIMENTO)||'').localeCompare(isoBR(realizado?b.l.DATA_PAGAMENTO:b.l.VENCIMENTO)||''));
   const tot=L.reduce((s,x)=>s+x.v,0);
-  const rotG=part?{A:'Receitas',B:'Despesas'}[g]:{A:'Receitas operacionais',B:'Despesas operacionais',C:'Produtos',D:'Despesas montagem'}[g];
+  const rotG=part?{A:'Receitas',B:'Despesas'}[g]:{A:'Receitas operacionais',B:'Despesas operacionais',C:'Produtos',D:'Folha de pagamento',E:'Despesas montagem'}[g];
   modal(`<div class="mh"><h3>${part?'DRE particular':'DRE Miashop'} · ${realizado?'Realizado':'Agendado'} — ${esc(nome||rotG)}${m?' · '+rrMesNome(m):' · '+FN.ano}</h3><button class="btn ghost" onclick="fecharModal()">✕</button></div>
   <p class="small muted" style="margin-top:0">${L.length} lançamento(s) · total <b>${fR(tot)}</b>${FN.dreCC?` · centro de custo <b>${esc(FN.dreCC)}</b> (valores proporcionais ao % do centro)`:''}</p>
   <div class="tw sl-tab" style="max-height:62vh"><table><thead><tr><th>${realizado?'Pago/recebido em':'Vencimento'}</th><th>Nome</th><th>Descrição</th><th>NF</th>${nome?'':'<th>Categoria</th>'}<th>Centro de custo</th><th class="n">Valor</th><th></th></tr></thead><tbody>
@@ -2110,15 +2110,15 @@ function fnDREAbrir(key,g,nome,m){
 }
 function fnTabelaDRE(meses,realizado,part){
   const catInfo={}; fin().categorias.forEach(c=>catInfo[up(c.NOME)]=c);
-  const grupos={A:{},B:{},C:{},D:{}}; const itens=[]; const key=(realizado?'r':'a')+(part?'p':''); FN.dreItens=FN.dreItens||{}; FN.dreItens[key]={itens,realizado,part};
+  const grupos={A:{},B:{},C:{},D:{},E:{}}; const itens=[]; const key=(realizado?'r':'a')+(part?'p':''); FN.dreItens=FN.dreItens||{}; FN.dreItens[key]={itens,realizado,part};
   fin().lanc.filter(l=>(realizado?l.STATUS==='QUITADO':l.STATUS!=='QUITADO')&&(!FN.dreCC||fnCCPeso(l,FN.dreCC))).forEach(l=>{
     const d=isoBR(realizado?l.DATA_PAGAMENTO:l.VENCIMENTO); if(!d) return; const m=d.slice(0,7); if(!meses.includes(m)) return;
     const v=(+(realizado?l.VALOR_PAGO:l.VALOR)||0)*(FN.dreCC?fnCCPeso(l,FN.dreCC):1); const nome=String(l.CATEGORIA||'').trim()||'Sem categoria';
     const gc=fnGrupoCat(catInfo[up(nome)]); if((gc==='PARTICULAR')!==!!part) return;
-    const g=l.TIPO==='RECEBER'?'A':(gc==='PRODUTOS'?'C':gc==='MONTAGEM'?'D':'B'); itens.push({l,g:part&&g!=='A'?'B':g,nome,m,v});
+    const g=l.TIPO==='RECEBER'?'A':(gc==='PRODUTOS'?'C':gc==='FOLHA'?'D':gc==='MONTAGEM'?'E':'B'); itens.push({l,g:part&&g!=='A'?'B':g,nome,m,v});
     const o=grupos[g][nome]||(grupos[g][nome]={}); o[m]=(o[m]||0)+v; });
   const soma=g=>{ const t={}; Object.values(grupos[g]).forEach(o=>meses.forEach(m=>t[m]=(t[m]||0)+(o[m]||0))); return t; };
-  const A=soma('A'),B=soma('B'),C=soma('C'),D=soma('D'); const E={},F={}; meses.forEach(m=>{ F[m]=(A[m]||0)-(B[m]||0)-(C[m]||0); E[m]=F[m]-(D[m]||0); });
+  const A=soma('A'),B=soma('B'),C=soma('C'),D=soma('D'),E=soma('E'); const F={},G={}; meses.forEach(m=>{ G[m]=(A[m]||0)-(B[m]||0)-(C[m]||0)-(D[m]||0); F[m]=G[m]-(E[m]||0); });
   const tot=o=>meses.reduce((s,m)=>s+(o[m]||0),0);
   const cel=(v,neg,g,n,m)=>{ v=v||0; return v?`<span class="${neg?'bad':''} dre-lk" onclick="fnDREAbrir('${key}','${g}','${n?esc(n).replace(/'/g,"\\'"):''}','${m||''}')" title="Ver lançamentos">${fR(neg?-v:v)}</span>`:'<span class="muted">—</span>'; };
   FN.dreAb=FN.dreAb||{}; const ab=g=>!!FN.dreAb[key+g];
@@ -2126,20 +2126,21 @@ function fnTabelaDRE(meses,realizado,part){
   const linhasCat=(g,neg)=>Object.keys(grupos[g]).sort((a,b)=>a.localeCompare(b,'pt-BR')).map(n=>`<tr class="dre-cat" data-g="${g}" style="${ab(g)?'':'display:none'}"><td>${esc(n)}</td>${meses.map(m=>`<td class="n">${cel(grupos[g][n][m],neg,g,n,m)}</td>`).join('')}<td class="n">${cel(tot(grupos[g][n]),neg,g,n,'')}</td></tr>`).join('');
   const res=(rot,o,cls)=>`<tr class="${cls}"><td>${rot}</td>${meses.map(m=>`<td class="n"><span class="${(o[m]||0)<0?'bad':'ok'}">${fR(o[m]||0)}</span></td>`).join('')}<td class="n"><span class="${tot(o)<0?'bad':'ok'}">${fR(tot(o))}</span></td></tr>`;
   const cab=`<div class="tw sl-tab rr-mat dre"><table><thead><tr><th></th>${meses.map(m=>`<th class="n">${rrMesNome(m)}</th>`).join('')}<th class="n">Total</th></tr></thead><tbody>`;
-  if(part){ const Bp={}; meses.forEach(m=>Bp[m]=(B[m]||0)+(C[m]||0)+(D[m]||0)); [...Object.entries(grupos.C),...Object.entries(grupos.D)].forEach(([n,o])=>{ const t=grupos.B[n]||(grupos.B[n]={}); meses.forEach(m=>{ if(o[m]) t[m]=(t[m]||0)+o[m]; }); });
+  if(part){ const Bp={}; meses.forEach(m=>Bp[m]=(B[m]||0)+(C[m]||0)+(D[m]||0)+(E[m]||0)); [...Object.entries(grupos.C),...Object.entries(grupos.D),...Object.entries(grupos.E)].forEach(([n,o])=>{ const t=grupos.B[n]||(grupos.B[n]={}); meses.forEach(m=>{ if(o[m]) t[m]=(t[m]||0)+o[m]; }); });
     const R={}; meses.forEach(m=>R[m]=(A[m]||0)-(Bp[m]||0));
     return cab+`${linhaGrupo('A · RECEITAS',A,false,'A')}${linhasCat('A')}${linhaGrupo('B · DESPESAS',Bp,true,'B')}${linhasCat('B',true)}${res('RESULTADO (A − B)',R,'dre-res')}</tbody></table></div>`; }
   return cab+`
     ${linhaGrupo('A · RECEITAS OPERACIONAIS',A,false,'A')}${linhasCat('A')}
     ${linhaGrupo('B · DESPESAS OPERACIONAIS',B,true,'B')}${linhasCat('B',true)}
     ${linhaGrupo('C · PRODUTOS',C,true,'C')}${linhasCat('C',true)}
-    ${linhaGrupo('D · DESPESAS MONTAGEM',D,true,'D')}${linhasCat('D',true)}
-    ${res('E · RESULTADO REAL (A − B − C − D = E)',E,'dre-res')}
-    ${res('F · RESULTADO OPERACIONAL (A − B − C = F)',F,'dre-res2')}</tbody></table></div>`;
+    ${linhaGrupo('D · FOLHA DE PAGAMENTO',D,true,'D')}${linhasCat('D',true)}
+    ${linhaGrupo('E · DESPESAS MONTAGEM',E,true,'E')}${linhasCat('E',true)}
+    ${res('F · RESULTADO REAL (A − B − C − D − E = F)',F,'dre-res')}
+    ${res('G · RESULTADO OPERACIONAL (A − B − C − D = G)',G,'dre-res2')}</tbody></table></div>`;
 }
 /* ---------- configurações: categorias e centros de custo ---------- */
-const FIN_GRUPOS=[['OPERACIONAL','Operacional'],['PRODUTOS','Produtos'],['MONTAGEM','Despesas montagem'],['PARTICULAR','DRE particular']];
-function fnOptGrupo(c){ const g=fnGrupoCat(c); return FIN_GRUPOS.filter(([k])=>!((k==='MONTAGEM'||k==='PRODUTOS')&&c.TIPO==='RECEITA')).map(([k,n])=>`<option value="${k}" ${k===g?'selected':''}>${n}</option>`).join(''); }
+const FIN_GRUPOS=[['OPERACIONAL','Operacional'],['PRODUTOS','Produtos'],['FOLHA','Folha de pagamento'],['MONTAGEM','Despesas montagem'],['PARTICULAR','DRE particular']];
+function fnOptGrupo(c){ const g=fnGrupoCat(c); return FIN_GRUPOS.filter(([k])=>!((k==='MONTAGEM'||k==='PRODUTOS'||k==='FOLHA')&&c.TIPO==='RECEITA')).map(([k,n])=>`<option value="${k}" ${k===g?'selected':''}>${n}</option>`).join(''); }
 function fnCategoriasTela(){
   const C=fin().categorias.slice().sort((a,b)=>(a.TIPO+a.NOME).localeCompare(b.TIPO+b.NOME,'pt-BR'));
   const linha=c=>`<tr class="fn-cfg"><td><input class="lgi" value="${esc(c.NOME)}" data-antigo="${esc(c.NOME)}" data-c="nome" onchange="fnSalvarCat(this)" onkeydown="if(event.key==='Enter') this.blur()"></td><td><select data-c="tipo" onchange="fnSalvarCat(this)"><option value="RECEITA" ${c.TIPO==='RECEITA'?'selected':''}>Receita</option><option value="DESPESA" ${c.TIPO!=='RECEITA'?'selected':''}>Despesa</option></select></td><td><select data-c="grupo" onchange="fnSalvarCat(this)">${fnOptGrupo(c)}</select></td>
@@ -2149,11 +2150,12 @@ function fnCategoriasTela(){
     <label class="sf" style="flex:0 0 140px"><span>Tipo</span><select data-c="tipo"><option value="DESPESA">Despesa</option><option value="RECEITA">Receita</option></select></label>
     <label class="sf" style="flex:0 0 190px"><span>Grupo</span><select data-c="grupo">${FIN_GRUPOS.map(([k,n])=>`<option value="${k}">${n}</option>`).join('')}</select></label>
     <button class="btn" onclick="fnSalvarCat(this)">+ Criar categoria</button></div></div>
-  <p class="small muted">Para editar, clique no nome, apague e digite o novo — salva sozinho ao sair do campo ou apertar Enter (tipo e grupo salvam ao trocar). Grupo: <b>Operacional</b> entra em A (receitas) ou B (despesas) do DRE; <b>Produtos</b> entra em C; <b>Despesas montagem</b> entra em D; <b>DRE particular</b> sai do DRE da Miashop e vai só para o DRE particular.</p>
+  <p class="small muted">Para editar, clique no nome, apague e digite o novo — salva sozinho ao sair do campo ou apertar Enter (tipo e grupo salvam ao trocar). Grupo: <b>Operacional</b> entra em A (receitas) ou B (despesas) do DRE; <b>Produtos</b> entra em C; <b>Folha de pagamento</b> entra em D; <b>Despesas montagem</b> entra em E; <b>DRE particular</b> sai do DRE da Miashop e vai só para o DRE particular.</p>
   ${[['A · Receitas operacionais','Entram em A do DRE da Miashop',c=>fnGrupoCat(c)==='OPERACIONAL'&&c.TIPO==='RECEITA','ok'],
      ['B · Despesas operacionais','Entram em B do DRE da Miashop',c=>fnGrupoCat(c)==='OPERACIONAL'&&c.TIPO!=='RECEITA','bad'],
      ['C · Produtos','Entram em C do DRE da Miashop',c=>fnGrupoCat(c)==='PRODUTOS','prod'],
-     ['D · Despesas montagem','Entram em D do DRE da Miashop',c=>fnGrupoCat(c)==='MONTAGEM','warn'],
+     ['D · Folha de pagamento','Entram em D do DRE da Miashop',c=>fnGrupoCat(c)==='FOLHA','folha'],
+     ['E · Despesas montagem','Entram em E do DRE da Miashop',c=>fnGrupoCat(c)==='MONTAGEM','warn'],
      ['DRE particular','Não entram no DRE da Miashop — só no DRE particular',c=>fnGrupoCat(c)==='PARTICULAR','acc']].map(([t,sub,fl,cor])=>{ const L=C.filter(fl);
     return `<div class="fn-catbox fc-${cor}"><div class="fn-cath"><b>${t}</b><span class="muted small">${sub}</span><span class="sp"></span><span class="tag t-mut">${L.length}</span></div>
     <div class="tw sl-tab"><table><thead><tr><th>Categoria</th><th style="width:130px">Tipo</th><th style="width:200px">Grupo</th><th style="width:110px"></th></tr></thead><tbody>${L.map(linha).join('')||'<tr><td colspan="4" class="muted">Nenhuma categoria neste grupo.</td></tr>'}</tbody></table></div></div>`; }).join('')}`;
