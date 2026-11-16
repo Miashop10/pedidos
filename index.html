@@ -138,6 +138,11 @@ td.lg-obs input:hover,td.lg-obs input:focus{border-color:var(--line);background:
 .fnd-val{display:flex;align-items:center;border:1px solid var(--line);border-radius:8px;background:var(--card);padding-left:10px}
 .fnd-val input{border:0!important;text-align:right;font-weight:700;box-shadow:none!important}
 .fnd-val span{font-weight:800}
+.fnd-fp{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;height:36px}
+.fnd-fp label{display:flex;cursor:pointer}.fnd-fp input{display:none}
+.fnd-fp span{display:flex;align-items:center;padding:0 14px;font-size:13px;font-weight:700;color:var(--mut);white-space:nowrap}
+.fnd-fp label+label span{border-left:1px solid var(--line)}
+.fnd-fp input:checked+span{background:var(--acc);color:#fff}
 .fnd-cc{margin-top:18px;background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
 .fnd-rd{display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:600;margin-left:14px;cursor:pointer}
 .fnd-ccl{display:grid;grid-template-columns:1fr 130px 150px 30px;gap:8px;align-items:center;margin-bottom:8px}
@@ -1825,7 +1830,8 @@ function fnAbrirLanc(id,tipo,pre,exId){
   dr.innerHTML=`<div class="fnd-bg" onclick="fnFecharLanc()"></div><div class="fnd ${rec?'rec':'pag'}">
     <div class="fnd-h"><h3>${titulo}</h3><button class="btn ghost" onclick="fnFecharLanc()" title="Fechar (Esc)">✕</button></div>
     <div class="fnd-b">
-      <div class="fnd-r1">${f('Vencimento',`<input type="date" id="fmVenc" value="${isoBR(l.VENCIMENTO)||''}">`,'flex:0 0 170px')}<span class="sp"></span>
+      <div class="fnd-r1">${f('Vencimento',`<input type="date" id="fmVenc" value="${isoBR(l.VENCIMENTO)||''}">`,'flex:0 0 170px')}
+        ${f('Forma de pagamento',`<div class="fnd-fp">${['CONTA CORRENTE','CARTÃO DE CRÉDITO'].map(o=>`<label><input type="radio" name="fmFP" value="${o}" ${(/CART/i.test(l.FORMA_PAGAMENTO||'')?'CARTÃO DE CRÉDITO':'CONTA CORRENTE')===o?'checked':''}><span>${o==='CONTA CORRENTE'?'🏦':'💳'} ${o}</span></label>`).join('')}</div>`,'flex:0 0 auto')}<span class="sp"></span>
         <div class="fnd-tot"><span>Total a ${rec?'receber':'pagar'}</span><b id="fmTotTop">${fR(+l.VALOR||0)}</b></div></div>
       <div class="fnd-g">
         ${f('Nome',`<input id="fmNome" list="dlFnNome${tipo}" value="${esc(l.NOME||'')}" placeholder="${rec?'Cliente / origem':'Fornecedor / favorecido'}">`)}
@@ -1877,7 +1883,7 @@ function fnFecharLanc(){ const d=document.getElementById('fnDrawer'); if(!d) ret
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&FN.dr&&!document.querySelector('.mbg')) fnFecharLanc(); });
 async function fnSalvarLancDr(){
   const {id,tipo,exId}=FN.dr; const g=i=>document.getElementById(i).value.trim();
-  const d={tipo,vencimento:brISO(g('fmVenc')),nome:g('fmNome'),descricao:g('fmDesc'),notaFiscal:g('fmNF'),categoria:g('fmCat'),valor:numBR(g('fmValor'))};
+  const d={tipo,vencimento:brISO(g('fmVenc')),nome:g('fmNome'),descricao:g('fmDesc'),notaFiscal:g('fmNF'),categoria:g('fmCat'),valor:numBR(g('fmValor')),formaPagamento:(document.querySelector('input[name=fmFP]:checked')||{}).value||'CONTA CORRENTE'};
   const err=fnValidar(d); if(err){ toast(err); return; }
   const cc=fnDrLerCC(); const soma=cc.reduce((s,c)=>s+c.pct,0);
   if(cc.length&&Math.abs(soma-100)>=0.01){ toast(`Centros de custo somam ${fN(soma,2)}% — precisa dar 100%`,5000); return; }
@@ -1909,7 +1915,7 @@ function fnTabelaLanc(L,quitadas){
   const hoje=hojeISO(); const tot=L.reduce((s,l)=>s+(+(quitadas?l.VALOR_PAGO:l.VALOR)||0),0);
   return `<div class="tw sl-tab"><table><thead><tr><th>${quitadas?'Pago/recebido em':'Vencimento'}</th>${quitadas?'<th>Vencimento</th>':''}<th>Nome</th><th>Descrição</th><th>NF</th><th>Categoria</th><th>Centro de custo</th><th class="n">Valor</th>${quitadas?'<th>Conta</th>':''}<th></th></tr></thead><tbody>
   ${L.map(l=>{ const venc=!quitadas&&isoBR(l.VENCIMENTO)&&isoBR(l.VENCIMENTO)<hoje;
-    return `<tr class="${venc?'fn-venc':''}"><td>${esc(quitadas?l.DATA_PAGAMENTO:l.VENCIMENTO)}${venc?' <span class="tag t-bad">vencido</span>':''}</td>${quitadas?`<td class="muted">${esc(l.VENCIMENTO)}</td>`:''}<td><b>${esc(l.NOME)}</b></td><td style="white-space:normal">${esc(l.DESCRICAO)}</td><td>${esc(l.NOTA_FISCAL)}</td><td>${esc(l.CATEGORIA)||'<span class="muted">—</span>'}</td><td style="white-space:normal">${fnCCHtml(l.CENTRO_CUSTO)}</td>
+    return `<tr class="${venc?'fn-venc':''}"><td>${esc(quitadas?l.DATA_PAGAMENTO:l.VENCIMENTO)}${venc?' <span class="tag t-bad">vencido</span>':''}</td>${quitadas?`<td class="muted">${esc(l.VENCIMENTO)}</td>`:''}<td><b>${esc(l.NOME)}</b>${/CART/i.test(l.FORMA_PAGAMENTO||'')?' <span class="tag t-warn" title="Cartão de crédito">💳 cartão</span>':''}</td><td style="white-space:normal">${esc(l.DESCRICAO)}</td><td>${esc(l.NOTA_FISCAL)}</td><td>${esc(l.CATEGORIA)||'<span class="muted">—</span>'}</td><td style="white-space:normal">${fnCCHtml(l.CENTRO_CUSTO)}</td>
     <td class="n"><b>${fR(+(quitadas?l.VALOR_PAGO:l.VALOR))}</b></td>${quitadas?`<td>${esc((fnConta(l.CONTA_ID)||{}).NOME||'—')}${l.EXTRATO_ID?' <span class="tag t-ok" title="Conciliado com o extrato">✓</span>':''}</td>`:''}
     <td class="c" style="white-space:nowrap">${quitadas?`<button class="ib" onclick="fnEstornar('${esc(l.ID)}')">Estornar</button>`:`<button class="ib" onclick="fnModalBaixa('${esc(l.ID)}')">✓ ${l.TIPO==='RECEBER'?'Receber':'Pagar'}</button>`}<button class="ib" onclick="fnModalLanc('${esc(l.ID)}')">✎</button><button class="ib del" onclick="fnExcluirLanc('${esc(l.ID)}')">✕</button></td></tr>`; }).join('')
     ||`<tr><td colspan="10" class="muted">Nenhum lançamento.</td></tr>`}</tbody>
@@ -1937,11 +1943,11 @@ async function fnLerLancPlanilha(f){
     const rows=await linhasXLSX(f); const H=v=>semAcento(v).replace(/[^A-Z ]/g,' ').replace(/\s+/g,' ').trim();
     const hi=rows.findIndex(r=>(r||[]).map(H).some(x=>x==='NOME'||/^(FORNECEDOR|CLIENTE|FAVORECIDO)$/.test(x))); if(hi<0) throw new Error('não achei a coluna NOME');
     const h=rows[hi].map(H); const col=re=>h.findIndex(x=>re.test(x));
-    const C={venc:col(/^(DATA (DE )?VENCIMENTO|VENCIMENTO|DATA)$/),nome:col(/^(NOME|FORNECEDOR|CLIENTE|FAVORECIDO)$/),desc:col(/^(DESCRICAO|HISTORICO)/),nf:col(/^(NOTA FISCAL|NF|N NF)$/),cat:col(/^CATEGORIA/),cc:col(/^(CENTRO( DE)? CUSTO|CC)$/),val:col(/^VALOR/),pag:col(/^DATA (DE )?(PAGAMENTO|RECEBIMENTO|BAIXA)/)};
+    const C={venc:col(/^(DATA (DE )?VENCIMENTO|VENCIMENTO|DATA)$/),nome:col(/^(NOME|FORNECEDOR|CLIENTE|FAVORECIDO)$/),desc:col(/^(DESCRICAO|HISTORICO)/),nf:col(/^(NOTA FISCAL|NF|N NF)$/),cat:col(/^CATEGORIA/),cc:col(/^(CENTRO( DE)? CUSTO|CC)$/),fp:col(/^FORMA( DE)? PAGAMENTO/),val:col(/^VALOR/),pag:col(/^DATA (DE )?(PAGAMENTO|RECEBIMENTO|BAIXA)/)};
     if(C.venc<0||C.val<0) throw new Error('precisa das colunas DATA VENCIMENTO e VALOR');
     const g=(r,i)=>i>=0?r[i]:'';
     const L=rows.slice(hi+1).map((r,k)=>({r:r||[],linha:hi+2+k})).filter(x=>x.r.some(c=>String(c).trim()!=='')).map(({r,linha})=>{
-      const v=g(r,C.val); const d={linha,tipo,vencimento:dataExcel(g(r,C.venc)),nome:String(g(r,C.nome)).trim(),descricao:String(g(r,C.desc)).trim(),notaFiscal:String(g(r,C.nf)).trim().replace(/\.0+$/,''),categoria:String(g(r,C.cat)).trim(),centroCusto:fnCCTexto(fnCCParse(g(r,C.cc))),valor:Math.abs(typeof v==='number'?v:numBR(String(v).replace(/[R$\s]/g,'')))};
+      const v=g(r,C.val); const d={linha,tipo,vencimento:dataExcel(g(r,C.venc)),nome:String(g(r,C.nome)).trim(),descricao:String(g(r,C.desc)).trim(),notaFiscal:String(g(r,C.nf)).trim().replace(/\.0+$/,''),categoria:String(g(r,C.cat)).trim(),centroCusto:fnCCTexto(fnCCParse(g(r,C.cc))),formaPagamento:/CART/i.test(semAcento(g(r,C.fp)))?'CARTÃO DE CRÉDITO':'CONTA CORRENTE',valor:Math.abs(typeof v==='number'?v:numBR(String(v).replace(/[R$\s]/g,'')))};
       if(quit){ d.quitado=true; d.dataPagamento=dataExcel(g(r,C.pag))||d.vencimento; }
       const erros=[]; if(!/\d{2}\/\d{2}\/\d{4}/.test(d.vencimento)) erros.push('sem data'); if(!d.nome) erros.push('sem nome'); if(!d.valor) erros.push('sem valor'); { const cc=fnCCParse(d.centroCusto); const sm=cc.reduce((x,c)=>x+c.pct,0); if(cc.length&&Math.abs(sm-100)>=0.01) erros.push('centros de custo somam '+fN(sm,2)+'%'); }
       return {d,erros}; });
@@ -1990,7 +1996,7 @@ function fnRelatorio(sub){
   </div>${fnTabelaLanc(L,quit)}`;
 }
 function fnExportar(){ const sub=FN.sub.rel, quit=(sub==='pagas'||sub==='recebidas');
-  const rows=fnFiltrados(sub).map(l=>({'Vencimento':l.VENCIMENTO,'Pago/recebido em':l.DATA_PAGAMENTO||'','Nome':l.NOME,'Descrição':l.DESCRICAO,'Nota fiscal':l.NOTA_FISCAL,'Categoria':l.CATEGORIA,'Centro de custo':l.CENTRO_CUSTO||'','Valor':+l.VALOR,'Valor pago':quit?+l.VALOR_PAGO:'','Conta':(fnConta(l.CONTA_ID)||{}).NOME||'','Conciliado':l.EXTRATO_ID?'SIM':''}));
+  const rows=fnFiltrados(sub).map(l=>({'Vencimento':l.VENCIMENTO,'Pago/recebido em':l.DATA_PAGAMENTO||'','Nome':l.NOME,'Descrição':l.DESCRICAO,'Nota fiscal':l.NOTA_FISCAL,'Categoria':l.CATEGORIA,'Centro de custo':l.CENTRO_CUSTO||'','Forma de pagamento':l.FORMA_PAGAMENTO||'CONTA CORRENTE','Valor':+l.VALOR,'Valor pago':quit?+l.VALOR_PAGO:'','Conta':(fnConta(l.CONTA_ID)||{}).NOME||'','Conciliado':l.EXTRATO_ID?'SIM':''}));
   const ws=XLSX.utils.json_to_sheet(rows); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Relatório'); XLSX.writeFile(wb,'financeiro-'+sub+'-'+hojeBR().replace(/\//g,'-')+'.xlsx'); }
 
 /* ---------- painel de acompanhamento (DRE) ---------- */
