@@ -116,6 +116,22 @@ td.lg-obs input:hover,td.lg-obs input:focus{border-color:var(--line);background:
 .selma select:disabled{opacity:.45}
 .fa-tab tr.fa-ped td{background:var(--soft);font-size:13px;color:var(--mut);padding-left:24px}
 .fn-wrap{display:block}
+/* Financeiro: tudo em negrito, maior e mais escuro */
+body.fin-mode .fn-wrap, body.fin-mode .fn-wrap *, body.fin-mode #fnDrawer *, body.fin-mode .mbg *{font-weight:700}
+body.fin-mode .fn-wrap h2{font-size:24px;font-weight:800}
+body.fin-mode .fn-wrap h3, body.fin-mode .fn-wrap b, body.fin-mode .fn-wrap .dre-g td, body.fin-mode .fn-wrap .dre-res td, body.fin-mode .fn-wrap .dre-res2 td{font-weight:800}
+body.fin-mode .fn-wrap .sl-tab td, body.fin-mode .mbg .sl-tab td{font-size:15px;color:var(--ink)}
+body.fin-mode .fn-wrap .sl-tab th, body.fin-mode .mbg .sl-tab th{font-size:13px;color:var(--ink)}
+body.fin-mode .fn-wrap input, body.fin-mode .fn-wrap select, body.fin-mode .fn-wrap textarea, body.fin-mode #fnDrawer input, body.fin-mode #fnDrawer select, body.fin-mode #fnDrawer textarea{font-size:15px;color:var(--ink)}
+body.fin-mode .fn-wrap .muted, body.fin-mode #fnDrawer .muted, body.fin-mode .mbg .muted, body.fin-mode .fn-wrap .small{color:#2f2c28}
+body.fin-mode .fn-wrap .small, body.fin-mode #fnDrawer .small, body.fin-mode .mbg .small{font-size:14px}
+body.fin-mode .fn-gh{font-size:16px}
+body.fin-mode .fn-gl button{font-size:15px;color:#2f2c28}
+body.fin-mode .fn-side-t, body.fin-mode .fn-crumb{font-size:13px;color:#2f2c28}
+body.fin-mode .tag{font-size:13px}
+body.fin-mode #fnDrawer .sf span, body.fin-mode .fn-wrap .sf span{font-size:13px;color:var(--ink)}
+body.fin-mode .fn-wrap .bad, body.fin-mode .mbg .bad{color:#9a120b}
+body.fin-mode .fn-wrap .ok, body.fin-mode .mbg .ok{color:#0b5e33}
 .fn-catbox{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--mut);border-radius:12px;padding:10px 12px 12px;margin-bottom:14px}
 .fn-catbox .sl-tab{box-shadow:none}
 .fn-cath{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}.fn-cath b{font-size:16px}
@@ -678,7 +694,7 @@ function loading(on){ document.getElementById('loading').classList.toggle('hide'
 /* =================== API =================== */
 function api(acao, dados){
   loading(true);
-  const fim = r => { loading(false); if(r && r.ok){ S.master=!!r.master; S.abas=r.abas||[]; const b=document.getElementById('btConfig'); if(b) b.classList.toggle('hide',!S.master); aplicarAbas(); } if(!r || !r.ok){ if(r && r.erro==='SENHA_INVALIDA'){ sair(); throw new Error('Senha inválida'); } throw new Error(r&&r.erro||'Falha na comunicação'); } return r.dados; };
+  const fim = r => { loading(false); if(r && r.ok && r.fin && S.dados){ S.dados.fin=r.fin; S.finFresco=true; } if(r && r.ok){ S.master=!!r.master; S.abas=r.abas||[]; const b=document.getElementById('btConfig'); if(b) b.classList.toggle('hide',!S.master); aplicarAbas(); } if(!r || !r.ok){ if(r && r.erro==='SENHA_INVALIDA'){ sair(); throw new Error('Senha inválida'); } throw new Error(r&&r.erro||'Falha na comunicação'); } return r.dados; };
   if (emAppsScript()) return new Promise((res,rej)=>google.script.run.withSuccessHandler(r=>{try{res(fim(r));}catch(e){rej(e);}}).withFailureHandler(e=>{loading(false);rej(e);}).api(acao,S.senha,dados||{},S.usuario));
   return fetch(S.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({acao,senha:S.senha,usuario:S.usuario,dados:dados||{}})})
     .then(r=>r.json()).then(fim).catch(e=>{loading(false);throw e;});
@@ -1657,6 +1673,7 @@ const FIN_SUBS = {
   rel:[['areceber','Contas a receber'],['apagar','Contas a pagar'],['recebidas','Contas recebidas'],['pagas','Contas pagas'],['dre','DRE Miashop'],['drep','DRE particular']],
   config:[['cats','Categorias'],['centros','Centros de custo'],['hist','Histórico de ações']]
 };
+async function fnRecarregar(){ if(S.finFresco){ S.finFresco=false; return; } await carregar(true); }
 const fin = () => { const f=(S.dados&&S.dados.fin) || {contas:[],lanc:[],extrato:[],importacoes:[],categorias:[]}; f.centros=f.centros||[]; return f; };
 const hojeISO = () => { const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
 const fnConta = id => fin().contas.find(c=>String(c.ID)===String(id));
@@ -1717,10 +1734,10 @@ async function fnSalvarConta(id){
   const g=i=>document.getElementById(i).value.trim();
   if(!g('fcNome')){ toast('Informe o nome da conta'); return; }
   try{ const r=await api('finSalvarConta',{id,nome:g('fcNome'),banco:g('fcBanco'),agencia:g('fcAg'),conta:g('fcCc'),saldoInicial:numBR(g('fcSaldo')),dataSaldo:brISO(g('fcData'))});
-    fecharModal(); toast('Conta salva'); if(!FN.conta) FN.conta=r.id; await carregar(true); render(); }catch(e){ toast('Erro: '+e.message,6000); }
+    fecharModal(); toast('Conta salva'); if(!FN.conta) FN.conta=r.id; await fnRecarregar(); render(); }catch(e){ toast('Erro: '+e.message,6000); }
 }
 async function fnExcluirConta(id){ const c=fnConta(id); if(!confirm('Excluir a conta '+(c?c.NOME:'')+'?')) return;
-  try{ await api('finExcluirConta',{id}); toast('Conta excluída'); if(FN.conta===id) FN.conta=''; await carregar(true); render(); }catch(e){ toast('Erro: '+e.message,7000); } }
+  try{ await api('finExcluirConta',{id}); toast('Conta excluída'); if(FN.conta===id) FN.conta=''; await fnRecarregar(); render(); }catch(e){ toast('Erro: '+e.message,7000); } }
 
 /* ---------- importar extrato (Excel do banco) ---------- */
 function fnEscolherExtrato(){ if(!fin().contas.length){ toast('Cadastre uma conta antes de importar o extrato'); fnModalConta(); return; } document.getElementById('fnInExt').click(); }
@@ -1754,7 +1771,7 @@ async function fnConfirmarExtrato(){
   const bt=document.getElementById('fnImpBt'); bt.disabled=true; bt.textContent='Importando…'; const contaId=document.getElementById('fnImpConta').value;
   try{ const d={contaId,linhas:FN.imp.linhas,arquivoNome:FN.imp.arquivo.name,arquivoMime:FN.imp.arquivo.type}; d.arquivoBase64=await b64Arquivo(FN.imp.arquivo);
     const r=await api('finImportarExtrato',d); fecharModal(); FN.imp=null; FN.conta=contaId; FN.sec='contas'; FN.sub.contas='conc'; FN.aberto='contas';
-    toast(`${r.importadas} linha(s) importada(s)${r.ignoradas?' · '+r.ignoradas+' já existiam':''}`,5000); await carregar(true); render(); }
+    toast(`${r.importadas} linha(s) importada(s)${r.ignoradas?' · '+r.ignoradas+' já existiam':''}`,5000); await fnRecarregar(); render(); }
   catch(e){ bt.disabled=false; bt.textContent='Importar'; toast('Erro: '+e.message,7000); }
 }
 function fnHistorico(){
@@ -1766,7 +1783,7 @@ function fnHistorico(){
   </tbody></table></div>`;
 }
 async function fnExcluirImport(id){ const i=fin().importacoes.find(x=>x.ID===id); if(!confirm(`Desfazer a importação "${i?i.ARQUIVO:''}"?\n\n${i&&i.TIPO==='EXTRATO'?'As linhas do extrato serão apagadas e os lançamentos conciliados com elas voltam a ficar em aberto.':'Os lançamentos importados por ela serão apagados.'}`)) return;
-  try{ await api('finExcluirImportacao',{id}); toast('Importação desfeita'); await carregar(true); render(); }catch(e){ toast('Erro: '+e.message,6000); } }
+  try{ await api('finExcluirImportacao',{id}); toast('Importação desfeita'); await fnRecarregar(); render(); }catch(e){ toast('Erro: '+e.message,6000); } }
 
 /* ---------- conciliação bancária ---------- */
 // sugestão: lançamento em aberto do mesmo tipo com valor igual (dif. até R$ 0,01) e vencimento na data do extrato
@@ -1796,9 +1813,9 @@ function fnConciliacao(){
     ||`<tr><td colspan="4" class="muted">${E.length?(FN.concFiltro==='pend'?'Tudo conciliado nesta conta. ✓':'Nada aqui.'):'Nenhum extrato importado nesta conta. Use "⬆ Importar extrato (Excel)".'}</td></tr>`}
   </tbody></table></div>`;
 }
-async function fnConciliar(exId,lancId){ try{ await api('finConciliar',{extratoId:exId,lancId}); fecharModal(); toast('Conciliado ✓'); await carregar(true); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
-async function fnDesconciliar(exId){ if(!confirm('Desfazer esta conciliação? O lançamento volta a ficar em aberto.')) return; try{ await api('finDesconciliar',{extratoId:exId}); toast('Conciliação desfeita'); await carregar(true); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
-async function fnIgnorar(exId){ try{ await api('finConciliar',{extratoId:exId,ignorar:true}); toast('Marcado como sem lançamento'); await carregar(true); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
+async function fnConciliar(exId,lancId){ try{ await api('finConciliar',{extratoId:exId,lancId}); fecharModal(); toast('Conciliado ✓'); await fnRecarregar(); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
+async function fnDesconciliar(exId){ if(!confirm('Desfazer esta conciliação? O lançamento volta a ficar em aberto.')) return; try{ await api('finDesconciliar',{extratoId:exId}); toast('Conciliação desfeita'); await fnRecarregar(); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
+async function fnIgnorar(exId){ try{ await api('finConciliar',{extratoId:exId,ignorar:true}); toast('Marcado como sem lançamento'); await fnRecarregar(); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
 function fnBuscarLanc(exId){
   const e=fin().extrato.find(x=>x.ID===exId); const tipo=(+e.VALOR)>=0?'RECEBER':'PAGAR', v=Math.abs(+e.VALOR), d=isoBR(e.DATA);
   const dist=l=>Math.abs((+l.VALOR)-v)/Math.max(v,1)*100+Math.abs((new Date(isoBR(l.VENCIMENTO)||d)-new Date(d))/864e5)/30;
@@ -1939,13 +1956,13 @@ async function fnSalvarLancDr(){
     else { if(id){ d.id=id; const l=fnLanc(id); if(l&&l.STATUS==='QUITADO'){ d.quitado=true; d.dataPagamento=l.DATA_PAGAMENTO; d.valorPago=l.VALOR_PAGO; d.contaId=l.CONTA_ID; } } await api('finSalvarLanc',d); }
     if(aliases.length) try{ await api('finSalvarAliasCC',{lista:aliases}); }catch(e){}
     toast(exId?'Lançamento criado e conciliado ✓':id?'Lançamento salvo':(tipo==='RECEBER'?'Recebimento':'Pagamento')+' agendado ✓');
-    const cont=!id&&!exId&&FN.continuar; await carregar(true); render();
+    const cont=!id&&!exId&&FN.continuar; await fnRecarregar(); render();
     if(cont) fnAbrirLanc(null,tipo); else fnFecharLanc();
   }catch(e){ bt.disabled=false; toast('Erro: '+e.message,6000); }
 }
 function fnModalLanc(id,tipo,pre,exId){ fnAbrirLanc(id,tipo,pre,exId); }
 async function fnExcluirLanc(id){ const l=fnLanc(id); if(!confirm(`Excluir ${l.NOME} · ${fR(+l.VALOR)}?${l.STATUS==='QUITADO'?'\n\nSe estiver conciliado, a linha do extrato volta a ficar pendente.':''}`)) return;
-  try{ await api('finExcluirLanc',{id}); toast('Lançamento excluído'); await carregar(true); render(); }catch(e){ toast('Erro: '+e.message,6000); } }
+  try{ await api('finExcluirLanc',{id}); toast('Lançamento excluído'); await fnRecarregar(); render(); }catch(e){ toast('Erro: '+e.message,6000); } }
 function fnModalBaixa(id){ const l=fnLanc(id); const C=fin().contas;
   modal(`<div class="mh"><h3>${l.TIPO==='RECEBER'?'Receber':'Pagar'} · ${esc(l.NOME)}</h3><button class="btn ghost" onclick="fecharModal()">✕</button></div>
   <div class="row"><label class="sf" style="flex:0 0 150px"><span>Data</span><input type="date" id="fbData" value="${hojeISO()}"></label><label class="sf" style="flex:0 0 130px"><span>Valor</span><input id="fbValor" value="${fN(+l.VALOR,2)}"></label>
@@ -1953,9 +1970,9 @@ function fnModalBaixa(id){ const l=fnLanc(id); const C=fin().contas;
   <p class="small muted">Use quando não houver extrato para conciliar. Com extrato, prefira a Conciliação bancária.</p>
   <div class="row" style="justify-content:flex-end"><button class="btn" onclick="fnBaixar('${esc(id)}')">Confirmar ${l.TIPO==='RECEBER'?'recebimento':'pagamento'}</button></div>`); }
 async function fnBaixar(id){ const g=i=>document.getElementById(i).value;
-  try{ await api('finBaixar',{id,data:brISO(g('fbData')),valor:numBR(g('fbValor')),contaId:g('fbConta')}); fecharModal(); toast('Baixa registrada ✓'); await carregar(true); render(); }catch(e){ toast('Erro: '+e.message,6000); } }
+  try{ await api('finBaixar',{id,data:brISO(g('fbData')),valor:numBR(g('fbValor')),contaId:g('fbConta')}); fecharModal(); toast('Baixa registrada ✓'); await fnRecarregar(); render(); }catch(e){ toast('Erro: '+e.message,6000); } }
 async function fnEstornar(id){ if(!confirm('Estornar? O lançamento volta a ficar em aberto (e sai da conciliação).')) return;
-  try{ await api('finEstornar',{id}); toast('Estornado'); await carregar(true); render(); }catch(e){ toast('Erro: '+e.message,6000); } }
+  try{ await api('finEstornar',{id}); toast('Estornado'); await fnRecarregar(); render(); }catch(e){ toast('Erro: '+e.message,6000); } }
 function fnTabelaLanc(L,quitadas){
   const hoje=hojeISO(); const tot=L.reduce((s,l)=>s+(+(quitadas?l.VALOR_PAGO:l.VALOR)||0),0);
   return `<div class="tw sl-tab"><table><thead><tr><th>${quitadas?'Pago/recebido em':'Vencimento'}</th>${quitadas?'<th>Vencimento</th>':''}<th>Nome</th><th>Descrição</th><th>NF</th><th>Categoria</th><th>Centro de custo</th><th class="n">Valor</th>${quitadas?'<th>Conta</th>':''}<th></th></tr></thead><tbody>
@@ -2047,7 +2064,7 @@ function fnModalImpLanc(){
 async function fnConfirmarImpLanc(){
   const bt=document.getElementById('fnImpLBt'); bt.disabled=true; bt.textContent='Importando…';
   try{ const r=await api('finImportarLanc',{arquivoNome:FN.impL.arquivo.name,lista:FN.impL.linhas.filter(x=>!x.erros.length).map(x=>x.d)}); fecharModal();
-    const sit=FN.impL.sit; if(FN.impL.cola) FN.cola=null; FN.impL=null; FN.sec='rel'; FN.sub.rel=sit; FN.aberto='rel'; toast(`${r.importados} lançamento(s) importado(s)`+(r.erros.length?' · '+r.erros.length+' com erro':''),5000); await carregar(true); render(); }
+    const sit=FN.impL.sit; if(FN.impL.cola) FN.cola=null; FN.impL=null; FN.sec='rel'; FN.sub.rel=sit; FN.aberto='rel'; toast(`${r.importados} lançamento(s) importado(s)`+(r.erros.length?' · '+r.erros.length+' com erro':''),5000); await fnRecarregar(); render(); }
   catch(e){ bt.disabled=false; bt.textContent='Importar'; toast('Erro: '+e.message,7000); }
 }
 
@@ -2088,7 +2105,7 @@ function fnDRE(part){
   const nPart=fin().categorias.filter(c=>fnGrupoCat(c)==='PARTICULAR').length;
   return `<div class="sl-filtros"><select onchange="FN.ano=+this.value;fnAtualizar()">${[...anos].sort((a,b)=>b-a).map(a=>`<option ${a===ano?'selected':''}>${a}</option>`).join('')}</select>
     <select onchange="FN.dreCC=this.value;fnAtualizar()" style="max-width:220px"><option value="">Centro de custo: todos</option>${fnCentros().map(c=>`<option ${c===FN.dreCC?'selected':''}>${esc(c)}</option>`).join('')}</select>
-    <span class="muted small">${part?(nPart?`${nPart} categoria(s) no DRE particular — elas não entram no DRE da Miashop.`:'Nenhuma categoria marcada como “DRE particular” ainda.'):'O grupo de cada categoria (operacional, produtos, folha, montagem ou DRE particular) é definido em'}</span><button class="btn ghost sm" onclick="fnIr('config','cats')">⚙ Categorias</button><span class="sp"></span><button class="btn ghost sm" onclick="FN.dreAb=FN.dreAb||{};fnDRETodos(true)">▾ Abrir todas</button><button class="btn ghost sm" onclick="FN.dreAb=FN.dreAb||{};fnDRETodos(false)">▸ Fechar todas</button></div>
+    <span class="muted small">${part?(nPart?`${nPart} categoria(s) no DRE particular — elas não entram no DRE da Miashop.`:'Nenhuma categoria marcada como “DRE particular” ainda.'):'O grupo de cada categoria (operacional, folha, produtos, montagem ou DRE particular) é definido em'}</span><button class="btn ghost sm" onclick="fnIr('config','cats')">⚙ Categorias</button><span class="sp"></span><button class="btn ghost sm" onclick="FN.dreAb=FN.dreAb||{};fnDRETodos(true)">▾ Abrir todas</button><button class="btn ghost sm" onclick="FN.dreAb=FN.dreAb||{};fnDRETodos(false)">▸ Fechar todas</button></div>
   <h3 class="rr-h">${part?'DRE particular':'DRE Miashop'} · Realizado <span class="muted small">— contas pagas e recebidas, pela data do pagamento</span></h3>${fnTabelaDRE(meses,true,part)}
   <h3 class="rr-h">${part?'DRE particular':'DRE Miashop'} · Agendado <span class="muted small">— contas a pagar e a receber em aberto, pelo vencimento</span></h3>${fnTabelaDRE(meses,false,part)}`;
 }
@@ -2100,7 +2117,7 @@ function fnDREAbrir(key,g,nome,m){
   const D=FN.dreItens[key]; if(!D) return; const {realizado,part}=D;
   const L=D.itens.filter(x=>x.g===g&&(!nome||x.nome===nome)&&(!m||x.m===m)).sort((a,b)=>(isoBR(realizado?a.l.DATA_PAGAMENTO:a.l.VENCIMENTO)||'').localeCompare(isoBR(realizado?b.l.DATA_PAGAMENTO:b.l.VENCIMENTO)||''));
   const tot=L.reduce((s,x)=>s+x.v,0);
-  const rotG=part?{A:'Receitas',B:'Despesas'}[g]:{A:'Receitas operacionais',B:'Despesas operacionais',C:'Produtos',D:'Folha de pagamento',E:'Despesas montagem'}[g];
+  const rotG=part?{A:'Receitas',B:'Despesas'}[g]:{A:'Receitas operacionais',B:'Despesas operacionais',C:'Folha de pagamento',D:'Produtos',E:'Despesas montagem'}[g];
   modal(`<div class="mh"><h3>${part?'DRE particular':'DRE Miashop'} · ${realizado?'Realizado':'Agendado'} — ${esc(nome||rotG)}${m?' · '+rrMesNome(m):' · '+FN.ano}</h3><button class="btn ghost" onclick="fecharModal()">✕</button></div>
   <p class="small muted" style="margin-top:0">${L.length} lançamento(s) · total <b>${fR(tot)}</b>${FN.dreCC?` · centro de custo <b>${esc(FN.dreCC)}</b> (valores proporcionais ao % do centro)`:''}</p>
   <div class="tw sl-tab" style="max-height:62vh"><table><thead><tr><th>${realizado?'Pago/recebido em':'Vencimento'}</th><th>Nome</th><th>Descrição</th><th>NF</th>${nome?'':'<th>Categoria</th>'}<th>Centro de custo</th><th class="n">Valor</th><th></th></tr></thead><tbody>
@@ -2115,31 +2132,31 @@ function fnTabelaDRE(meses,realizado,part){
     const d=isoBR(realizado?l.DATA_PAGAMENTO:l.VENCIMENTO); if(!d) return; const m=d.slice(0,7); if(!meses.includes(m)) return;
     const v=(+(realizado?l.VALOR_PAGO:l.VALOR)||0)*(FN.dreCC?fnCCPeso(l,FN.dreCC):1); const nome=String(l.CATEGORIA||'').trim()||'Sem categoria';
     const gc=fnGrupoCat(catInfo[up(nome)]); if((gc==='PARTICULAR')!==!!part) return;
-    const g=l.TIPO==='RECEBER'?'A':(gc==='PRODUTOS'?'C':gc==='FOLHA'?'D':gc==='MONTAGEM'?'E':'B'); itens.push({l,g:part&&g!=='A'?'B':g,nome,m,v});
+    const g=l.TIPO==='RECEBER'?'A':(gc==='FOLHA'?'C':gc==='PRODUTOS'?'D':gc==='MONTAGEM'?'E':'B'); itens.push({l,g:part&&g!=='A'?'B':g,nome,m,v});
     const o=grupos[g][nome]||(grupos[g][nome]={}); o[m]=(o[m]||0)+v; });
   const soma=g=>{ const t={}; Object.values(grupos[g]).forEach(o=>meses.forEach(m=>t[m]=(t[m]||0)+(o[m]||0))); return t; };
   const A=soma('A'),B=soma('B'),C=soma('C'),D=soma('D'),E=soma('E'); const F={},G={}; meses.forEach(m=>{ G[m]=(A[m]||0)-(B[m]||0)-(C[m]||0)-(D[m]||0); F[m]=G[m]-(E[m]||0); });
   const tot=o=>meses.reduce((s,m)=>s+(o[m]||0),0);
-  const cel=(v,neg,g,n,m)=>{ v=v||0; return v?`<span class="${neg?'bad':''} dre-lk" onclick="fnDREAbrir('${key}','${g}','${n?esc(n).replace(/'/g,"\\'"):''}','${m||''}')" title="Ver lançamentos">${fR(neg?-v:v)}</span>`:'<span class="muted">—</span>'; };
+  const cel=(v,neg,g,n,m)=>{ v=v||0; return v?`<span class="${neg?'bad':''} dre-lk" onclick="fnDREAbrir('${key}','${g}','${n?esc(n).replace(/'/g,"\\'"):''}','${m||''}')" title="Ver lançamentos">${fN(neg?-v:v,2)}</span>`:'<span class="muted">—</span>'; };
   FN.dreAb=FN.dreAb||{}; const ab=g=>!!FN.dreAb[key+g];
   const linhaGrupo=(rot,o,neg,g)=>`<tr class="dre-g"><td class="dre-tg" onclick="fnDREToggle(this,'${key}','${g}')" title="Mostrar/ocultar categorias"><span class="dre-ar">${ab(g)?'▾':'▸'}</span> ${rot} <span class="muted small" style="font-weight:600">(${Object.keys(grupos[g]).length})</span></td>${meses.map(m=>`<td class="n">${cel(o[m],neg,g,'',m)}</td>`).join('')}<td class="n">${cel(tot(o),neg,g,'','')}</td></tr>`;
   const linhasCat=(g,neg)=>Object.keys(grupos[g]).sort((a,b)=>a.localeCompare(b,'pt-BR')).map(n=>`<tr class="dre-cat" data-g="${g}" style="${ab(g)?'':'display:none'}"><td>${esc(n)}</td>${meses.map(m=>`<td class="n">${cel(grupos[g][n][m],neg,g,n,m)}</td>`).join('')}<td class="n">${cel(tot(grupos[g][n]),neg,g,n,'')}</td></tr>`).join('');
-  const res=(rot,o,cls)=>`<tr class="${cls}"><td>${rot}</td>${meses.map(m=>`<td class="n"><span class="${(o[m]||0)<0?'bad':'ok'}">${fR(o[m]||0)}</span></td>`).join('')}<td class="n"><span class="${tot(o)<0?'bad':'ok'}">${fR(tot(o))}</span></td></tr>`;
-  const cab=`<div class="tw sl-tab rr-mat dre"><table><thead><tr><th></th>${meses.map(m=>`<th class="n">${rrMesNome(m)}</th>`).join('')}<th class="n">Total</th></tr></thead><tbody>`;
+  const res=(rot,o,cls)=>`<tr class="${cls}"><td>${rot}</td>${meses.map(m=>`<td class="n"><span class="${(o[m]||0)<0?'bad':'ok'}">${fN(o[m]||0,2)}</span></td>`).join('')}<td class="n"><span class="${tot(o)<0?'bad':'ok'}">${fN(tot(o),2)}</span></td></tr>`;
+  const cab=`<div class="tw sl-tab rr-mat dre"><table><thead><tr><th class="muted small" style="text-align:left">valores em R$</th>${meses.map(m=>`<th class="n">${rrMesNome(m)}</th>`).join('')}<th class="n">Total</th></tr></thead><tbody>`;
   if(part){ const Bp={}; meses.forEach(m=>Bp[m]=(B[m]||0)+(C[m]||0)+(D[m]||0)+(E[m]||0)); [...Object.entries(grupos.C),...Object.entries(grupos.D),...Object.entries(grupos.E)].forEach(([n,o])=>{ const t=grupos.B[n]||(grupos.B[n]={}); meses.forEach(m=>{ if(o[m]) t[m]=(t[m]||0)+o[m]; }); });
     const R={}; meses.forEach(m=>R[m]=(A[m]||0)-(Bp[m]||0));
     return cab+`${linhaGrupo('A · RECEITAS',A,false,'A')}${linhasCat('A')}${linhaGrupo('B · DESPESAS',Bp,true,'B')}${linhasCat('B',true)}${res('RESULTADO (A − B)',R,'dre-res')}</tbody></table></div>`; }
   return cab+`
     ${linhaGrupo('A · RECEITAS OPERACIONAIS',A,false,'A')}${linhasCat('A')}
     ${linhaGrupo('B · DESPESAS OPERACIONAIS',B,true,'B')}${linhasCat('B',true)}
-    ${linhaGrupo('C · PRODUTOS',C,true,'C')}${linhasCat('C',true)}
-    ${linhaGrupo('D · FOLHA DE PAGAMENTO',D,true,'D')}${linhasCat('D',true)}
+    ${linhaGrupo('C · FOLHA DE PAGAMENTO',C,true,'C')}${linhasCat('C',true)}
+    ${linhaGrupo('D · PRODUTOS',D,true,'D')}${linhasCat('D',true)}
     ${linhaGrupo('E · DESPESAS MONTAGEM',E,true,'E')}${linhasCat('E',true)}
     ${res('F · RESULTADO REAL (A − B − C − D − E = F)',F,'dre-res')}
     ${res('G · RESULTADO OPERACIONAL (A − B − C − D = G)',G,'dre-res2')}</tbody></table></div>`;
 }
 /* ---------- configurações: categorias e centros de custo ---------- */
-const FIN_GRUPOS=[['OPERACIONAL','Operacional'],['PRODUTOS','Produtos'],['FOLHA','Folha de pagamento'],['MONTAGEM','Despesas montagem'],['PARTICULAR','DRE particular']];
+const FIN_GRUPOS=[['OPERACIONAL','Operacional'],['FOLHA','Folha de pagamento'],['PRODUTOS','Produtos'],['MONTAGEM','Despesas montagem'],['PARTICULAR','DRE particular']];
 function fnOptGrupo(c){ const g=fnGrupoCat(c); return FIN_GRUPOS.filter(([k])=>!((k==='MONTAGEM'||k==='PRODUTOS'||k==='FOLHA')&&c.TIPO==='RECEITA')).map(([k,n])=>`<option value="${k}" ${k===g?'selected':''}>${n}</option>`).join(''); }
 function fnCategoriasTela(){
   const C=fin().categorias.slice().sort((a,b)=>(a.TIPO+a.NOME).localeCompare(b.TIPO+b.NOME,'pt-BR'));
@@ -2150,11 +2167,11 @@ function fnCategoriasTela(){
     <label class="sf" style="flex:0 0 140px"><span>Tipo</span><select data-c="tipo"><option value="DESPESA">Despesa</option><option value="RECEITA">Receita</option></select></label>
     <label class="sf" style="flex:0 0 190px"><span>Grupo</span><select data-c="grupo">${FIN_GRUPOS.map(([k,n])=>`<option value="${k}">${n}</option>`).join('')}</select></label>
     <button class="btn" onclick="fnSalvarCat(this)">+ Criar categoria</button></div></div>
-  <p class="small muted">Para editar, clique no nome, apague e digite o novo — salva sozinho ao sair do campo ou apertar Enter (tipo e grupo salvam ao trocar). Grupo: <b>Operacional</b> entra em A (receitas) ou B (despesas) do DRE; <b>Produtos</b> entra em C; <b>Folha de pagamento</b> entra em D; <b>Despesas montagem</b> entra em E; <b>DRE particular</b> sai do DRE da Miashop e vai só para o DRE particular.</p>
+  <p class="small muted">Para editar, clique no nome, apague e digite o novo — salva sozinho ao sair do campo ou apertar Enter (tipo e grupo salvam ao trocar). Grupo: <b>Operacional</b> entra em A (receitas) ou B (despesas) do DRE; <b>Folha de pagamento</b> entra em C; <b>Produtos</b> entra em D; <b>Despesas montagem</b> entra em E; <b>DRE particular</b> sai do DRE da Miashop e vai só para o DRE particular.</p>
   ${[['A · Receitas operacionais','Entram em A do DRE da Miashop',c=>fnGrupoCat(c)==='OPERACIONAL'&&c.TIPO==='RECEITA','ok'],
      ['B · Despesas operacionais','Entram em B do DRE da Miashop',c=>fnGrupoCat(c)==='OPERACIONAL'&&c.TIPO!=='RECEITA','bad'],
-     ['C · Produtos','Entram em C do DRE da Miashop',c=>fnGrupoCat(c)==='PRODUTOS','prod'],
-     ['D · Folha de pagamento','Entram em D do DRE da Miashop',c=>fnGrupoCat(c)==='FOLHA','folha'],
+     ['C · Folha de pagamento','Entram em C do DRE da Miashop',c=>fnGrupoCat(c)==='FOLHA','folha'],
+     ['D · Produtos','Entram em D do DRE da Miashop',c=>fnGrupoCat(c)==='PRODUTOS','prod'],
      ['E · Despesas montagem','Entram em E do DRE da Miashop',c=>fnGrupoCat(c)==='MONTAGEM','warn'],
      ['DRE particular','Não entram no DRE da Miashop — só no DRE particular',c=>fnGrupoCat(c)==='PARTICULAR','acc']].map(([t,sub,fl,cor])=>{ const L=C.filter(fl);
     return `<div class="fn-catbox fc-${cor}"><div class="fn-cath"><b>${t}</b><span class="muted small">${sub}</span><span class="sp"></span><span class="tag t-mut">${L.length}</span></div>
@@ -2167,10 +2184,10 @@ async function fnSalvarCat(bt){ const tr=bt.closest('#fnCatNova')||bt.closest('t
   tr.dataset.salvando='1'; tr.style.opacity='.5';
   try{ await api('finSalvarCategoria',{nome,antigo:antigo||nome,tipo:g('tipo').value,grupo:g('grupo').value});
     const c=fin().categorias; if(antigo){ const o=c.find(x=>x.NOME===antigo); if(o){ o.NOME=nome; o.TIPO=g('tipo').value; o.GRUPO=g('grupo').value; } } // mostra na hora
-    toast(antigo&&antigo!==nome?`Categoria renomeada: ${antigo} → ${nome}`:'Categoria salva'); await carregar(true); fnAtualizar(); }
+    toast(antigo&&antigo!==nome?`Categoria renomeada: ${antigo} → ${nome}`:'Categoria salva'); await fnRecarregar(); fnAtualizar(); }
   catch(e){ tr.style.opacity=''; delete tr.dataset.salvando; toast('Erro ao salvar: '+e.message,7000); } }
 async function fnExcluirCat(bt){ const n=bt.closest('tr').querySelector('[data-c=nome]').dataset.antigo; if(!confirm('Excluir a categoria '+n+'? Os lançamentos continuam com esse nome.')) return;
-  try{ await api('finExcluirCategoria',{nome:n}); await carregar(true); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
+  try{ await api('finExcluirCategoria',{nome:n}); await fnRecarregar(); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
 function fnCentrosTela(){
   const C=fnCentros(); const uso=n=>fin().lanc.filter(l=>fnCCPeso(l,n));
   return `<div class="card" style="padding:12px;margin-bottom:12px"><b>Novo centro de custo</b>
@@ -2185,9 +2202,9 @@ function fnCentrosTela(){
 async function fnSalvarCC(bt){ let nome,antigo='';
   if(bt){ const tr=bt.closest('tr'); if(tr.dataset.salvando) return; const i=tr.querySelector('input'); nome=i.value.trim(); antigo=i.dataset.antigo; if(!nome){ i.value=antigo; toast('O nome não pode ficar vazio'); return; } if(nome===antigo) return; tr.dataset.salvando='1'; tr.style.opacity='.5'; } else nome=document.getElementById('fnCCNovo').value.trim();
   if(!nome){ toast('Informe o nome'); return; }
-  try{ await api('finSalvarCentro',{nome,antigo}); toast('Centro de custo salvo'); await carregar(true); fnAtualizar(); const e=document.getElementById('fnCCNovo'); if(e&&!bt) e.focus(); }catch(e){ toast('Erro ao salvar: '+e.message,7000); fnAtualizar(); } }
+  try{ await api('finSalvarCentro',{nome,antigo}); toast('Centro de custo salvo'); await fnRecarregar(); fnAtualizar(); const e=document.getElementById('fnCCNovo'); if(e&&!bt) e.focus(); }catch(e){ toast('Erro ao salvar: '+e.message,7000); fnAtualizar(); } }
 async function fnExcluirCC(bt){ const n=bt.closest('tr').querySelector('input').dataset.antigo; if(!confirm('Excluir o centro de custo '+n+'? Os lançamentos continuam com esse nome.')) return;
-  try{ await api('finExcluirCentro',{nome:n}); await carregar(true); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
+  try{ await api('finExcluirCentro',{nome:n}); await fnRecarregar(); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
 
 function fnModeloLanc(){ const ws=XLSX.utils.aoa_to_sheet([FIN_MODELO,['10/12/2026','CLINK','Pedido Natal 1/3','9080','Fornecedores / mercadorias','Londrina (60%); Curitiba (40%)',-4666.67,'','CONTA CORRENTE',''],['15/12/2026','Amazon','Assinatura','','Despesas administrativas','Administrativo',89.9,'','CARTÃO DE CRÉDITO','renova todo mês']]);
   ws['!cols']=[{wch:13},{wch:20},{wch:24},{wch:12},{wch:26},{wch:30},{wch:12},{wch:15},{wch:20},{wch:24}]; const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Lançamentos'); XLSX.writeFile(wb,'modelo-lancamentos-financeiro.xlsx'); }
@@ -2206,7 +2223,7 @@ async function fnDesfazer(id){
   const h=(fin().historico||[]).find(x=>x.ID===id); if(!confirm(`Desfazer esta ação?\n\n${h.ACAO} — ${h.DESCRICAO}\n(${h.DATA} · ${h.USUARIO})\n\nTudo o que ela criou, alterou ou apagou volta a ficar como estava antes.`)) return;
   try{ let r=await api('finDesfazer',{id});
     if(r&&r.conflito){ if(!confirm(`Atenção: ${r.conflito} de ${r.total} registro(s) desta ação foram alterados depois por outras ações.\n\nO ideal é desfazer antes as ações mais recentes. Desfazer mesmo assim (volta esses registros para como estavam antes desta ação)?`)) return; r=await api('finDesfazer',{id,forcar:true}); }
-    toast('Ação desfeita ✓',4000); await carregar(true); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,7000); }
+    toast('Ação desfeita ✓',4000); await fnRecarregar(); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,7000); }
 }
 
 iniciar();
