@@ -203,6 +203,8 @@ tr.fn-venc td:first-child{box-shadow:inset 3px 0 var(--bad)}
 .dre tr.dre-g td,.dre tr.dre-g td:first-child{font-weight:800;background:var(--soft)}
 .dre tr.dre-res td:first-child{background:var(--acc-soft)}
 .dre tr.dre-res2 td,.dre tr.dre-res2 td:first-child{font-weight:800;background:var(--soft);border-top:1px solid var(--line)}
+.dre .dre-tg{cursor:pointer;user-select:none;white-space:nowrap}.dre .dre-tg:hover{color:var(--acc)}.dre-ar{display:inline-block;width:14px;color:var(--acc)}
+.dre .dre-lk{cursor:pointer;border-bottom:1px dotted currentColor}.dre .dre-lk:hover{color:var(--acc)!important;border-bottom-style:solid}
 .dre tr.dre-cat td:first-child{padding-left:22px;color:var(--mut)}
 .dre tr.dre-res td{font-weight:800;background:var(--acc-soft);border-top:2px solid var(--acc)}
 .btn.sm{height:30px}
@@ -1652,7 +1654,7 @@ const FIN_SUBS = {
   contas:[['conc','Conciliação bancária'],['contas','Contas bancárias'],['hist','Histórico de importações']],
   receb:[['agendar','Agendar recebimento'],['importar','Importar lançamentos']],
   pagar:[['agendar','Agendar pagamento'],['importar','Importar lançamentos']],
-  rel:[['areceber','Contas a receber'],['apagar','Contas a pagar'],['recebidas','Contas recebidas'],['pagas','Contas pagas'],['dre','Painel de acompanhamento'],['drep','DRE particular']],
+  rel:[['areceber','Contas a receber'],['apagar','Contas a pagar'],['recebidas','Contas recebidas'],['pagas','Contas pagas'],['dre','DRE Miashop'],['drep','DRE particular']],
   config:[['cats','Categorias'],['centros','Centros de custo'],['hist','Histórico de ações']]
 };
 const fin = () => { const f=(S.dados&&S.dados.fin) || {contas:[],lanc:[],extrato:[],importacoes:[],categorias:[]}; f.centros=f.centros||[]; return f; };
@@ -2086,35 +2088,52 @@ function fnDRE(part){
   const nPart=fin().categorias.filter(c=>fnGrupoCat(c)==='PARTICULAR').length;
   return `<div class="sl-filtros"><select onchange="FN.ano=+this.value;fnAtualizar()">${[...anos].sort((a,b)=>b-a).map(a=>`<option ${a===ano?'selected':''}>${a}</option>`).join('')}</select>
     <select onchange="FN.dreCC=this.value;fnAtualizar()" style="max-width:220px"><option value="">Centro de custo: todos</option>${fnCentros().map(c=>`<option ${c===FN.dreCC?'selected':''}>${esc(c)}</option>`).join('')}</select>
-    <span class="muted small">${part?(nPart?`${nPart} categoria(s) no DRE particular — elas não entram no DRE da Miashop.`:'Nenhuma categoria marcada como “DRE particular” ainda.'):'O grupo de cada categoria (operacional, produtos, montagem ou DRE particular) é definido em'}</span><button class="btn ghost sm" onclick="fnIr('config','cats')">⚙ Categorias</button></div>
-  <h3 class="rr-h">${part?'DRE particular':'DRE'} · Realizado <span class="muted small">— contas pagas e recebidas, pela data do pagamento</span></h3>${fnTabelaDRE(meses,true,part)}
-  <h3 class="rr-h">${part?'DRE particular':'DRE'} · Agendado <span class="muted small">— contas a pagar e a receber em aberto, pelo vencimento</span></h3>${fnTabelaDRE(meses,false,part)}`;
+    <span class="muted small">${part?(nPart?`${nPart} categoria(s) no DRE particular — elas não entram no DRE da Miashop.`:'Nenhuma categoria marcada como “DRE particular” ainda.'):'O grupo de cada categoria (operacional, produtos, montagem ou DRE particular) é definido em'}</span><button class="btn ghost sm" onclick="fnIr('config','cats')">⚙ Categorias</button><span class="sp"></span><button class="btn ghost sm" onclick="FN.dreAb=FN.dreAb||{};fnDRETodos(true)">▾ Abrir todas</button><button class="btn ghost sm" onclick="FN.dreAb=FN.dreAb||{};fnDRETodos(false)">▸ Fechar todas</button></div>
+  <h3 class="rr-h">${part?'DRE particular':'DRE Miashop'} · Realizado <span class="muted small">— contas pagas e recebidas, pela data do pagamento</span></h3>${fnTabelaDRE(meses,true,part)}
+  <h3 class="rr-h">${part?'DRE particular':'DRE Miashop'} · Agendado <span class="muted small">— contas a pagar e a receber em aberto, pelo vencimento</span></h3>${fnTabelaDRE(meses,false,part)}`;
+}
+// clicar num valor do DRE: lista os lançamentos que formam aquele número
+function fnDREToggle(td,key,g){ const k=key+g; FN.dreAb[k]=!FN.dreAb[k]; const tb=td.closest('tbody');
+  tb.querySelectorAll(`tr.dre-cat[data-g="${g}"]`).forEach(r=>r.style.display=FN.dreAb[k]?'':'none'); td.querySelector('.dre-ar').textContent=FN.dreAb[k]?'▾':'▸'; }
+function fnDRETodos(abrir){ ['r','a','rp','ap'].forEach(k=>['A','B','C','D'].forEach(g=>FN.dreAb[k+g]=abrir)); fnAtualizar(); }
+function fnDREAbrir(key,g,nome,m){
+  const D=FN.dreItens[key]; if(!D) return; const {realizado,part}=D;
+  const L=D.itens.filter(x=>x.g===g&&(!nome||x.nome===nome)&&(!m||x.m===m)).sort((a,b)=>(isoBR(realizado?a.l.DATA_PAGAMENTO:a.l.VENCIMENTO)||'').localeCompare(isoBR(realizado?b.l.DATA_PAGAMENTO:b.l.VENCIMENTO)||''));
+  const tot=L.reduce((s,x)=>s+x.v,0);
+  const rotG=part?{A:'Receitas',B:'Despesas'}[g]:{A:'Receitas operacionais',B:'Despesas operacionais',C:'Produtos',D:'Despesas montagem'}[g];
+  modal(`<div class="mh"><h3>${part?'DRE particular':'DRE Miashop'} · ${realizado?'Realizado':'Agendado'} — ${esc(nome||rotG)}${m?' · '+rrMesNome(m):' · '+FN.ano}</h3><button class="btn ghost" onclick="fecharModal()">✕</button></div>
+  <p class="small muted" style="margin-top:0">${L.length} lançamento(s) · total <b>${fR(tot)}</b>${FN.dreCC?` · centro de custo <b>${esc(FN.dreCC)}</b> (valores proporcionais ao % do centro)`:''}</p>
+  <div class="tw sl-tab" style="max-height:62vh"><table><thead><tr><th>${realizado?'Pago/recebido em':'Vencimento'}</th><th>Nome</th><th>Descrição</th><th>NF</th>${nome?'':'<th>Categoria</th>'}<th>Centro de custo</th><th class="n">Valor</th><th></th></tr></thead><tbody>
+  ${L.map(({l,v})=>`<tr><td>${esc(realizado?l.DATA_PAGAMENTO:l.VENCIMENTO)}</td><td><b>${esc(l.NOME)}</b>${/CART/i.test(l.FORMA_PAGAMENTO||'')?' <span class="tag t-warn">💳</span>':''}</td><td style="white-space:normal">${esc(l.DESCRICAO)}${l.OBS?`<div class="muted small">📝 ${esc(l.OBS)}</div>`:''}</td><td>${esc(l.NOTA_FISCAL)}</td>${nome?'':`<td>${esc(l.CATEGORIA)}</td>`}<td style="white-space:normal">${fnCCHtml(l.CENTRO_CUSTO)}</td><td class="n"><b>${fR(v)}</b></td>
+    <td class="c"><button class="ib" title="Editar" onclick="fecharModal();fnAbrirLanc('${esc(l.ID)}')">✎</button></td></tr>`).join('')}</tbody>
+  <tfoot><tr><td colspan="${nome?5:6}">TOTAL</td><td class="n">${fR(tot)}</td><td></td></tr></tfoot></table></div>`);
 }
 function fnTabelaDRE(meses,realizado,part){
   const catInfo={}; fin().categorias.forEach(c=>catInfo[up(c.NOME)]=c);
-  const grupos={A:{},B:{},C:{},D:{}};
+  const grupos={A:{},B:{},C:{},D:{}}; const itens=[]; const key=(realizado?'r':'a')+(part?'p':''); FN.dreItens=FN.dreItens||{}; FN.dreItens[key]={itens,realizado,part};
   fin().lanc.filter(l=>(realizado?l.STATUS==='QUITADO':l.STATUS!=='QUITADO')&&(!FN.dreCC||fnCCPeso(l,FN.dreCC))).forEach(l=>{
     const d=isoBR(realizado?l.DATA_PAGAMENTO:l.VENCIMENTO); if(!d) return; const m=d.slice(0,7); if(!meses.includes(m)) return;
     const v=(+(realizado?l.VALOR_PAGO:l.VALOR)||0)*(FN.dreCC?fnCCPeso(l,FN.dreCC):1); const nome=String(l.CATEGORIA||'').trim()||'Sem categoria';
     const gc=fnGrupoCat(catInfo[up(nome)]); if((gc==='PARTICULAR')!==!!part) return;
-    const g=l.TIPO==='RECEBER'?'A':(gc==='PRODUTOS'?'C':gc==='MONTAGEM'?'D':'B');
+    const g=l.TIPO==='RECEBER'?'A':(gc==='PRODUTOS'?'C':gc==='MONTAGEM'?'D':'B'); itens.push({l,g:part&&g!=='A'?'B':g,nome,m,v});
     const o=grupos[g][nome]||(grupos[g][nome]={}); o[m]=(o[m]||0)+v; });
   const soma=g=>{ const t={}; Object.values(grupos[g]).forEach(o=>meses.forEach(m=>t[m]=(t[m]||0)+(o[m]||0))); return t; };
   const A=soma('A'),B=soma('B'),C=soma('C'),D=soma('D'); const E={},F={}; meses.forEach(m=>{ F[m]=(A[m]||0)-(B[m]||0)-(C[m]||0); E[m]=F[m]-(D[m]||0); });
   const tot=o=>meses.reduce((s,m)=>s+(o[m]||0),0);
-  const cel=(v,neg)=>{ v=v||0; return v?`<span class="${neg?'bad':''}">${fR(neg?-v:v)}</span>`:'<span class="muted">—</span>'; };
-  const linhaGrupo=(rot,o,neg)=>`<tr class="dre-g"><td>${rot}</td>${meses.map(m=>`<td class="n">${cel(o[m],neg)}</td>`).join('')}<td class="n">${cel(tot(o),neg)}</td></tr>`;
-  const linhasCat=(g,neg)=>Object.keys(grupos[g]).sort((a,b)=>a.localeCompare(b,'pt-BR')).map(n=>`<tr class="dre-cat"><td>${esc(n)}</td>${meses.map(m=>`<td class="n">${cel(grupos[g][n][m],neg)}</td>`).join('')}<td class="n">${cel(tot(grupos[g][n]),neg)}</td></tr>`).join('');
+  const cel=(v,neg,g,n,m)=>{ v=v||0; return v?`<span class="${neg?'bad':''} dre-lk" onclick="fnDREAbrir('${key}','${g}','${n?esc(n).replace(/'/g,"\\'"):''}','${m||''}')" title="Ver lançamentos">${fR(neg?-v:v)}</span>`:'<span class="muted">—</span>'; };
+  FN.dreAb=FN.dreAb||{}; const ab=g=>!!FN.dreAb[key+g];
+  const linhaGrupo=(rot,o,neg,g)=>`<tr class="dre-g"><td class="dre-tg" onclick="fnDREToggle(this,'${key}','${g}')" title="Mostrar/ocultar categorias"><span class="dre-ar">${ab(g)?'▾':'▸'}</span> ${rot} <span class="muted small" style="font-weight:600">(${Object.keys(grupos[g]).length})</span></td>${meses.map(m=>`<td class="n">${cel(o[m],neg,g,'',m)}</td>`).join('')}<td class="n">${cel(tot(o),neg,g,'','')}</td></tr>`;
+  const linhasCat=(g,neg)=>Object.keys(grupos[g]).sort((a,b)=>a.localeCompare(b,'pt-BR')).map(n=>`<tr class="dre-cat" data-g="${g}" style="${ab(g)?'':'display:none'}"><td>${esc(n)}</td>${meses.map(m=>`<td class="n">${cel(grupos[g][n][m],neg,g,n,m)}</td>`).join('')}<td class="n">${cel(tot(grupos[g][n]),neg,g,n,'')}</td></tr>`).join('');
   const res=(rot,o,cls)=>`<tr class="${cls}"><td>${rot}</td>${meses.map(m=>`<td class="n"><span class="${(o[m]||0)<0?'bad':'ok'}">${fR(o[m]||0)}</span></td>`).join('')}<td class="n"><span class="${tot(o)<0?'bad':'ok'}">${fR(tot(o))}</span></td></tr>`;
   const cab=`<div class="tw sl-tab rr-mat dre"><table><thead><tr><th></th>${meses.map(m=>`<th class="n">${rrMesNome(m)}</th>`).join('')}<th class="n">Total</th></tr></thead><tbody>`;
   if(part){ const Bp={}; meses.forEach(m=>Bp[m]=(B[m]||0)+(C[m]||0)+(D[m]||0)); [...Object.entries(grupos.C),...Object.entries(grupos.D)].forEach(([n,o])=>{ const t=grupos.B[n]||(grupos.B[n]={}); meses.forEach(m=>{ if(o[m]) t[m]=(t[m]||0)+o[m]; }); });
     const R={}; meses.forEach(m=>R[m]=(A[m]||0)-(Bp[m]||0));
-    return cab+`${linhaGrupo('A · RECEITAS',A)}${linhasCat('A')}${linhaGrupo('B · DESPESAS',Bp,true)}${linhasCat('B',true)}${res('RESULTADO (A − B)',R,'dre-res')}</tbody></table></div>`; }
+    return cab+`${linhaGrupo('A · RECEITAS',A,false,'A')}${linhasCat('A')}${linhaGrupo('B · DESPESAS',Bp,true,'B')}${linhasCat('B',true)}${res('RESULTADO (A − B)',R,'dre-res')}</tbody></table></div>`; }
   return cab+`
-    ${linhaGrupo('A · RECEITAS OPERACIONAIS',A)}${linhasCat('A')}
-    ${linhaGrupo('B · DESPESAS OPERACIONAIS',B,true)}${linhasCat('B',true)}
-    ${linhaGrupo('C · PRODUTOS',C,true)}${linhasCat('C',true)}
-    ${linhaGrupo('D · DESPESAS MONTAGEM',D,true)}${linhasCat('D',true)}
+    ${linhaGrupo('A · RECEITAS OPERACIONAIS',A,false,'A')}${linhasCat('A')}
+    ${linhaGrupo('B · DESPESAS OPERACIONAIS',B,true,'B')}${linhasCat('B',true)}
+    ${linhaGrupo('C · PRODUTOS',C,true,'C')}${linhasCat('C',true)}
+    ${linhaGrupo('D · DESPESAS MONTAGEM',D,true,'D')}${linhasCat('D',true)}
     ${res('E · RESULTADO REAL (A − B − C − D = E)',E,'dre-res')}
     ${res('F · RESULTADO OPERACIONAL (A − B − C = F)',F,'dre-res2')}</tbody></table></div>`;
 }
