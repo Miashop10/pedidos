@@ -1907,18 +1907,25 @@ function fnTabelaDRE(meses,realizado){
 function fnCategoriasTela(){
   const C=fin().categorias.slice().sort((a,b)=>(a.TIPO+a.NOME).localeCompare(b.TIPO+b.NOME,'pt-BR'));
   const uso=n=>fin().lanc.filter(l=>up(l.CATEGORIA)===up(n)).length;
-  const linha=c=>`<tr><td><input class="lgi" value="${esc(c.NOME)}" data-antigo="${esc(c.NOME)}" data-c="nome"></td><td><select data-c="tipo"><option value="RECEITA" ${c.TIPO==='RECEITA'?'selected':''}>Receita</option><option value="DESPESA" ${c.TIPO!=='RECEITA'?'selected':''}>Despesa</option></select></td><td><select data-c="grupo"><option value="OPERACIONAL" ${c.GRUPO!=='NAO_OPERACIONAL'?'selected':''}>Operacional</option><option value="NAO_OPERACIONAL" ${c.GRUPO==='NAO_OPERACIONAL'?'selected':''}>Não operacional</option></select></td><td class="n muted">${uso(c.NOME)}</td>
+  const linha=c=>`<tr class="fn-cfg"><td><input class="lgi" value="${esc(c.NOME)}" data-antigo="${esc(c.NOME)}" data-c="nome" onchange="fnSalvarCat(this)" onkeydown="if(event.key==='Enter') this.blur()"></td><td><select data-c="tipo" onchange="fnSalvarCat(this)"><option value="RECEITA" ${c.TIPO==='RECEITA'?'selected':''}>Receita</option><option value="DESPESA" ${c.TIPO!=='RECEITA'?'selected':''}>Despesa</option></select></td><td><select data-c="grupo" onchange="fnSalvarCat(this)"><option value="OPERACIONAL" ${c.GRUPO!=='NAO_OPERACIONAL'?'selected':''}>Operacional</option><option value="NAO_OPERACIONAL" ${c.GRUPO==='NAO_OPERACIONAL'?'selected':''}>Não operacional</option></select></td><td class="n muted">${uso(c.NOME)}</td>
     <td class="c" style="white-space:nowrap"><button class="ib" onclick="fnSalvarCat(this)">Salvar</button><button class="ib del" onclick="fnExcluirCat(this)">✕</button></td></tr>`;
   return `<div class="card" style="padding:12px;margin-bottom:12px"><b>Nova categoria</b>
     <div class="row" style="align-items:flex-end;margin-top:8px" id="fnCatNova"><label class="sf" style="flex:2 1 220px"><span>Nome</span><input data-c="nome" data-antigo="" placeholder="Ex.: Marketing"></label>
     <label class="sf" style="flex:0 0 140px"><span>Tipo</span><select data-c="tipo"><option value="DESPESA">Despesa</option><option value="RECEITA">Receita</option></select></label>
     <label class="sf" style="flex:0 0 170px"><span>Grupo no DRE</span><select data-c="grupo"><option value="OPERACIONAL">Operacional</option><option value="NAO_OPERACIONAL">Não operacional</option></select></label>
     <button class="btn" onclick="fnSalvarCat(this)">+ Criar categoria</button></div></div>
-  <p class="small muted">Receitas e despesas operacionais formam A e B do DRE; as não operacionais entram em C. Renomear atualiza todos os lançamentos da categoria.</p>
+  <p class="small muted">Para editar, clique no nome, apague e digite o novo — salva sozinho ao sair do campo ou apertar Enter (tipo e grupo salvam ao trocar). Renomear atualiza todos os lançamentos da categoria. Receitas/despesas operacionais formam A e B do DRE; não operacionais entram em C.</p>
   <div class="tw sl-tab"><table><thead><tr><th>Categoria</th><th>Tipo</th><th>Grupo</th><th class="n">Lançamentos</th><th></th></tr></thead><tbody>${C.map(linha).join('')||'<tr><td colspan="5" class="muted">Nenhuma categoria.</td></tr>'}</tbody></table></div>`;
 }
-async function fnSalvarCat(bt){ const tr=bt.closest('tr')||bt.closest('#fnCatNova'); const g=c=>tr.querySelector(`[data-c=${c}]`); const nome=g('nome').value.trim(); if(!nome){ toast('Informe o nome'); return; }
-  try{ await api('finSalvarCategoria',{nome,antigo:g('nome').dataset.antigo||nome,tipo:g('tipo').value,grupo:g('grupo').value}); toast('Categoria salva'); await carregar(true); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
+async function fnSalvarCat(bt){ const tr=bt.closest('#fnCatNova')||bt.closest('tr'); if(tr.dataset.salvando) return; const g=c=>tr.querySelector(`[data-c=${c}]`); const ni=g('nome'); const nome=ni.value.trim(), antigo=ni.dataset.antigo||'';
+  if(!nome){ if(antigo){ ni.value=antigo; toast('O nome não pode ficar vazio'); } else toast('Informe o nome'); return; }
+  if(!antigo&&fin().categorias.some(c=>up(c.NOME)===up(nome))){ toast('Essa categoria já existe'); return; }
+  if(antigo&&up(antigo)!==up(nome)&&fin().categorias.some(c=>up(c.NOME)===up(nome))&&!confirm(`Já existe a categoria "${nome}". Juntar "${antigo}" com ela?`)){ ni.value=antigo; return; }
+  tr.dataset.salvando='1'; tr.style.opacity='.5';
+  try{ await api('finSalvarCategoria',{nome,antigo:antigo||nome,tipo:g('tipo').value,grupo:g('grupo').value});
+    const c=fin().categorias; if(antigo){ const o=c.find(x=>x.NOME===antigo); if(o){ o.NOME=nome; o.TIPO=g('tipo').value; o.GRUPO=g('grupo').value; } } // mostra na hora
+    toast(antigo&&antigo!==nome?`Categoria renomeada: ${antigo} → ${nome}`:'Categoria salva'); await carregar(true); fnAtualizar(); }
+  catch(e){ tr.style.opacity=''; delete tr.dataset.salvando; toast('Erro ao salvar: '+e.message,7000); } }
 async function fnExcluirCat(bt){ const n=bt.closest('tr').querySelector('[data-c=nome]').dataset.antigo; if(!confirm('Excluir a categoria '+n+'? Os lançamentos continuam com esse nome.')) return;
   try{ await api('finExcluirCategoria',{nome:n}); await carregar(true); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
 function fnCentrosTela(){
@@ -1928,14 +1935,14 @@ function fnCentrosTela(){
     <button class="btn" onclick="fnSalvarCC('')">+ Criar centro de custo</button></div></div>
   <div class="tw sl-tab"><table><thead><tr><th>Centro de custo</th><th class="n">Lançamentos</th><th class="n">A receber/recebido</th><th class="n">A pagar/pago</th><th></th></tr></thead><tbody>
   ${C.map(n=>{ const L=uso(n); const sm=t=>L.filter(l=>l.TIPO===t).reduce((s,l)=>s+(+l.VALOR||0),0);
-    return `<tr><td><input class="lgi" value="${esc(n)}" data-antigo="${esc(n)}"></td><td class="n muted">${L.length}</td><td class="n">${fR(sm('RECEBER'))}</td><td class="n">${fR(sm('PAGAR'))}</td>
+    return `<tr><td><input class="lgi" value="${esc(n)}" data-antigo="${esc(n)}" onchange="fnSalvarCC(this)" onkeydown="if(event.key==='Enter') this.blur()"></td><td class="n muted">${L.length}</td><td class="n">${fR(sm('RECEBER'))}</td><td class="n">${fR(sm('PAGAR'))}</td>
     <td class="c" style="white-space:nowrap"><button class="ib" onclick="fnSalvarCC(this)">Salvar</button><button class="ib del" onclick="fnExcluirCC(this)">✕</button></td></tr>`; }).join('')||'<tr><td colspan="5" class="muted">Nenhum centro de custo cadastrado.</td></tr>'}
   </tbody></table></div>`;
 }
 async function fnSalvarCC(bt){ let nome,antigo='';
-  if(bt){ const i=bt.closest('tr').querySelector('input'); nome=i.value.trim(); antigo=i.dataset.antigo; } else nome=document.getElementById('fnCCNovo').value.trim();
+  if(bt){ const tr=bt.closest('tr'); if(tr.dataset.salvando) return; const i=tr.querySelector('input'); nome=i.value.trim(); antigo=i.dataset.antigo; if(!nome){ i.value=antigo; toast('O nome não pode ficar vazio'); return; } if(nome===antigo) return; tr.dataset.salvando='1'; tr.style.opacity='.5'; } else nome=document.getElementById('fnCCNovo').value.trim();
   if(!nome){ toast('Informe o nome'); return; }
-  try{ await api('finSalvarCentro',{nome,antigo}); toast('Centro de custo salvo'); await carregar(true); fnAtualizar(); const e=document.getElementById('fnCCNovo'); if(e&&!bt) e.focus(); }catch(e){ toast('Erro: '+e.message,6000); } }
+  try{ await api('finSalvarCentro',{nome,antigo}); toast('Centro de custo salvo'); await carregar(true); fnAtualizar(); const e=document.getElementById('fnCCNovo'); if(e&&!bt) e.focus(); }catch(e){ toast('Erro ao salvar: '+e.message,7000); fnAtualizar(); } }
 async function fnExcluirCC(bt){ const n=bt.closest('tr').querySelector('input').dataset.antigo; if(!confirm('Excluir o centro de custo '+n+'? Os lançamentos continuam com esse nome.')) return;
   try{ await api('finExcluirCentro',{nome:n}); await carregar(true); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
 
