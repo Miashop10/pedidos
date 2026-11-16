@@ -116,22 +116,6 @@ td.lg-obs input:hover,td.lg-obs input:focus{border-color:var(--line);background:
 .selma select:disabled{opacity:.45}
 .fa-tab tr.fa-ped td{background:var(--soft);font-size:13px;color:var(--mut);padding-left:24px}
 .fn-wrap{display:block}
-/* Financeiro: tudo em negrito, maior e mais escuro */
-body.fin-mode .fn-wrap, body.fin-mode .fn-wrap *, body.fin-mode #fnDrawer *, body.fin-mode .mbg *{font-weight:700}
-body.fin-mode .fn-wrap h2{font-size:24px;font-weight:800}
-body.fin-mode .fn-wrap h3, body.fin-mode .fn-wrap b, body.fin-mode .fn-wrap .dre-g td, body.fin-mode .fn-wrap .dre-res td, body.fin-mode .fn-wrap .dre-res2 td{font-weight:800}
-body.fin-mode .fn-wrap .sl-tab td, body.fin-mode .mbg .sl-tab td{font-size:15px;color:var(--ink)}
-body.fin-mode .fn-wrap .sl-tab th, body.fin-mode .mbg .sl-tab th{font-size:13px;color:var(--ink)}
-body.fin-mode .fn-wrap input, body.fin-mode .fn-wrap select, body.fin-mode .fn-wrap textarea, body.fin-mode #fnDrawer input, body.fin-mode #fnDrawer select, body.fin-mode #fnDrawer textarea{font-size:15px;color:var(--ink)}
-body.fin-mode .fn-wrap .muted, body.fin-mode #fnDrawer .muted, body.fin-mode .mbg .muted, body.fin-mode .fn-wrap .small{color:#2f2c28}
-body.fin-mode .fn-wrap .small, body.fin-mode #fnDrawer .small, body.fin-mode .mbg .small{font-size:14px}
-body.fin-mode .fn-gh{font-size:16px}
-body.fin-mode .fn-gl button{font-size:15px;color:#2f2c28}
-body.fin-mode .fn-side-t, body.fin-mode .fn-crumb{font-size:13px;color:#2f2c28}
-body.fin-mode .tag{font-size:13px}
-body.fin-mode #fnDrawer .sf span, body.fin-mode .fn-wrap .sf span{font-size:13px;color:var(--ink)}
-body.fin-mode .fn-wrap .bad, body.fin-mode .mbg .bad{color:#9a120b}
-body.fin-mode .fn-wrap .ok, body.fin-mode .mbg .ok{color:#0b5e33}
 .fn-catbox{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--mut);border-radius:12px;padding:10px 12px 12px;margin-bottom:14px}
 .fn-catbox .sl-tab{box-shadow:none}
 .fn-cath{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}.fn-cath b{font-size:16px}
@@ -2010,7 +1994,7 @@ function fnColaLer(){
   const nc=Math.max(...linhas.map(r=>r.length)); linhas.forEach(r=>{ while(r.length<nc) r.push(''); });
   const H=v=>semAcento(v).replace(/[^A-Z ]/g,' ').replace(/\s+/g,' ').trim();
   const RE={venc:/^(DATA (DE )?VENCIMENTO|VENCIMENTO|VENC|DATA)$/,nome:/^(NOME|FORNECEDOR|CLIENTE|FAVORECIDO|CONTATO)$/,desc:/^(DESCRICAO|HISTORICO)/,nf:/^(NOTA FISCAL|NF|N NF|NFE|NOTA)$/,cat:/^CATEGORIA/,cc:/^(CENTRO( DE)? CUSTO|CC)$/,val:/^(VALOR|TOTAL)/,pag:/^DATA (DE )?(PAGAMENTO|RECEBIMENTO|BAIXA)|^(PAGO|RECEBIDO) EM/,fp:/^FORMA( DE)? PAGAMENTO/,obs:/^(OBSERVACOES|OBSERVACAO|OBS)$/};
-  const h=linhas[0].map(H); let cab=h.some(x=>Object.values(RE).some(re=>re.test(x)));
+  const h=linhas[0].map(H); let cab=h.filter(x=>Object.values(RE).some(re=>re.test(x))).length>=2 && !linhas[0].some(c=>/^\d{1,2}\/\d{1,2}\/\d{2,4}$|^\d{4}-\d{2}-\d{2}/.test(c)||/\d,\d{2}$/.test(c));
   let map=h.map(x=>{ const k=Object.keys(RE).find(k=>RE[k].test(x)); return cab&&k?k:''; });
   if(!cab&&nc>=7){ map=FIN_MODELO.map((_,i)=>['venc','nome','desc','nf','cat','cc','val','pag','fp','obs'][i]).slice(0,nc); while(map.length<nc) map.push(''); }
   else if(!cab){ // sem cabeçalho e fora do modelo: adivinha pelo conteúdo
