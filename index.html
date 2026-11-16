@@ -1653,7 +1653,7 @@ const FIN_SUBS = {
   receb:[['agendar','Agendar recebimento'],['importar','Importar lançamentos']],
   pagar:[['agendar','Agendar pagamento'],['importar','Importar lançamentos']],
   rel:[['areceber','Contas a receber'],['apagar','Contas a pagar'],['recebidas','Contas recebidas'],['pagas','Contas pagas'],['dre','Painel de acompanhamento'],['drep','DRE particular']],
-  config:[['cats','Categorias'],['centros','Centros de custo']]
+  config:[['cats','Categorias'],['centros','Centros de custo'],['hist','Histórico de ações']]
 };
 const fin = () => { const f=(S.dados&&S.dados.fin) || {contas:[],lanc:[],extrato:[],importacoes:[],categorias:[]}; f.centros=f.centros||[]; return f; };
 const hojeISO = () => { const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
@@ -1687,7 +1687,7 @@ function fnCorpo(){
   const sec=FN.sec, sub=FN.sub[sec];
   if(sec==='contas') return sub==='conc'?fnConciliacao(): sub==='contas'?fnContas(): fnHistorico();
   if(sec==='receb'||sec==='pagar') return sub==='importar'?fnImportarTela(): fnAgendar(sec==='receb'?'RECEBER':'PAGAR');
-  if(sec==='config') return sub==='centros'?fnCentrosTela():fnCategoriasTela();
+  if(sec==='config') return sub==='centros'?fnCentrosTela():sub==='hist'?fnHistTela():fnCategoriasTela();
   if(sub==='dre') return fnDRE(false);
   if(sub==='drep') return fnDRE(true);
   return fnRelatorio(sub);
@@ -1854,6 +1854,7 @@ function fnAbrirLanc(id,tipo,pre,exId){
         ${f('Categoria',`<input id="fmCat" list="dlFnCat${tipo}" value="${esc(l.CATEGORIA||'')}" placeholder="Selecione ou digite uma categoria…">`)}
         ${f('Valor',`<div class="fnd-val"><span class="${rec?'ok':'bad'}">${rec?'↑':'↓'}</span><input id="fmValor" inputmode="decimal" value="${l.VALOR?fN(+l.VALOR,2):''}" placeholder="0,00" oninput="fnDrRecalc()"></div>`)}
       </div>
+      <label class="sf" style="margin-top:12px"><span>Observações <i class="muted" style="font-weight:400;text-transform:none">(opcional)</i></span><textarea id="fmObs" rows="2" style="width:100%;resize:vertical">${esc(l.OBS||'')}</textarea></label>
       <div class="fnd-cc">
         <div class="row" style="align-items:center"><b>Centro de custo</b><span class="sp"></span>
           <label class="fnd-rd"><input type="radio" name="fmModo" value="pct" checked onchange="FN.dr.modo='pct';fnDrRecalc()"> Percentual</label>
@@ -1922,7 +1923,7 @@ function fnFecharLanc(){ const d=document.getElementById('fnDrawer'); if(!d) ret
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&FN.dr&&!document.querySelector('.mbg')) fnFecharLanc(); });
 async function fnSalvarLancDr(){
   const {id,tipo,exId}=FN.dr; const g=i=>document.getElementById(i).value.trim();
-  const d={tipo,vencimento:brISO(g('fmVenc')),nome:g('fmNome'),descricao:g('fmDesc'),notaFiscal:g('fmNF'),categoria:g('fmCat'),valor:numBR(g('fmValor')),formaPagamento:(document.querySelector('input[name=fmFP]:checked')||{}).value||'CONTA CORRENTE'};
+  const d={tipo,vencimento:brISO(g('fmVenc')),nome:g('fmNome'),descricao:g('fmDesc'),notaFiscal:g('fmNF'),categoria:g('fmCat'),valor:numBR(g('fmValor')),formaPagamento:(document.querySelector('input[name=fmFP]:checked')||{}).value||'CONTA CORRENTE',obs:g('fmObs')};
   const err=fnValidar(d); if(err){ toast(err); return; }
   if(document.querySelector('#fmCCs .fnd-ccl.falta')){ toast('Escolha o centro de custo dos códigos em amarelo (ou remova a linha)',6000); return; }
   const aliases=[...document.querySelectorAll('#fmCCs .fnd-ccl[data-cod]')].map(r=>({codigo:r.dataset.cod,centro:r.querySelector('.cc-n').value.trim(),ini:r.dataset.ini})).filter(a=>a.centro&&up(a.centro)!==up(a.ini));
@@ -1957,7 +1958,7 @@ function fnTabelaLanc(L,quitadas){
   const hoje=hojeISO(); const tot=L.reduce((s,l)=>s+(+(quitadas?l.VALOR_PAGO:l.VALOR)||0),0);
   return `<div class="tw sl-tab"><table><thead><tr><th>${quitadas?'Pago/recebido em':'Vencimento'}</th>${quitadas?'<th>Vencimento</th>':''}<th>Nome</th><th>Descrição</th><th>NF</th><th>Categoria</th><th>Centro de custo</th><th class="n">Valor</th>${quitadas?'<th>Conta</th>':''}<th></th></tr></thead><tbody>
   ${L.map(l=>{ const venc=!quitadas&&isoBR(l.VENCIMENTO)&&isoBR(l.VENCIMENTO)<hoje;
-    return `<tr class="${venc?'fn-venc':''}"><td>${esc(quitadas?l.DATA_PAGAMENTO:l.VENCIMENTO)}${venc?' <span class="tag t-bad">vencido</span>':''}</td>${quitadas?`<td class="muted">${esc(l.VENCIMENTO)}</td>`:''}<td><b>${esc(l.NOME)}</b>${/CART/i.test(l.FORMA_PAGAMENTO||'')?' <span class="tag t-warn" title="Cartão de crédito">💳 cartão</span>':''}</td><td style="white-space:normal">${esc(l.DESCRICAO)}</td><td>${esc(l.NOTA_FISCAL)}</td><td>${esc(l.CATEGORIA)||'<span class="muted">—</span>'}</td><td style="white-space:normal">${fnCCHtml(l.CENTRO_CUSTO)}</td>
+    return `<tr class="${venc?'fn-venc':''}"><td>${esc(quitadas?l.DATA_PAGAMENTO:l.VENCIMENTO)}${venc?' <span class="tag t-bad">vencido</span>':''}</td>${quitadas?`<td class="muted">${esc(l.VENCIMENTO)}</td>`:''}<td><b>${esc(l.NOME)}</b>${/CART/i.test(l.FORMA_PAGAMENTO||'')?' <span class="tag t-warn" title="Cartão de crédito">💳 cartão</span>':''}</td><td style="white-space:normal">${esc(l.DESCRICAO)}${l.OBS?`<div class="muted small" title="Observações">📝 ${esc(l.OBS)}</div>`:''}</td><td>${esc(l.NOTA_FISCAL)}</td><td>${esc(l.CATEGORIA)||'<span class="muted">—</span>'}</td><td style="white-space:normal">${fnCCHtml(l.CENTRO_CUSTO)}</td>
     <td class="n"><b>${fR(+(quitadas?l.VALOR_PAGO:l.VALOR))}</b></td>${quitadas?`<td>${esc((fnConta(l.CONTA_ID)||{}).NOME||'—')}${l.EXTRATO_ID?' <span class="tag t-ok" title="Conciliado com o extrato">✓</span>':''}</td>`:''}
     <td class="c" style="white-space:nowrap">${quitadas?`<button class="ib" onclick="fnEstornar('${esc(l.ID)}')">Estornar</button>`:`<button class="ib" onclick="fnModalBaixa('${esc(l.ID)}')">✓ ${l.TIPO==='RECEBER'?'Receber':'Pagar'}</button>`}<button class="ib" onclick="fnModalLanc('${esc(l.ID)}')">✎</button><button class="ib del" onclick="fnExcluirLanc('${esc(l.ID)}')">✕</button></td></tr>`; }).join('')
     ||`<tr><td colspan="10" class="muted">Nenhum lançamento.</td></tr>`}</tbody>
@@ -1967,13 +1968,15 @@ function fnTabelaLanc(L,quitadas){
 /* ---------- importar lançamentos (Excel) ---------- */
 // colunas: DATA VENCIMENTO | NOME | DESCRIÇÃO | NOTA FISCAL | CATEGORIA | VALOR (opcional: DATA PAGAMENTO)
 /* importar lançamentos colando dados de uma planilha (Ctrl+C no Excel → Ctrl+V aqui) */
-const FIN_COLS=[['','— ignorar —'],['venc','Data vencimento'],['nome','Nome'],['desc','Descrição'],['nf','Nota fiscal'],['cat','Categoria'],['cc','Centro de custo'],['val','Valor'],['pag','Data pagamento'],['fp','Forma de pagamento']];
+const FIN_COLS=[['','— ignorar —'],['venc','Vencimento'],['nome','Nome'],['desc','Descrição'],['nf','Nota fiscal'],['cat','Categoria'],['cc','Centro de custo'],['val','Valor'],['pag','Data pagamento'],['fp','Forma de pagamento'],['obs','Observações']];
+const FIN_MODELO=['VENCIMENTO','NOME','DESCRIÇÃO','NOTA FISCAL','CATEGORIA','CENTRO DE CUSTO','VALOR','DATA PAGAMENTO','FORMA DE PAGAMENTO','OBSERVAÇÕES'];
 function fnImportarTela(){
   if(FN.impSitDe!==FN.sec){ FN.impSit=FN.sec==='receb'?'areceber':'apagar'; FN.impSitDe=FN.sec; } const sit=FN.impSit;
   const ops=[['apagar','Contas a pagar'],['pagas','Contas pagas'],['areceber','Contas a receber'],['recebidas','Contas recebidas']];
   return `<div class="card" style="padding:14px">
     <b style="font-size:16px">Cole os dados de uma planilha existente e defina quais colunas serão importadas</b>
-    <p class="small muted" style="margin:4px 0 10px">No Excel, selecione as linhas (com ou sem o cabeçalho), aperte <b>Ctrl+C</b>, clique no quadro abaixo e aperte <b>Ctrl+V</b>. Depois confira o que é cada coluna.</p>
+    <p class="small muted" style="margin:4px 0 4px">Modelo: <b>${FIN_MODELO.join(' · ')}</b> <button class="btn ghost sm" onclick="fnModeloLanc()">⬇ Baixar modelo</button></p>
+    <p class="small muted" style="margin:0 0 10px">Valor negativo entra como positivo. Forma de pagamento em branco = CONTA CORRENTE. No Excel, selecione as linhas (com ou sem o cabeçalho), aperte <b>Ctrl+C</b>, clique no quadro abaixo e aperte <b>Ctrl+V</b>. Depois confira o que é cada coluna.</p>
     <div class="row" style="align-items:flex-end;margin-bottom:10px"><label class="sf" style="flex:0 0 240px"><span>Os lançamentos colados são</span><select id="fnImpSit" onchange="FN.impSit=this.value;fnColaPrevia()">${ops.map(([k,n])=>`<option value="${k}" ${k===sit?'selected':''}>${n}</option>`).join('')}</select></label>
       <label class="fnd-rd" style="margin:0 0 8px"><input type="checkbox" id="fnColaCab" ${FN.cola&&FN.cola.cab?'checked':''} onchange="FN.cola&&(FN.cola.cab=this.checked);fnColaPrevia()"> Primeira linha é o cabeçalho</label>
       <span class="sp"></span><button class="btn ghost sm" onclick="FN.cola=null;document.getElementById('fnCola').value='';fnColaPrevia()">Limpar</button></div>
@@ -1987,10 +1990,11 @@ function fnColaLer(){
   const linhas=t.replace(/\r/g,'').split('\n').map(l=>l.split('\t').map(c=>c.trim())).filter(r=>r.some(c=>c!==''));
   const nc=Math.max(...linhas.map(r=>r.length)); linhas.forEach(r=>{ while(r.length<nc) r.push(''); });
   const H=v=>semAcento(v).replace(/[^A-Z ]/g,' ').replace(/\s+/g,' ').trim();
-  const RE={venc:/^(DATA (DE )?VENCIMENTO|VENCIMENTO|VENC|DATA)$/,nome:/^(NOME|FORNECEDOR|CLIENTE|FAVORECIDO|CONTATO)$/,desc:/^(DESCRICAO|HISTORICO|OBS)/,nf:/^(NOTA FISCAL|NF|N NF|NFE|NOTA)$/,cat:/^CATEGORIA/,cc:/^(CENTRO( DE)? CUSTO|CC)$/,val:/^(VALOR|TOTAL)/,pag:/^DATA (DE )?(PAGAMENTO|RECEBIMENTO|BAIXA)|^(PAGO|RECEBIDO) EM/,fp:/^FORMA( DE)? PAGAMENTO/};
+  const RE={venc:/^(DATA (DE )?VENCIMENTO|VENCIMENTO|VENC|DATA)$/,nome:/^(NOME|FORNECEDOR|CLIENTE|FAVORECIDO|CONTATO)$/,desc:/^(DESCRICAO|HISTORICO)/,nf:/^(NOTA FISCAL|NF|N NF|NFE|NOTA)$/,cat:/^CATEGORIA/,cc:/^(CENTRO( DE)? CUSTO|CC)$/,val:/^(VALOR|TOTAL)/,pag:/^DATA (DE )?(PAGAMENTO|RECEBIMENTO|BAIXA)|^(PAGO|RECEBIDO) EM/,fp:/^FORMA( DE)? PAGAMENTO/,obs:/^(OBSERVACOES|OBSERVACAO|OBS)$/};
   const h=linhas[0].map(H); let cab=h.some(x=>Object.values(RE).some(re=>re.test(x)));
   let map=h.map(x=>{ const k=Object.keys(RE).find(k=>RE[k].test(x)); return cab&&k?k:''; });
-  if(!cab){ // sem cabeçalho: adivinha pelo conteúdo
+  if(!cab&&nc>=7){ map=FIN_MODELO.map((_,i)=>['venc','nome','desc','nf','cat','cc','val','pag','fp','obs'][i]).slice(0,nc); while(map.length<nc) map.push(''); }
+  else if(!cab){ // sem cabeçalho e fora do modelo: adivinha pelo conteúdo
     const dados=linhas.slice(0,20); const ehData=c=>dados.filter(r=>/^\d{1,2}\/\d{1,2}\/\d{2,4}$|^\d{4}-\d{2}-\d{2}$/.test(r[c])).length>=dados.length*0.6;
     const ehNum=c=>dados.filter(r=>/^-?(R\$\s*)?-?[\d.]+(,\d{1,2})?$/.test(r[c].replace(/\s/g,''))&&r[c]!=='').length>=dados.length*0.6;
     const usado=new Set(); const datas=[...Array(nc).keys()].filter(ehData);
@@ -2007,7 +2011,7 @@ function fnColaMontar(){
   const {linhas,cab,map}=FN.cola; const sit=FN.impSit; const tipo=(sit==='areceber'||sit==='recebidas')?'RECEBER':'PAGAR', quit=(sit==='pagas'||sit==='recebidas');
   const ix=k=>map.indexOf(k); const g=(r,k)=>ix(k)>=0?r[ix(k)]:'';
   return linhas.slice(cab?1:0).map((r,k)=>{
-    const d={linha:k+1,tipo,vencimento:fnColaData(g(r,'venc')),nome:g(r,'nome'),descricao:g(r,'desc'),notaFiscal:g(r,'nf'),categoria:g(r,'cat'),centroCusto:fnCCTexto(fnCCParse(g(r,'cc'))),formaPagamento:/CART/i.test(semAcento(g(r,'fp')))?'CARTÃO DE CRÉDITO':'CONTA CORRENTE',valor:Math.abs(numBR(String(g(r,'val')).replace(/[R$\s]/g,'')))};
+    const d={linha:k+1,tipo,vencimento:fnColaData(g(r,'venc')),nome:g(r,'nome'),descricao:g(r,'desc'),notaFiscal:g(r,'nf'),categoria:g(r,'cat'),centroCusto:fnCCTexto(fnCCParse(g(r,'cc'))),formaPagamento:/CART/i.test(semAcento(g(r,'fp')))?'CARTÃO DE CRÉDITO':'CONTA CORRENTE',obs:g(r,'obs'),valor:Math.abs(fnNumExtrato(g(r,'val')))};
     if(quit){ d.quitado=true; d.dataPagamento=fnColaData(g(r,'pag'))||d.vencimento; }
     const erros=[]; if(!/^\d{2}\/\d{2}\/\d{4}$/.test(d.vencimento)) erros.push('sem data'); if(!d.nome) erros.push('sem nome'); if(!d.valor) erros.push('sem valor');
     { const cc=fnCCParse(d.centroCusto); const sm=cc.reduce((x,c)=>x+c.pct,0); if(cc.length&&Math.abs(sm-100)>=0.01) erros.push('centros de custo somam '+fN(sm,2)+'%'); }
@@ -2068,7 +2072,7 @@ function fnRelatorio(sub){
   </div>${fnTabelaLanc(L,quit)}`;
 }
 function fnExportar(){ const sub=FN.sub.rel, quit=(sub==='pagas'||sub==='recebidas');
-  const rows=fnFiltrados(sub).map(l=>({'Vencimento':l.VENCIMENTO,'Pago/recebido em':l.DATA_PAGAMENTO||'','Nome':l.NOME,'Descrição':l.DESCRICAO,'Nota fiscal':l.NOTA_FISCAL,'Categoria':l.CATEGORIA,'Centro de custo':l.CENTRO_CUSTO||'','Forma de pagamento':l.FORMA_PAGAMENTO||'CONTA CORRENTE','Valor':+l.VALOR,'Valor pago':quit?+l.VALOR_PAGO:'','Conta':(fnConta(l.CONTA_ID)||{}).NOME||'','Conciliado':l.EXTRATO_ID?'SIM':''}));
+  const rows=fnFiltrados(sub).map(l=>({'Vencimento':l.VENCIMENTO,'Pago/recebido em':l.DATA_PAGAMENTO||'','Nome':l.NOME,'Descrição':l.DESCRICAO,'Nota fiscal':l.NOTA_FISCAL,'Categoria':l.CATEGORIA,'Centro de custo':l.CENTRO_CUSTO||'','Forma de pagamento':l.FORMA_PAGAMENTO||'CONTA CORRENTE','Observações':l.OBS||'','Valor':+l.VALOR,'Valor pago':quit?+l.VALOR_PAGO:'','Conta':(fnConta(l.CONTA_ID)||{}).NOME||'','Conciliado':l.EXTRATO_ID?'SIM':''}));
   const ws=XLSX.utils.json_to_sheet(rows); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Relatório'); XLSX.writeFile(wb,'financeiro-'+sub+'-'+hojeBR().replace(/\//g,'-')+'.xlsx'); }
 
 /* ---------- painel de acompanhamento (DRE) ---------- */
@@ -2163,6 +2167,26 @@ async function fnSalvarCC(bt){ let nome,antigo='';
   try{ await api('finSalvarCentro',{nome,antigo}); toast('Centro de custo salvo'); await carregar(true); fnAtualizar(); const e=document.getElementById('fnCCNovo'); if(e&&!bt) e.focus(); }catch(e){ toast('Erro ao salvar: '+e.message,7000); fnAtualizar(); } }
 async function fnExcluirCC(bt){ const n=bt.closest('tr').querySelector('input').dataset.antigo; if(!confirm('Excluir o centro de custo '+n+'? Os lançamentos continuam com esse nome.')) return;
   try{ await api('finExcluirCentro',{nome:n}); await carregar(true); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
+
+function fnModeloLanc(){ const ws=XLSX.utils.aoa_to_sheet([FIN_MODELO,['10/12/2026','CLINK','Pedido Natal 1/3','9080','Fornecedores / mercadorias','Londrina (60%); Curitiba (40%)',-4666.67,'','CONTA CORRENTE',''],['15/12/2026','Amazon','Assinatura','','Despesas administrativas','Administrativo',89.9,'','CARTÃO DE CRÉDITO','renova todo mês']]);
+  ws['!cols']=[{wch:13},{wch:20},{wch:24},{wch:12},{wch:26},{wch:30},{wch:12},{wch:15},{wch:20},{wch:24}]; const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Lançamentos'); XLSX.writeFile(wb,'modelo-lancamentos-financeiro.xlsx'); }
+
+/* ---------- configurações: histórico de ações ---------- */
+function fnHistTela(){
+  const q=semAcento(FN.hq||'').trim(); const H=(fin().historico||[]).slice().reverse().filter(h=>!q||semAcento([h.DATA,h.USUARIO,h.ACAO,h.DESCRICAO].join(' ')).includes(q));
+  return `<div class="sl-filtros"><input type="search" class="w-q" value="${esc(FN.hq||'')}" placeholder="Buscar no histórico (usuário, ação, nome, valor…)" oninput="FN.hq=this.value;clearTimeout(window._fq);window._fq=setTimeout(fnAtualizar,250)">
+    <span class="muted small">Tudo que é feito no Financeiro fica registrado aqui. Clique em <b>Desfazer</b> para voltar uma ação feita errada.</span></div>
+  <div class="tw sl-tab"><table><thead><tr><th style="width:150px">Data e hora</th><th>Usuário</th><th>Ação</th><th>Detalhes</th><th style="width:150px"></th></tr></thead><tbody>
+  ${H.slice(0,500).map(h=>`<tr style="${h.DESFEITO_EM?'opacity:.55':''}"><td>${esc(h.DATA)}</td><td>${esc(h.USUARIO)}</td><td><b>${esc(h.ACAO)}</b></td><td style="white-space:normal">${esc(h.DESCRICAO)}</td>
+    <td class="c">${h.DESFEITO_EM?`<span class="tag t-mut" title="por ${esc(h.DESFEITO_POR)}">desfeito ${esc(String(h.DESFEITO_EM).slice(0,16))}</span>`:`<button class="ib del" onclick="fnDesfazer('${esc(h.ID)}')">↶ Desfazer</button>`}</td></tr>`).join('')||'<tr><td colspan="5" class="muted">Nenhuma ação registrada ainda.</td></tr>'}
+  </tbody></table></div>`;
+}
+async function fnDesfazer(id){
+  const h=(fin().historico||[]).find(x=>x.ID===id); if(!confirm(`Desfazer esta ação?\n\n${h.ACAO} — ${h.DESCRICAO}\n(${h.DATA} · ${h.USUARIO})\n\nTudo o que ela criou, alterou ou apagou volta a ficar como estava antes.`)) return;
+  try{ let r=await api('finDesfazer',{id});
+    if(r&&r.conflito){ if(!confirm(`Atenção: ${r.conflito} de ${r.total} registro(s) desta ação foram alterados depois por outras ações.\n\nO ideal é desfazer antes as ações mais recentes. Desfazer mesmo assim (volta esses registros para como estavam antes desta ação)?`)) return; r=await api('finDesfazer',{id,forcar:true}); }
+    toast('Ação desfeita ✓',4000); await carregar(true); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,7000); }
+}
 
 iniciar();
 </script>
