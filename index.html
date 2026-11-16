@@ -115,7 +115,26 @@ td.lg-obs input:hover,td.lg-obs input:focus{border-color:var(--line);background:
 #pdInicio select{height:38px}
 .selma select:disabled{opacity:.45}
 .fa-tab tr.fa-ped td{background:var(--soft);font-size:12px;color:var(--mut);padding-left:24px}
-.fn-top{align-items:center}
+.fn-wrap{display:flex;gap:18px;align-items:flex-start}
+.fn-main{flex:1 1 auto;min-width:0}
+.fn-top{align-items:flex-end;gap:8px}
+.fn-top h2{margin:2px 0 0}
+.fn-crumb{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--mut)}
+.fn-side{flex:0 0 250px;position:sticky;top:76px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 8px;max-height:calc(100vh - 96px);overflow:auto}
+.fn-side-t{font-size:11px;font-weight:800;letter-spacing:.06em;color:var(--mut);padding:4px 10px 8px}
+.fn-grp{margin-bottom:2px;border-radius:10px}
+.fn-grp.ab{background:var(--soft)}
+.fn-gh{display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;padding:10px;border-radius:10px;font-size:14px;font-weight:600;color:var(--ink);cursor:pointer;text-align:left}
+.fn-gh:hover{background:var(--soft)}
+.fn-grp.atv .fn-gh{font-weight:800}
+.fn-ic{width:20px;text-align:center;font-size:15px;color:var(--mut)}
+.fn-grp.atv .fn-ic{color:var(--acc)}
+.fn-ch{margin-left:auto;color:var(--mut);font-size:11px}
+.fn-gl{display:flex;flex-direction:column;margin:0 6px 6px 19px;padding-left:10px;border-left:2px solid var(--line)}
+.fn-gl button{border:0;background:none;text-align:left;padding:7px 10px;border-radius:8px;font-size:13px;color:var(--mut);cursor:pointer;font-weight:600}
+.fn-gl button:hover{color:var(--ink);background:var(--card)}
+.fn-gl button.on{background:var(--acc-soft);color:var(--acc-ink);font-weight:800}
+@media (max-width:900px){.fn-wrap{flex-direction:column-reverse}.fn-side{position:static;width:100%;flex-basis:auto;max-height:none}}
 .fn-seg{margin-bottom:0}
 .fn-sub{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:2px 0 12px;padding:6px;background:var(--card);border:1px solid var(--line);border-radius:10px}
 .fn-sub>button:not(.btn){border:0;background:none;padding:6px 12px;border-radius:7px;font-weight:700;font-size:13px;color:var(--mut);cursor:pointer}
@@ -131,7 +150,8 @@ tr.fn-venc td:first-child{box-shadow:inset 3px 0 var(--bad)}
 .fn-sug:hover .fn-sug-k,.fn-sug:hover .fn-sug-ok{color:#fff}
 .fn-sug-ok{font-weight:800;color:var(--ok)}
 .fn-acts{white-space:nowrap}
-.dre tr.dre-g td{font-weight:800;background:var(--soft)}
+.dre tr.dre-g td,.dre tr.dre-g td:first-child{font-weight:800;background:var(--soft)}
+.dre tr.dre-res td:first-child{background:var(--acc-soft)}
 .dre tr.dre-cat td:first-child{padding-left:22px;color:var(--mut)}
 .dre tr.dre-res td{font-weight:800;background:var(--acc-soft);border-top:2px solid var(--acc)}
 .btn.sm{height:30px}
@@ -1582,18 +1602,25 @@ const fnLanc = id => fin().lanc.find(l=>String(l.ID)===String(id));
 const fnVal = v => `<span class="${v<0?'bad':'ok'}" style="font-weight:700">${fR(v)}</span>`;
 function fnSaldo(c){ return (+c.SALDO_INICIAL||0) + fin().extrato.filter(e=>String(e.CONTA_ID)===String(c.ID)).reduce((s,e)=>s+(+e.VALOR||0),0); }
 
+const FIN_ICON={contas:'🏦',receb:'↑',pagar:'↓',rel:'📄',config:'⚙'};
+function fnIr(sec,sub){ if(sub){ FN.sec=sec; FN.sub[sec]=sub; FN.aberto=sec; } else if(FN.aberto===sec){ FN.aberto=''; } else { FN.aberto=sec; FN.sec=sec; } render(); }
 function vFinanceiro(){
   if(!S.dados) return '<p class="muted">Carregando…</p>';
-  const sec=FN.sec, sub=FN.sub[sec];
-  return `<div class="slim">
-  <div class="sl-head fn-top"><h2>Financeiro</h2><span class="sp"></span>
-    <div class="seg fn-seg">${FIN_SECOES.map(([k,n])=>`<button class="${k===sec?'on':''}" onclick="FN.sec='${k}';render()">${n}</button>`).join('')}</div></div>
-  <div class="fn-sub">${FIN_SUBS[sec].map(([k,n])=>`<button class="${k===sub?'on':''}" onclick="FN.sub.${sec}='${k}';render()">${n}</button>`).join('')}
-    <span class="sp"></span>${sec==='contas'?`<button class="btn sec sm" onclick="fnModalConta()">+ Adicionar conta</button><button class="btn sm" onclick="fnEscolherExtrato()">⬆ Importar extrato (Excel)</button><input type="file" id="fnInExt" accept=".xlsx,.xls,.csv" class="hide" onchange="if(this.files[0]) fnLerExtrato(this.files[0]); this.value=''">`:''}
-    ${(sec==='receb'||sec==='pagar')?`<button class="btn sec sm" onclick="FN.sub.${sec}='importar';render()">⬆ Importar lançamentos</button>`:''}
-    ${sec==='rel'&&sub!=='dre'?`<button class="btn sec sm" onclick="fnExportar()">Excel</button>`:''}
+  const sec=FN.sec, sub=FN.sub[sec]; if(FN.aberto===undefined) FN.aberto=sec;
+  const titulo=(FIN_SUBS[sec].find(x=>x[0]===sub)||[])[1]||'';
+  const acoes = sec==='contas'?`<button class="btn sec sm" onclick="fnModalConta()">+ Adicionar conta</button><button class="btn sm" onclick="fnEscolherExtrato()">⬆ Importar extrato (Excel)</button><input type="file" id="fnInExt" accept=".xlsx,.xls,.csv" class="hide" onchange="if(this.files[0]) fnLerExtrato(this.files[0]); this.value=''">`
+    : (sec==='receb'||sec==='pagar')&&sub!=='importar'?`<button class="btn sec sm" onclick="fnIr('${sec}','importar')">⬆ Importar lançamentos</button>`
+    : sec==='rel'&&sub!=='dre'?`<button class="btn sec sm" onclick="fnExportar()">Exportar Excel</button>`:'';
+  return `<div class="slim fn-wrap">
+  <div class="fn-main">
+    <div class="sl-head fn-top"><div><div class="fn-crumb">Financeiro · ${esc((FIN_SECOES.find(x=>x[0]===sec)||[])[1])}</div><h2>${esc(titulo)}</h2></div><span class="sp"></span>${acoes}</div>
+    <div id="fnCorpo">${fnCorpo()}</div>
   </div>
-  <div id="fnCorpo">${fnCorpo()}</div></div>`;
+  <aside class="fn-side"><div class="fn-side-t">FINANCEIRO</div>
+    ${FIN_SECOES.map(([k,n])=>{ const ab=FN.aberto===k; return `<div class="fn-grp ${ab?'ab':''} ${k===sec?'atv':''}">
+      <button class="fn-gh" onclick="fnIr('${k}')"><span class="fn-ic">${FIN_ICON[k]}</span><span>${n}</span><span class="fn-ch">${ab?'︿':'﹀'}</span></button>
+      ${ab?`<div class="fn-gl">${FIN_SUBS[k].map(([s2,n2])=>`<button class="${k===sec&&s2===sub?'on':''}" onclick="fnIr('${k}','${s2}')">${n2}</button>`).join('')}</div>`:''}</div>`; }).join('')}
+  </aside></div>`;
 }
 function fnCorpo(){
   const sec=FN.sec, sub=FN.sub[sec];
@@ -1662,7 +1689,7 @@ function fnModalExtrato(){
 async function fnConfirmarExtrato(){
   const bt=document.getElementById('fnImpBt'); bt.disabled=true; bt.textContent='Importando…'; const contaId=document.getElementById('fnImpConta').value;
   try{ const d={contaId,linhas:FN.imp.linhas,arquivoNome:FN.imp.arquivo.name,arquivoMime:FN.imp.arquivo.type}; d.arquivoBase64=await b64Arquivo(FN.imp.arquivo);
-    const r=await api('finImportarExtrato',d); fecharModal(); FN.imp=null; FN.conta=contaId; FN.sec='contas'; FN.sub.contas='conc';
+    const r=await api('finImportarExtrato',d); fecharModal(); FN.imp=null; FN.conta=contaId; FN.sec='contas'; FN.sub.contas='conc'; FN.aberto='contas';
     toast(`${r.importadas} linha(s) importada(s)${r.ignoradas?' · '+r.ignoradas+' já existiam':''}`,5000); await carregar(true); render(); }
   catch(e){ bt.disabled=false; bt.textContent='Importar'; toast('Erro: '+e.message,7000); }
 }
@@ -1840,7 +1867,7 @@ function fnModalImpLanc(){
 async function fnConfirmarImpLanc(){
   const bt=document.getElementById('fnImpLBt'); bt.disabled=true; bt.textContent='Importando…';
   try{ const r=await api('finImportarLanc',{arquivoNome:FN.impL.arquivo.name,lista:FN.impL.linhas.filter(x=>!x.erros.length).map(x=>x.d)}); fecharModal();
-    const sit=FN.impL.sit; FN.impL=null; FN.sec='rel'; FN.sub.rel=sit; toast(`${r.importados} lançamento(s) importado(s)`+(r.erros.length?' · '+r.erros.length+' com erro':''),5000); await carregar(true); render(); }
+    const sit=FN.impL.sit; FN.impL=null; FN.sec='rel'; FN.sub.rel=sit; FN.aberto='rel'; toast(`${r.importados} lançamento(s) importado(s)`+(r.erros.length?' · '+r.erros.length+' com erro':''),5000); await carregar(true); render(); }
   catch(e){ bt.disabled=false; bt.textContent='Importar'; toast('Erro: '+e.message,7000); }
 }
 
@@ -1878,7 +1905,7 @@ function fnDRE(){
   const anos=new Set([new Date().getFullYear()]); fin().lanc.forEach(l=>{ [l.VENCIMENTO,l.DATA_PAGAMENTO].forEach(d=>{ const i=isoBR(d); if(i) anos.add(+i.slice(0,4)); }); });
   return `<div class="sl-filtros"><select onchange="FN.ano=+this.value;fnAtualizar()">${[...anos].sort((a,b)=>b-a).map(a=>`<option ${a===ano?'selected':''}>${a}</option>`).join('')}</select>
     <select onchange="FN.dreCC=this.value;fnAtualizar()" style="max-width:220px"><option value="">Centro de custo: todos</option>${fnCentros().map(c=>`<option ${c===FN.dreCC?'selected':''}>${esc(c)}</option>`).join('')}</select>
-    <span class="muted small">Categorias e grupos (operacional / não operacional) ficam em</span><button class="btn ghost sm" onclick="FN.sec='config';FN.sub.config='cats';render()">⚙ Configurações</button></div>
+    <span class="muted small">Categorias e grupos (operacional / não operacional) ficam em</span><button class="btn ghost sm" onclick="fnIr('config','cats')">⚙ Configurações</button></div>
   <h3 class="rr-h">DRE · Realizado <span class="muted small">— contas pagas e recebidas, pela data do pagamento</span></h3>${fnTabelaDRE(meses,true)}
   <h3 class="rr-h">DRE · Agendado <span class="muted small">— contas a pagar e a receber em aberto, pelo vencimento</span></h3>${fnTabelaDRE(meses,false)}`;
 }
