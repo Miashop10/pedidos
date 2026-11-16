@@ -119,7 +119,7 @@ td.lg-obs input:hover,td.lg-obs input:focus{border-color:var(--line);background:
 .fn-catbox{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--mut);border-radius:12px;padding:10px 12px 12px;margin-bottom:14px}
 .fn-catbox .sl-tab{box-shadow:none}
 .fn-cath{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}.fn-cath b{font-size:16px}
-.fc-ok{border-left-color:var(--ok)}.fc-bad{border-left-color:var(--bad)}.fc-warn{border-left-color:var(--warn)}.fc-acc{border-left-color:var(--acc)}
+.fc-ok{border-left-color:var(--ok)}.fc-bad{border-left-color:var(--bad)}.fc-warn{border-left-color:var(--warn)}.fc-acc{border-left-color:var(--acc)}.fc-prod{border-left-color:#3b5bdb}
 #fnDrawer .fnd-bg{position:fixed;inset:0;background:rgba(20,20,20,0);z-index:40;transition:background .2s;pointer-events:none}
 #fnDrawer.on .fnd-bg{background:rgba(20,20,20,.45);pointer-events:auto}
 #fnDrawer .fnd{position:fixed;top:0;right:0;bottom:0;width:min(860px,100vw);z-index:41;background:var(--card);box-shadow:-8px 0 30px rgba(0,0,0,.18);display:flex;flex-direction:column;transform:translateX(100%);transition:transform .22s ease}
@@ -143,10 +143,20 @@ td.lg-obs input:hover,td.lg-obs input:focus{border-color:var(--line);background:
 .fnd-fp span{display:flex;align-items:center;padding:0 14px;font-size:13px;font-weight:700;color:var(--mut);white-space:nowrap}
 .fnd-fp label+label span{border-left:1px solid var(--line)}
 .fnd-fp input:checked+span{background:var(--acc);color:#fff}
+.fn-cola{width:100%;min-height:120px;resize:vertical;font-family:ui-monospace,Consolas,monospace;font-size:13px;border:2px dashed var(--line);border-radius:10px;padding:10px;background:var(--soft)}
+.fn-cola:focus{border-color:var(--acc);outline:0;background:var(--card)}
+.fn-colatab th select{font-size:12px;padding:3px 4px;min-width:130px;font-weight:700}
+.fn-colatab th select.on{border-color:var(--acc);background:var(--acc-soft);color:var(--acc-ink)}
+.fnd-drop{display:block;border:2px dashed var(--line);border-radius:10px;padding:9px 12px;margin:0 0 10px;font-size:13px;cursor:pointer;background:var(--card);text-align:center}
+.fnd-drop:hover,.fnd-drop.on{border-color:var(--acc);background:var(--acc-soft)}
+.fnd-drop.lendo{opacity:.7;pointer-events:none}
 .fnd-cc{margin-top:18px;background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
 .fnd-rd{display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:600;margin-left:14px;cursor:pointer}
 .fnd-ccl{display:grid;grid-template-columns:1fr 130px 150px 30px;gap:8px;align-items:center;margin-bottom:8px}
 .fnd-ccl .cc-n{width:100%}
+.cc-nw{display:flex;align-items:center;gap:6px;min-width:0}
+.cc-cod{flex:0 0 48px;text-align:center;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;font-weight:800;background:var(--soft);border:1px solid var(--line);border-radius:5px;padding:2px 6px;color:var(--mut);text-transform:uppercase}
+.fnd-ccl.falta .cc-n{background:var(--warn-soft);border-color:var(--warn)}
 .fnd-pv{display:flex;align-items:center;border:1px solid var(--line);border-radius:8px;background:var(--card);padding:0 8px}
 .fnd-pv input{border:0!important;box-shadow:none!important;text-align:right;width:100%;min-width:0;padding-left:2px;padding-right:2px}
 .fnd-pv i{font-style:normal;color:var(--mut);font-size:13px}
@@ -1369,8 +1379,7 @@ function lgRateio(id){ // abre a distribuição de um lançamento do CD
 }
 async function rtExcluir(id){ if(!confirm('Excluir a distribuição? O valor volta a ficar todo no CD.')) return;
   try{ await api('excluirRateio',{lancId:id}); fecharModal(); toast('Distribuição excluída'); await carregar(true); render(); }catch(e){ toast('Erro: '+e.message,6000); } }
-async function rtLerArquivo(f){ // lê o PDF (ou Excel) de rateio
-  try{
+async function rtExtrair(f){ // lê o PDF (ou Excel) de distribuição → {fornecedor,nf,data,total,linhas:[{codigo,valor,itens}]}
     let d;
     if(/\.pdf$/i.test(f.name)){
       if(!window.pdfjsLib) throw new Error('leitor de PDF não carregou (verifique a internet)');
@@ -1383,6 +1392,11 @@ async function rtLerArquivo(f){ // lê o PDF (ou Excel) de rateio
       d={fornecedor:'',nf:'',data:'',total:0,linhas:rows.slice(hi+1).filter(r=>r&&String(r[cf]||'').trim()&&!/^TOTAL/i.test(r[cf])).map(r=>({codigo:String(r[cf]).trim(),valor:typeof r[cv]==='number'?r[cv]:numBR(String(r[cv]||'').replace(/[R$\s]/g,'')),itens:ci>=0?+r[ci]||0:0}))};
     }
     if(!d.linhas.length) throw new Error('não encontrei as filiais e valores no anexo');
+    return d;
+}
+async function rtLerArquivo(f){
+  try{
+    const d=await rtExtrair(f);
     RT.dados=d; RT.arquivo=f;
     RT.dados.linhas.forEach(l=>{ l.filial=rtAuto(l.codigo); });
     if(!RT.lancId){ // anexo pelo botão geral: acha o lançamento do CD pelo fornecedor/NF
@@ -1679,7 +1693,7 @@ function fnCorpo(){
   return fnRelatorio(sub);
 }
 function fnAtualizar(){ const el=document.getElementById('fnCorpo'); if(!el) return; el.innerHTML=fnCorpo(); ajustarTabelas(el); }
-function ligarFinanceiro(){ fnLigarAgendar(); }
+function ligarFinanceiro(){ fnLigarAgendar(); ligarImportarCola(); }
 
 /* ---------- contas bancárias ---------- */
 function fnContas(){
@@ -1845,6 +1859,8 @@ function fnAbrirLanc(id,tipo,pre,exId){
           <label class="fnd-rd"><input type="radio" name="fmModo" value="pct" checked onchange="FN.dr.modo='pct';fnDrRecalc()"> Percentual</label>
           <label class="fnd-rd"><input type="radio" name="fmModo" value="val" onchange="FN.dr.modo='val';fnDrRecalc()"> Valor</label></div>
         <p class="small muted" style="margin:4px 0 8px">Divida o lançamento entre um ou mais centros de custo. A soma precisa dar 100%. Se o valor mudar depois, cada centro mantém o seu percentual.</p>
+        <label class="fnd-drop" id="fmDrop" ondragover="event.preventDefault();this.classList.add('on')" ondragleave="this.classList.remove('on')" ondrop="event.preventDefault();this.classList.remove('on');if(event.dataTransfer.files[0]) fnDrPdf(event.dataTransfer.files[0])">
+          <input type="file" accept=".pdf,.xlsx,.xls,.csv" class="hide" onchange="if(this.files[0]) fnDrPdf(this.files[0]); this.value=''">📎 <b>Arraste aqui o PDF da distribuição</b> <span class="muted">ou clique para escolher — preenche os centros de custo sozinho</span></label>
         <div id="fmCCs">${(ccs.length?ccs:[{nome:'',pct:100}]).map(fnDrLinhaCC).join('')}</div>
         <button class="btn ghost sm" onclick="fnDrAddCC()">+ Adicionar centro de custo</button>
         <div class="small" id="fmCCSoma" style="margin-top:6px"></div>
@@ -1859,7 +1875,7 @@ function fnAbrirLanc(id,tipo,pre,exId){
   requestAnimationFrame(()=>dr.classList.add('on')); fnDrRecalc();
   setTimeout(()=>{ const e=document.getElementById(l.VENCIMENTO?'fmNome':'fmVenc'); if(e) e.focus(); },120);
 }
-function fnDrLinhaCC(c){ return `<div class="fnd-ccl"><input class="cc-n" list="dlFnCC" value="${esc(c.nome||'')}" placeholder="Selecione ou digite um centro de custo…">
+function fnDrLinhaCC(c){ return `<div class="fnd-ccl${c.cod?' cod':''}${c.cod&&!c.nome?' falta':''}" ${c.cod?`data-cod="${esc(c.cod)}" data-ini="${esc(c.nome||'')}"`:''}><div class="cc-nw">${c.cod?`<span class="cc-cod" title="Código no anexo">${esc(c.cod)}</span>`:''}<input class="cc-n" list="dlFnCC" value="${esc(c.nome||'')}" placeholder="${c.cod?'Escolha o centro de custo de “'+esc(c.cod)+'”…':'Selecione ou digite um centro de custo…'}" oninput="this.closest('.fnd-ccl').classList.toggle('falta',!this.value.trim()&&!!this.closest('.fnd-ccl').dataset.cod)"></div>
   <div class="fnd-pv"><input class="cc-p" inputmode="decimal" value="${c.pct!=null&&c.pct!==''?fN(+c.pct,2):''}" placeholder="0,00" oninput="fnDrRecalc(this)"><i>%</i></div>
   <div class="fnd-pv"><i>R$</i><input class="cc-v" inputmode="decimal" placeholder="0,00" oninput="fnDrRecalc(this)"></div>
   <button class="ib del" title="Remover" onclick="this.parentNode.remove();fnDrRecalc()">✕</button></div>`; }
@@ -1877,7 +1893,30 @@ function fnDrRecalc(src){
   const comNome=[...document.querySelectorAll('#fmCCs .cc-n')].some(i=>i.value.trim());
   if(el) el.innerHTML=!comNome?'<span class="muted">Sem centro de custo.</span>':Math.abs(soma-100)<0.01?`<span class="ok">✓ 100% distribuído</span>`:`<span class="bad">Soma: ${fN(soma,2)}% — ${soma<100?'faltam '+fN(100-soma,2):'passou '+fN(soma-100,2)}%</span>`;
 }
-function fnDrLerCC(){ const a=[...document.querySelectorAll('#fmCCs .fnd-ccl')].map(r=>({nome:r.querySelector('.cc-n').value.trim(),pct:numBR(r.querySelector('.cc-p').value)||0})).filter(c=>c.nome);
+// PDF/Excel de distribuição (ex.: PRATCASA) → centros de custo com o % de cada filial
+function fnCCDoCodigo(cod){ const C=fnCentros(), c=semAcento(cod).trim(); if(!c) return '';
+  const al=(fin().ccAlias||[]).find(a=>semAcento(a.CODIGO).trim()===c); if(al) return al.CENTRO;
+  const fil=(typeof rtAuto==='function'&&S.dados.logistica)?rtAuto(cod):'';
+  return C.find(n=>semAcento(n)===c) || (fil&&C.find(n=>semAcento(n)===semAcento(fil))) || (c.length>=3&&C.find(n=>semAcento(n).startsWith(c))) || fil || ''; }
+async function fnDrPdf(f){
+  const box=document.getElementById('fmDrop'); box.classList.add('lendo'); const txt=box.innerHTML; box.innerHTML='Lendo '+esc(f.name)+'…';
+  try{
+    const d=await rtExtrair(f); const L=d.linhas.filter(l=>(+l.valor||0)>0); const tot=L.reduce((s,l)=>s+(+l.valor),0); if(!tot) throw new Error('sem valores no anexo');
+    const ag={}; L.forEach(l=>{ const k=semAcento(l.codigo).trim(); const o=ag[k]||(ag[k]={cod:String(l.codigo).trim(),nome:fnCCDoCodigo(l.codigo),v:0}); o.v+=(+l.valor); });
+    const lin=Object.values(ag).map(o=>({nome:o.nome,cod:o.cod,pct:Math.round(o.v/tot*10000)/100}));
+    const dif=Math.round((100-lin.reduce((s,c)=>s+c.pct,0))*100)/100; if(dif&&lin.length){ lin.sort((a,b)=>b.pct-a.pct)[0].pct=Math.round((lin[0].pct+dif)*100)/100; }
+    lin.sort((a,b)=>(a.nome?0:1)-(b.nome?0:1)||(a.nome||a.cod).localeCompare(b.nome||b.cod,'pt-BR'));
+    document.getElementById('fmCCs').innerHTML=lin.map(fnDrLinhaCC).join('');
+    FN.dr.modo='pct'; const rp=document.querySelector('input[name=fmModo][value=pct]'); if(rp) rp.checked=true;
+    const v=document.getElementById('fmValor'); if(v&&!numBR(v.value)) v.value=fN(Math.round(tot*100)/100,2);
+    const nm=document.getElementById('fmNome'); if(nm&&!nm.value.trim()&&d.fornecedor) nm.value=d.fornecedor;
+    const nf=document.getElementById('fmNF'); if(nf&&!nf.value.trim()&&d.nf) nf.value=d.nf;
+    fnDrRecalc(); const falta=lin.filter(c=>!c.nome).length;
+    toast(`${lin.length} filial(is) do anexo · total ${fR(tot)}${falta?` · escolha o centro de custo de ${falta} código(s) em amarelo (fica gravado para os próximos)`:''}`,8000);
+  }catch(e){ toast(f.name+': '+e.message,7000); }
+  box.classList.remove('lendo'); box.innerHTML=txt;
+}
+function fnDrLerCC(){ const m={}; [...document.querySelectorAll('#fmCCs .fnd-ccl')].map(r=>({nome:r.querySelector('.cc-n').value.trim(),pct:numBR(r.querySelector('.cc-p').value)||0})).filter(c=>c.nome).forEach(c=>{ const k=up(c.nome); if(m[k]) m[k].pct=Math.round((m[k].pct+c.pct)*100)/100; else m[k]=c; }); const a=Object.values(m);
   if(a.length===1&&!a[0].pct) a[0].pct=100; return a; }
 function fnFecharLanc(){ const d=document.getElementById('fnDrawer'); if(!d) return; d.classList.remove('on'); setTimeout(()=>{ if(!d.classList.contains('on')) d.innerHTML=''; },220); FN.dr=null; }
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&FN.dr&&!document.querySelector('.mbg')) fnFecharLanc(); });
@@ -1885,6 +1924,8 @@ async function fnSalvarLancDr(){
   const {id,tipo,exId}=FN.dr; const g=i=>document.getElementById(i).value.trim();
   const d={tipo,vencimento:brISO(g('fmVenc')),nome:g('fmNome'),descricao:g('fmDesc'),notaFiscal:g('fmNF'),categoria:g('fmCat'),valor:numBR(g('fmValor')),formaPagamento:(document.querySelector('input[name=fmFP]:checked')||{}).value||'CONTA CORRENTE'};
   const err=fnValidar(d); if(err){ toast(err); return; }
+  if(document.querySelector('#fmCCs .fnd-ccl.falta')){ toast('Escolha o centro de custo dos códigos em amarelo (ou remova a linha)',6000); return; }
+  const aliases=[...document.querySelectorAll('#fmCCs .fnd-ccl[data-cod]')].map(r=>({codigo:r.dataset.cod,centro:r.querySelector('.cc-n').value.trim(),ini:r.dataset.ini})).filter(a=>a.centro&&up(a.centro)!==up(a.ini));
   const cc=fnDrLerCC(); const soma=cc.reduce((s,c)=>s+c.pct,0);
   if(cc.length&&Math.abs(soma-100)>=0.01){ toast(`Centros de custo somam ${fN(soma,2)}% — precisa dar 100%`,5000); return; }
   if(new Set(cc.map(c=>up(c.nome))).size<cc.length){ toast('Centro de custo repetido'); return; }
@@ -1893,6 +1934,7 @@ async function fnSalvarLancDr(){
   try{
     if(exId) await api('finConciliar',{extratoId:exId,novo:d});
     else { if(id){ d.id=id; const l=fnLanc(id); if(l&&l.STATUS==='QUITADO'){ d.quitado=true; d.dataPagamento=l.DATA_PAGAMENTO; d.valorPago=l.VALOR_PAGO; d.contaId=l.CONTA_ID; } } await api('finSalvarLanc',d); }
+    if(aliases.length) try{ await api('finSalvarAliasCC',{lista:aliases}); }catch(e){}
     toast(exId?'Lançamento criado e conciliado ✓':id?'Lançamento salvo':(tipo==='RECEBER'?'Recebimento':'Pagamento')+' agendado ✓');
     const cont=!id&&!exId&&FN.continuar; await carregar(true); render();
     if(cont) fnAbrirLanc(null,tipo); else fnFecharLanc();
@@ -1924,37 +1966,67 @@ function fnTabelaLanc(L,quitadas){
 
 /* ---------- importar lançamentos (Excel) ---------- */
 // colunas: DATA VENCIMENTO | NOME | DESCRIÇÃO | NOTA FISCAL | CATEGORIA | VALOR (opcional: DATA PAGAMENTO)
+/* importar lançamentos colando dados de uma planilha (Ctrl+C no Excel → Ctrl+V aqui) */
+const FIN_COLS=[['','— ignorar —'],['venc','Data vencimento'],['nome','Nome'],['desc','Descrição'],['nf','Nota fiscal'],['cat','Categoria'],['cc','Centro de custo'],['val','Valor'],['pag','Data pagamento'],['fp','Forma de pagamento']];
 function fnImportarTela(){
-  const sit=FN.impSit||(FN.sec==='receb'?'areceber':'apagar');
+  if(FN.impSitDe!==FN.sec){ FN.impSit=FN.sec==='receb'?'areceber':'apagar'; FN.impSitDe=FN.sec; } const sit=FN.impSit;
   const ops=[['apagar','Contas a pagar'],['pagas','Contas pagas'],['areceber','Contas a receber'],['recebidas','Contas recebidas']];
   return `<div class="card" style="padding:14px">
-    <b>Importar lançamentos por planilha Excel</b>
-    <p class="small muted" style="margin:4px 0 10px">Colunas (uma informação em cada): <b>DATA VENCIMENTO · NOME · DESCRIÇÃO · NOTA FISCAL · CATEGORIA · CENTRO DE CUSTO · VALOR</b>. Para contas pagas/recebidas pode ter também <b>DATA PAGAMENTO</b> (sem ela, usa o vencimento).</p>
-    <div class="row" style="align-items:flex-end"><label class="sf" style="flex:0 0 240px"><span>Os lançamentos da planilha são</span><select id="fnImpSit" onchange="FN.impSit=this.value">${ops.map(([k,n])=>`<option value="${k}" ${k===sit?'selected':''}>${n}</option>`).join('')}</select></label>
-      <button class="btn" onclick="document.getElementById('fnInLanc').click()">⬆ Escolher planilha</button><input type="file" id="fnInLanc" accept=".xlsx,.xls,.csv" class="hide" onchange="if(this.files[0]) fnLerLancPlanilha(this.files[0]); this.value=''">
-      <button class="btn ghost" onclick="fnModeloLanc()">Baixar modelo</button></div>
+    <b style="font-size:16px">Cole os dados de uma planilha existente e defina quais colunas serão importadas</b>
+    <p class="small muted" style="margin:4px 0 10px">No Excel, selecione as linhas (com ou sem o cabeçalho), aperte <b>Ctrl+C</b>, clique no quadro abaixo e aperte <b>Ctrl+V</b>. Depois confira o que é cada coluna.</p>
+    <div class="row" style="align-items:flex-end;margin-bottom:10px"><label class="sf" style="flex:0 0 240px"><span>Os lançamentos colados são</span><select id="fnImpSit" onchange="FN.impSit=this.value;fnColaPrevia()">${ops.map(([k,n])=>`<option value="${k}" ${k===sit?'selected':''}>${n}</option>`).join('')}</select></label>
+      <label class="fnd-rd" style="margin:0 0 8px"><input type="checkbox" id="fnColaCab" ${FN.cola&&FN.cola.cab?'checked':''} onchange="FN.cola&&(FN.cola.cab=this.checked);fnColaPrevia()"> Primeira linha é o cabeçalho</label>
+      <span class="sp"></span><button class="btn ghost sm" onclick="FN.cola=null;document.getElementById('fnCola').value='';fnColaPrevia()">Limpar</button></div>
+    <textarea id="fnCola" class="fn-cola" placeholder="Clique aqui e cole (Ctrl+V) os dados copiados do Excel…" oninput="fnColaLer()">${esc(FN.cola?FN.cola.texto:'')}</textarea>
+    <div id="fnColaPrev"></div>
   </div>`;
 }
-function fnModeloLanc(){ const ws=XLSX.utils.aoa_to_sheet([['DATA VENCIMENTO','NOME','DESCRIÇÃO','NOTA FISCAL','CATEGORIA','CENTRO DE CUSTO','VALOR','DATA PAGAMENTO'],['10/12/2026','CLINK','Pedido Natal 1/3','9080','Fornecedores / mercadorias','Lojas',4666.67,''],['15/12/2026','Getnet','Vendas cartão loja Londrina','','Vendas lojas','Londrina',3200.5,'']]);
-  ws['!cols']=[{wch:16},{wch:22},{wch:28},{wch:12},{wch:26},{wch:18},{wch:12},{wch:16}]; const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Lançamentos'); XLSX.writeFile(wb,'modelo-lancamentos-financeiro.xlsx'); }
-async function fnLerLancPlanilha(f){
-  try{
-    const sit=document.getElementById('fnImpSit').value; FN.impSit=sit; const tipo=(sit==='areceber'||sit==='recebidas')?'RECEBER':'PAGAR', quit=(sit==='pagas'||sit==='recebidas');
-    const rows=await linhasXLSX(f); const H=v=>semAcento(v).replace(/[^A-Z ]/g,' ').replace(/\s+/g,' ').trim();
-    const hi=rows.findIndex(r=>(r||[]).map(H).some(x=>x==='NOME'||/^(FORNECEDOR|CLIENTE|FAVORECIDO)$/.test(x))); if(hi<0) throw new Error('não achei a coluna NOME');
-    const h=rows[hi].map(H); const col=re=>h.findIndex(x=>re.test(x));
-    const C={venc:col(/^(DATA (DE )?VENCIMENTO|VENCIMENTO|DATA)$/),nome:col(/^(NOME|FORNECEDOR|CLIENTE|FAVORECIDO)$/),desc:col(/^(DESCRICAO|HISTORICO)/),nf:col(/^(NOTA FISCAL|NF|N NF)$/),cat:col(/^CATEGORIA/),cc:col(/^(CENTRO( DE)? CUSTO|CC)$/),fp:col(/^FORMA( DE)? PAGAMENTO/),val:col(/^VALOR/),pag:col(/^DATA (DE )?(PAGAMENTO|RECEBIMENTO|BAIXA)/)};
-    if(C.venc<0||C.val<0) throw new Error('precisa das colunas DATA VENCIMENTO e VALOR');
-    const g=(r,i)=>i>=0?r[i]:'';
-    const L=rows.slice(hi+1).map((r,k)=>({r:r||[],linha:hi+2+k})).filter(x=>x.r.some(c=>String(c).trim()!=='')).map(({r,linha})=>{
-      const v=g(r,C.val); const d={linha,tipo,vencimento:dataExcel(g(r,C.venc)),nome:String(g(r,C.nome)).trim(),descricao:String(g(r,C.desc)).trim(),notaFiscal:String(g(r,C.nf)).trim().replace(/\.0+$/,''),categoria:String(g(r,C.cat)).trim(),centroCusto:fnCCTexto(fnCCParse(g(r,C.cc))),formaPagamento:/CART/i.test(semAcento(g(r,C.fp)))?'CARTÃO DE CRÉDITO':'CONTA CORRENTE',valor:Math.abs(typeof v==='number'?v:numBR(String(v).replace(/[R$\s]/g,'')))};
-      if(quit){ d.quitado=true; d.dataPagamento=dataExcel(g(r,C.pag))||d.vencimento; }
-      const erros=[]; if(!/\d{2}\/\d{2}\/\d{4}/.test(d.vencimento)) erros.push('sem data'); if(!d.nome) erros.push('sem nome'); if(!d.valor) erros.push('sem valor'); { const cc=fnCCParse(d.centroCusto); const sm=cc.reduce((x,c)=>x+c.pct,0); if(cc.length&&Math.abs(sm-100)>=0.01) erros.push('centros de custo somam '+fN(sm,2)+'%'); }
-      return {d,erros}; });
-    if(!L.length) throw new Error('nenhuma linha com dados');
-    FN.impL={arquivo:f,linhas:L,sit}; fnModalImpLanc();
-  }catch(e){ toast(f.name+': '+e.message,7000); }
+function ligarImportarCola(){ if(document.getElementById('fnColaPrev')) fnColaPrevia(); }
+function fnColaLer(){
+  const t=document.getElementById('fnCola').value; if(!t.trim()){ FN.cola=null; fnColaPrevia(); return; }
+  const linhas=t.replace(/\r/g,'').split('\n').map(l=>l.split('\t').map(c=>c.trim())).filter(r=>r.some(c=>c!==''));
+  const nc=Math.max(...linhas.map(r=>r.length)); linhas.forEach(r=>{ while(r.length<nc) r.push(''); });
+  const H=v=>semAcento(v).replace(/[^A-Z ]/g,' ').replace(/\s+/g,' ').trim();
+  const RE={venc:/^(DATA (DE )?VENCIMENTO|VENCIMENTO|VENC|DATA)$/,nome:/^(NOME|FORNECEDOR|CLIENTE|FAVORECIDO|CONTATO)$/,desc:/^(DESCRICAO|HISTORICO|OBS)/,nf:/^(NOTA FISCAL|NF|N NF|NFE|NOTA)$/,cat:/^CATEGORIA/,cc:/^(CENTRO( DE)? CUSTO|CC)$/,val:/^(VALOR|TOTAL)/,pag:/^DATA (DE )?(PAGAMENTO|RECEBIMENTO|BAIXA)|^(PAGO|RECEBIDO) EM/,fp:/^FORMA( DE)? PAGAMENTO/};
+  const h=linhas[0].map(H); let cab=h.some(x=>Object.values(RE).some(re=>re.test(x)));
+  let map=h.map(x=>{ const k=Object.keys(RE).find(k=>RE[k].test(x)); return cab&&k?k:''; });
+  if(!cab){ // sem cabeçalho: adivinha pelo conteúdo
+    const dados=linhas.slice(0,20); const ehData=c=>dados.filter(r=>/^\d{1,2}\/\d{1,2}\/\d{2,4}$|^\d{4}-\d{2}-\d{2}$/.test(r[c])).length>=dados.length*0.6;
+    const ehNum=c=>dados.filter(r=>/^-?(R\$\s*)?-?[\d.]+(,\d{1,2})?$/.test(r[c].replace(/\s/g,''))&&r[c]!=='').length>=dados.length*0.6;
+    const usado=new Set(); const datas=[...Array(nc).keys()].filter(ehData);
+    if(datas[0]!=null){ map[datas[0]]='venc'; usado.add('venc'); } if(datas[1]!=null) map[datas[1]]='pag';
+    const nums=[...Array(nc).keys()].filter(c=>!map[c]&&ehNum(c)&&dados.some(r=>/[,.]/.test(r[c])));
+    if(nums.length) map[nums[nums.length-1]]='val';
+    const txt=[...Array(nc).keys()].filter(c=>!map[c]&&!ehNum(c)).sort((a,b)=>dados.filter(r=>r[b]).length-dados.filter(r=>r[a]).length);
+    if(txt[0]!=null) map[txt[0]]='nome'; if(txt[1]!=null) map[txt[1]]='desc';
+  }
+  FN.cola={texto:t,linhas,cab,map}; const cb=document.getElementById('fnColaCab'); if(cb) cb.checked=cab; fnColaPrevia();
 }
+function fnColaData(v){ v=String(v||'').trim(); let m=v.match(/^(\d{4})-(\d{2})-(\d{2})/); if(m) return m[3]+'/'+m[2]+'/'+m[1]; return /\d{1,2}\/\d{1,2}\/\d{2,4}/.test(v)?dataExcel(v):v; }
+function fnColaMontar(){
+  const {linhas,cab,map}=FN.cola; const sit=FN.impSit; const tipo=(sit==='areceber'||sit==='recebidas')?'RECEBER':'PAGAR', quit=(sit==='pagas'||sit==='recebidas');
+  const ix=k=>map.indexOf(k); const g=(r,k)=>ix(k)>=0?r[ix(k)]:'';
+  return linhas.slice(cab?1:0).map((r,k)=>{
+    const d={linha:k+1,tipo,vencimento:fnColaData(g(r,'venc')),nome:g(r,'nome'),descricao:g(r,'desc'),notaFiscal:g(r,'nf'),categoria:g(r,'cat'),centroCusto:fnCCTexto(fnCCParse(g(r,'cc'))),formaPagamento:/CART/i.test(semAcento(g(r,'fp')))?'CARTÃO DE CRÉDITO':'CONTA CORRENTE',valor:Math.abs(numBR(String(g(r,'val')).replace(/[R$\s]/g,'')))};
+    if(quit){ d.quitado=true; d.dataPagamento=fnColaData(g(r,'pag'))||d.vencimento; }
+    const erros=[]; if(!/^\d{2}\/\d{2}\/\d{4}$/.test(d.vencimento)) erros.push('sem data'); if(!d.nome) erros.push('sem nome'); if(!d.valor) erros.push('sem valor');
+    { const cc=fnCCParse(d.centroCusto); const sm=cc.reduce((x,c)=>x+c.pct,0); if(cc.length&&Math.abs(sm-100)>=0.01) erros.push('centros de custo somam '+fN(sm,2)+'%'); }
+    return {d,erros}; });
+}
+function fnColaPrevia(){
+  const el=document.getElementById('fnColaPrev'); if(!el) return; if(!FN.cola){ el.innerHTML=''; return; }
+  const {linhas,cab,map}=FN.cola; const corpo=linhas.slice(cab?1:0); const falta=['venc','nome','val'].filter(k=>!map.includes(k));
+  const L=fnColaMontar(); const ok=L.filter(x=>!x.erros.length);
+  el.innerHTML=`<div class="row" style="align-items:center;margin:12px 0 8px"><b>Defina o que é cada coluna</b><span class="muted small">${corpo.length} linha(s) colada(s)${cab?' + cabeçalho':''}</span><span class="sp"></span>
+    ${falta.length?`<span class="tag t-bad">Falta indicar: ${falta.map(k=>FIN_COLS.find(c=>c[0]===k)[1]).join(', ')}</span>`:`<span class="small"><b>${ok.length}</b> ok${L.length>ok.length?` · <span class="bad">${L.length-ok.length} com erro</span>`:''} · ${fR(ok.reduce((s,x)=>s+x.d.valor,0))}</span>`}
+    <button class="btn" ${falta.length||!ok.length?'disabled':''} onclick="fnColaImportar()">Revisar e importar ${ok.length||''}</button></div>
+  <div class="tw sl-tab fn-colatab" style="max-height:50vh"><table><thead><tr><th>#</th>${map.map((m,c)=>`<th><select class="${m?'on':''}" onchange="fnColaMapa(${c},this.value)">${FIN_COLS.map(([k,n])=>`<option value="${k}" ${k===m?'selected':''}>${n}</option>`).join('')}</select>${cab?`<div class="muted small" style="font-weight:600;text-transform:none;margin-top:2px">${esc(linhas[0][c])}</div>`:''}</th>`).join('')}<th></th></tr></thead>
+  <tbody>${corpo.slice(0,200).map((r,k)=>{ const e=L[k].erros; return `<tr style="${e.length?'opacity:.6':''}"><td class="muted">${k+1}</td>${r.map((v,c)=>`<td class="${map[c]?'':'muted'}">${esc(v)}</td>`).join('')}<td>${e.length?`<span class="tag t-bad">${esc(e.join(', '))}</span>`:'<span class="tag t-ok">ok</span>'}</td></tr>`; }).join('')}</tbody></table></div>
+  ${corpo.length>200?`<p class="small muted">Mostrando 200 de ${corpo.length} linhas — todas serão importadas.</p>`:''}`;
+  ajustarTabelas(el);
+}
+function fnColaMapa(c,k){ const m=FN.cola.map; if(k) m.forEach((x,i)=>{ if(x===k&&i!==c) m[i]=''; }); m[c]=k; fnColaPrevia(); }
+function fnColaImportar(){ FN.impL={arquivo:{name:'Dados colados'},linhas:fnColaMontar(),sit:FN.impSit,cola:true}; fnModalImpLanc(); }
 function fnModalImpLanc(){
   const {linhas:L,sit,arquivo}=FN.impL; const ok=L.filter(x=>!x.erros.length); const nomes={apagar:'contas a pagar',pagas:'contas pagas',areceber:'contas a receber',recebidas:'contas recebidas'};
   const cats=new Set(fin().categorias.map(c=>up(c.NOME))); const novas=[...new Set(ok.map(x=>x.d.categoria).filter(c=>c&&!cats.has(up(c))))];
@@ -1969,7 +2041,7 @@ function fnModalImpLanc(){
 async function fnConfirmarImpLanc(){
   const bt=document.getElementById('fnImpLBt'); bt.disabled=true; bt.textContent='Importando…';
   try{ const r=await api('finImportarLanc',{arquivoNome:FN.impL.arquivo.name,lista:FN.impL.linhas.filter(x=>!x.erros.length).map(x=>x.d)}); fecharModal();
-    const sit=FN.impL.sit; FN.impL=null; FN.sec='rel'; FN.sub.rel=sit; FN.aberto='rel'; toast(`${r.importados} lançamento(s) importado(s)`+(r.erros.length?' · '+r.erros.length+' com erro':''),5000); await carregar(true); render(); }
+    const sit=FN.impL.sit; if(FN.impL.cola) FN.cola=null; FN.impL=null; FN.sec='rel'; FN.sub.rel=sit; FN.aberto='rel'; toast(`${r.importados} lançamento(s) importado(s)`+(r.erros.length?' · '+r.erros.length+' com erro':''),5000); await carregar(true); render(); }
   catch(e){ bt.disabled=false; bt.textContent='Importar'; toast('Erro: '+e.message,7000); }
 }
 
@@ -2003,47 +2075,48 @@ function fnExportar(){ const sub=FN.sub.rel, quit=(sub==='pagas'||sub==='recebid
 // Realizado = contas pagas/recebidas pela data de pagamento · Agendado = contas em aberto pelo vencimento
 // A Receitas operacionais · B Despesas operacionais · C Resultado não operacional · D = A − B + C
 // grupo da categoria: OPERACIONAL (A/B) · MONTAGEM (C, só despesa) · PARTICULAR (vai só para o DRE particular)
-function fnGrupoCat(c){ const g=(c&&c.GRUPO)||'OPERACIONAL'; if(g==='PARTICULAR') return 'PARTICULAR'; if(g==='MONTAGEM'&&c.TIPO!=='RECEITA') return 'MONTAGEM'; return 'OPERACIONAL'; }
+function fnGrupoCat(c){ const g=(c&&c.GRUPO)||'OPERACIONAL'; if(g==='PARTICULAR') return 'PARTICULAR'; if((g==='MONTAGEM'||g==='PRODUTOS')&&c.TIPO!=='RECEITA') return g; return 'OPERACIONAL'; }
 function fnDRE(part){
   const ano=FN.ano; const meses=Array.from({length:12},(_,k)=>ano+'-'+String(k+1).padStart(2,'0'));
   const anos=new Set([new Date().getFullYear()]); fin().lanc.forEach(l=>{ [l.VENCIMENTO,l.DATA_PAGAMENTO].forEach(d=>{ const i=isoBR(d); if(i) anos.add(+i.slice(0,4)); }); });
   const nPart=fin().categorias.filter(c=>fnGrupoCat(c)==='PARTICULAR').length;
   return `<div class="sl-filtros"><select onchange="FN.ano=+this.value;fnAtualizar()">${[...anos].sort((a,b)=>b-a).map(a=>`<option ${a===ano?'selected':''}>${a}</option>`).join('')}</select>
     <select onchange="FN.dreCC=this.value;fnAtualizar()" style="max-width:220px"><option value="">Centro de custo: todos</option>${fnCentros().map(c=>`<option ${c===FN.dreCC?'selected':''}>${esc(c)}</option>`).join('')}</select>
-    <span class="muted small">${part?(nPart?`${nPart} categoria(s) no DRE particular — elas não entram no DRE da Miashop.`:'Nenhuma categoria marcada como “DRE particular” ainda.'):'O grupo de cada categoria (operacional, montagem ou DRE particular) é definido em'}</span><button class="btn ghost sm" onclick="fnIr('config','cats')">⚙ Categorias</button></div>
+    <span class="muted small">${part?(nPart?`${nPart} categoria(s) no DRE particular — elas não entram no DRE da Miashop.`:'Nenhuma categoria marcada como “DRE particular” ainda.'):'O grupo de cada categoria (operacional, produtos, montagem ou DRE particular) é definido em'}</span><button class="btn ghost sm" onclick="fnIr('config','cats')">⚙ Categorias</button></div>
   <h3 class="rr-h">${part?'DRE particular':'DRE'} · Realizado <span class="muted small">— contas pagas e recebidas, pela data do pagamento</span></h3>${fnTabelaDRE(meses,true,part)}
   <h3 class="rr-h">${part?'DRE particular':'DRE'} · Agendado <span class="muted small">— contas a pagar e a receber em aberto, pelo vencimento</span></h3>${fnTabelaDRE(meses,false,part)}`;
 }
 function fnTabelaDRE(meses,realizado,part){
   const catInfo={}; fin().categorias.forEach(c=>catInfo[up(c.NOME)]=c);
-  const grupos={A:{},B:{},C:{}};
+  const grupos={A:{},B:{},C:{},D:{}};
   fin().lanc.filter(l=>(realizado?l.STATUS==='QUITADO':l.STATUS!=='QUITADO')&&(!FN.dreCC||fnCCPeso(l,FN.dreCC))).forEach(l=>{
     const d=isoBR(realizado?l.DATA_PAGAMENTO:l.VENCIMENTO); if(!d) return; const m=d.slice(0,7); if(!meses.includes(m)) return;
     const v=(+(realizado?l.VALOR_PAGO:l.VALOR)||0)*(FN.dreCC?fnCCPeso(l,FN.dreCC):1); const nome=String(l.CATEGORIA||'').trim()||'Sem categoria';
     const gc=fnGrupoCat(catInfo[up(nome)]); if((gc==='PARTICULAR')!==!!part) return;
-    const g=l.TIPO==='RECEBER'?'A':(gc==='MONTAGEM'?'C':'B');
+    const g=l.TIPO==='RECEBER'?'A':(gc==='PRODUTOS'?'C':gc==='MONTAGEM'?'D':'B');
     const o=grupos[g][nome]||(grupos[g][nome]={}); o[m]=(o[m]||0)+v; });
   const soma=g=>{ const t={}; Object.values(grupos[g]).forEach(o=>meses.forEach(m=>t[m]=(t[m]||0)+(o[m]||0))); return t; };
-  const A=soma('A'),B=soma('B'),C=soma('C'); const D={},E={}; meses.forEach(m=>{ E[m]=(A[m]||0)-(B[m]||0); D[m]=E[m]-(C[m]||0); });
+  const A=soma('A'),B=soma('B'),C=soma('C'),D=soma('D'); const E={},F={}; meses.forEach(m=>{ F[m]=(A[m]||0)-(B[m]||0)-(C[m]||0); E[m]=F[m]-(D[m]||0); });
   const tot=o=>meses.reduce((s,m)=>s+(o[m]||0),0);
   const cel=(v,neg)=>{ v=v||0; return v?`<span class="${neg?'bad':''}">${fR(neg?-v:v)}</span>`:'<span class="muted">—</span>'; };
   const linhaGrupo=(rot,o,neg)=>`<tr class="dre-g"><td>${rot}</td>${meses.map(m=>`<td class="n">${cel(o[m],neg)}</td>`).join('')}<td class="n">${cel(tot(o),neg)}</td></tr>`;
   const linhasCat=(g,neg)=>Object.keys(grupos[g]).sort((a,b)=>a.localeCompare(b,'pt-BR')).map(n=>`<tr class="dre-cat"><td>${esc(n)}</td>${meses.map(m=>`<td class="n">${cel(grupos[g][n][m],neg)}</td>`).join('')}<td class="n">${cel(tot(grupos[g][n]),neg)}</td></tr>`).join('');
   const res=(rot,o,cls)=>`<tr class="${cls}"><td>${rot}</td>${meses.map(m=>`<td class="n"><span class="${(o[m]||0)<0?'bad':'ok'}">${fR(o[m]||0)}</span></td>`).join('')}<td class="n"><span class="${tot(o)<0?'bad':'ok'}">${fR(tot(o))}</span></td></tr>`;
   const cab=`<div class="tw sl-tab rr-mat dre"><table><thead><tr><th></th>${meses.map(m=>`<th class="n">${rrMesNome(m)}</th>`).join('')}<th class="n">Total</th></tr></thead><tbody>`;
-  if(part){ const Bp={}; meses.forEach(m=>Bp[m]=(B[m]||0)+(C[m]||0)); Object.entries(grupos.C).forEach(([n,o])=>{ const t=grupos.B[n]||(grupos.B[n]={}); meses.forEach(m=>{ if(o[m]) t[m]=(t[m]||0)+o[m]; }); });
+  if(part){ const Bp={}; meses.forEach(m=>Bp[m]=(B[m]||0)+(C[m]||0)+(D[m]||0)); [...Object.entries(grupos.C),...Object.entries(grupos.D)].forEach(([n,o])=>{ const t=grupos.B[n]||(grupos.B[n]={}); meses.forEach(m=>{ if(o[m]) t[m]=(t[m]||0)+o[m]; }); });
     const R={}; meses.forEach(m=>R[m]=(A[m]||0)-(Bp[m]||0));
     return cab+`${linhaGrupo('A · RECEITAS',A)}${linhasCat('A')}${linhaGrupo('B · DESPESAS',Bp,true)}${linhasCat('B',true)}${res('RESULTADO (A − B)',R,'dre-res')}</tbody></table></div>`; }
   return cab+`
     ${linhaGrupo('A · RECEITAS OPERACIONAIS',A)}${linhasCat('A')}
     ${linhaGrupo('B · DESPESAS OPERACIONAIS',B,true)}${linhasCat('B',true)}
-    ${linhaGrupo('C · DESPESAS MONTAGEM',C,true)}${linhasCat('C',true)}
-    ${res('D · RESULTADO REAL (A − B − C = D)',D,'dre-res')}
-    ${res('E · RESULTADO OPERACIONAL (A − B = E)',E,'dre-res2')}</tbody></table></div>`;
+    ${linhaGrupo('C · PRODUTOS',C,true)}${linhasCat('C',true)}
+    ${linhaGrupo('D · DESPESAS MONTAGEM',D,true)}${linhasCat('D',true)}
+    ${res('E · RESULTADO REAL (A − B − C − D = E)',E,'dre-res')}
+    ${res('F · RESULTADO OPERACIONAL (A − B − C = F)',F,'dre-res2')}</tbody></table></div>`;
 }
 /* ---------- configurações: categorias e centros de custo ---------- */
-const FIN_GRUPOS=[['OPERACIONAL','Operacional'],['MONTAGEM','Despesas montagem'],['PARTICULAR','DRE particular']];
-function fnOptGrupo(c){ const g=fnGrupoCat(c); return FIN_GRUPOS.filter(([k])=>!(k==='MONTAGEM'&&c.TIPO==='RECEITA')).map(([k,n])=>`<option value="${k}" ${k===g?'selected':''}>${n}</option>`).join(''); }
+const FIN_GRUPOS=[['OPERACIONAL','Operacional'],['PRODUTOS','Produtos'],['MONTAGEM','Despesas montagem'],['PARTICULAR','DRE particular']];
+function fnOptGrupo(c){ const g=fnGrupoCat(c); return FIN_GRUPOS.filter(([k])=>!((k==='MONTAGEM'||k==='PRODUTOS')&&c.TIPO==='RECEITA')).map(([k,n])=>`<option value="${k}" ${k===g?'selected':''}>${n}</option>`).join(''); }
 function fnCategoriasTela(){
   const C=fin().categorias.slice().sort((a,b)=>(a.TIPO+a.NOME).localeCompare(b.TIPO+b.NOME,'pt-BR'));
   const linha=c=>`<tr class="fn-cfg"><td><input class="lgi" value="${esc(c.NOME)}" data-antigo="${esc(c.NOME)}" data-c="nome" onchange="fnSalvarCat(this)" onkeydown="if(event.key==='Enter') this.blur()"></td><td><select data-c="tipo" onchange="fnSalvarCat(this)"><option value="RECEITA" ${c.TIPO==='RECEITA'?'selected':''}>Receita</option><option value="DESPESA" ${c.TIPO!=='RECEITA'?'selected':''}>Despesa</option></select></td><td><select data-c="grupo" onchange="fnSalvarCat(this)">${fnOptGrupo(c)}</select></td>
@@ -2053,10 +2126,11 @@ function fnCategoriasTela(){
     <label class="sf" style="flex:0 0 140px"><span>Tipo</span><select data-c="tipo"><option value="DESPESA">Despesa</option><option value="RECEITA">Receita</option></select></label>
     <label class="sf" style="flex:0 0 190px"><span>Grupo</span><select data-c="grupo">${FIN_GRUPOS.map(([k,n])=>`<option value="${k}">${n}</option>`).join('')}</select></label>
     <button class="btn" onclick="fnSalvarCat(this)">+ Criar categoria</button></div></div>
-  <p class="small muted">Para editar, clique no nome, apague e digite o novo — salva sozinho ao sair do campo ou apertar Enter (tipo e grupo salvam ao trocar). Grupo: <b>Operacional</b> entra em A (receitas) ou B (despesas) do DRE; <b>Despesas montagem</b> entra em C; <b>DRE particular</b> sai do DRE da Miashop e vai só para o DRE particular.</p>
+  <p class="small muted">Para editar, clique no nome, apague e digite o novo — salva sozinho ao sair do campo ou apertar Enter (tipo e grupo salvam ao trocar). Grupo: <b>Operacional</b> entra em A (receitas) ou B (despesas) do DRE; <b>Produtos</b> entra em C; <b>Despesas montagem</b> entra em D; <b>DRE particular</b> sai do DRE da Miashop e vai só para o DRE particular.</p>
   ${[['A · Receitas operacionais','Entram em A do DRE da Miashop',c=>fnGrupoCat(c)==='OPERACIONAL'&&c.TIPO==='RECEITA','ok'],
      ['B · Despesas operacionais','Entram em B do DRE da Miashop',c=>fnGrupoCat(c)==='OPERACIONAL'&&c.TIPO!=='RECEITA','bad'],
-     ['C · Despesas montagem','Entram em C do DRE da Miashop',c=>fnGrupoCat(c)==='MONTAGEM','warn'],
+     ['C · Produtos','Entram em C do DRE da Miashop',c=>fnGrupoCat(c)==='PRODUTOS','prod'],
+     ['D · Despesas montagem','Entram em D do DRE da Miashop',c=>fnGrupoCat(c)==='MONTAGEM','warn'],
      ['DRE particular','Não entram no DRE da Miashop — só no DRE particular',c=>fnGrupoCat(c)==='PARTICULAR','acc']].map(([t,sub,fl,cor])=>{ const L=C.filter(fl);
     return `<div class="fn-catbox fc-${cor}"><div class="fn-cath"><b>${t}</b><span class="muted small">${sub}</span><span class="sp"></span><span class="tag t-mut">${L.length}</span></div>
     <div class="tw sl-tab"><table><thead><tr><th>Categoria</th><th style="width:130px">Tipo</th><th style="width:200px">Grupo</th><th style="width:110px"></th></tr></thead><tbody>${L.map(linha).join('')||'<tr><td colspan="4" class="muted">Nenhuma categoria neste grupo.</td></tr>'}</tbody></table></div></div>`; }).join('')}`;
