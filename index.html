@@ -115,6 +115,25 @@ td.lg-obs input:hover,td.lg-obs input:focus{border-color:var(--line);background:
 #pdInicio select{height:38px}
 .selma select:disabled{opacity:.45}
 .fa-tab tr.fa-ped td{background:var(--soft);font-size:12px;color:var(--mut);padding-left:24px}
+.fn-top{align-items:center}
+.fn-seg{margin-bottom:0}
+.fn-sub{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:2px 0 12px;padding:6px;background:var(--card);border:1px solid var(--line);border-radius:10px}
+.fn-sub>button:not(.btn){border:0;background:none;padding:6px 12px;border-radius:7px;font-weight:700;font-size:13px;color:var(--mut);cursor:pointer}
+.fn-sub>button.on{background:var(--acc-soft);color:var(--acc-ink)}
+.fn-sub>button:not(.btn):not(.on):hover{color:var(--ink);background:var(--soft)}
+.fn-form{border:0;box-shadow:none;padding:8px 0 0;margin:0}
+.fn-conc td{vertical-align:middle}
+tr.fn-ok td{background:var(--ok-soft)}
+tr.fn-venc td:first-child{box-shadow:inset 3px 0 var(--bad)}
+.fn-sug{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--ok);background:var(--ok-soft);color:var(--ink);border-radius:8px;padding:3px 8px;margin:2px 6px 2px 0;font-size:12px;cursor:pointer}
+.fn-sug:hover{background:var(--ok);color:#fff}
+.fn-sug-k{font-size:10px;font-weight:800;text-transform:uppercase;color:var(--ok)}
+.fn-sug:hover .fn-sug-k,.fn-sug:hover .fn-sug-ok{color:#fff}
+.fn-sug-ok{font-weight:800;color:var(--ok)}
+.fn-acts{white-space:nowrap}
+.dre tr.dre-g td{font-weight:800;background:var(--soft)}
+.dre tr.dre-cat td:first-child{padding-left:22px;color:var(--mut)}
+.dre tr.dre-res td{font-weight:800;background:var(--acc-soft);border-top:2px solid var(--acc)}
 .btn.sm{height:30px}
 .sl-tab th{padding:6px 8px;font-size:10.5px}
 .sl-tab td{padding:3px 8px;font-size:12.5px;line-height:1.35}
@@ -282,6 +301,7 @@ td.desc{white-space:normal;min-width:220px;max-width:340px}
       <button data-v="faturar">Pedidos a faturar</button>
       <button data-v="logistica">Controle de Logística</button>
       <button data-v="relreceb">Relatórios de Recebimento</button>
+      <button data-v="financeiro">Financeiro</button>
     </nav>
     <div class="sp"></div>
     <div class="who"><button class="btn sec sm hide" id="btConfig" onclick="irPara('config')" title="Configurações: usuários e agrupamento de filiais">⚙<span class="bc-txt"> Configurações</span></button><span id="whoNome"></span><span id="whoSync"></span>
@@ -634,8 +654,8 @@ let _deb; function debRender(){ clearTimeout(_deb); _deb=setTimeout(render,180);
 function render(){
   const v=S.view; const m=document.getElementById('main');
   if(v==='semacesso'){ m.innerHTML='<div class="card muted" style="margin-top:20px">Seu usuário ainda não tem acesso a nenhuma aba. Peça ao administrador para liberar em Configurações.</div>'; return; }
-  m.innerHTML = v==='logistica'?vLogistica(): v==='relreceb'?vRelReceb(): v==='faturar'?vFaturar(): v==='config'?vConfig(): vPedidos();
-  if(v==='pedidos') ligarPedidos(); if(v==='logistica') ligarLogistica();
+  m.innerHTML = v==='financeiro'?vFinanceiro(): v==='logistica'?vLogistica(): v==='relreceb'?vRelReceb(): v==='faturar'?vFaturar(): v==='config'?vConfig(): vPedidos();
+  if(v==='pedidos') ligarPedidos(); if(v==='logistica') ligarLogistica(); if(v==='financeiro') ligarFinanceiro();
   ajustarTabelas();
 }
 /* zoom automático: encolhe a tabela para caber na largura da tela (sem rolar para os lados) */
@@ -1457,7 +1477,7 @@ function faExportar(){
 
 /* =================== CONFIGURAÇÕES (somente master) =================== */
 const CFG = { usuarios:null };
-const ABAS_NOMES = [['pedidos','Pedidos'],['faturar','Pedidos a faturar'],['logistica','Controle de Logística'],['relreceb','Relatórios de Recebimento']];
+const ABAS_NOMES = [['pedidos','Pedidos'],['faturar','Pedidos a faturar'],['logistica','Controle de Logística'],['relreceb','Relatórios de Recebimento'],['financeiro','Financeiro']];
 function vConfig(){
   if(!S.master) return '<div class="card muted">Somente o usuário master (senha YY17) acessa as Configurações.</div>';
   if(CFG.usuarios===null){ cfgCarregarUsuarios(); }
@@ -1542,6 +1562,382 @@ async function cfgPermissao(ck){ // libera/bloqueia uma aba para o usuário
   try{ const r=await api('salvarPermissoes',{login,abas}); u.abas=r.abas; toast(`${login}: ${r.abas.length?r.abas.length+' aba(s) liberada(s)':'nenhuma aba liberada'}`); }
   catch(e){ ck.checked=!ck.checked; toast('Erro: '+e.message,6000); }
 }
+
+
+/* =================== FINANCEIRO =================== */
+// Lançamentos (FIN_LANCAMENTOS): TIPO RECEBER/PAGAR · STATUS ABERTO/QUITADO · extrato bancário (FIN_EXTRATO) conciliado com os lançamentos
+const FN = { sec:'contas', sub:{contas:'conc',receb:'agendar',pagar:'agendar',rel:'areceber',config:'cats'}, conta:'', concFiltro:'pend', q:'', de:'', ate:'', cat:'', cc:'', dreCC:'', ano:new Date().getFullYear(), imp:null };
+const FIN_SECOES = [['contas','Contas e extratos'],['receb','Recebimento'],['pagar','Pagamentos'],['rel','Relatórios'],['config','Configurações']];
+const FIN_SUBS = {
+  contas:[['conc','Conciliação bancária'],['contas','Contas bancárias'],['hist','Histórico de importações']],
+  receb:[['agendar','Agendar recebimento'],['importar','Importar lançamentos']],
+  pagar:[['agendar','Agendar pagamento'],['importar','Importar lançamentos']],
+  rel:[['areceber','Contas a receber'],['apagar','Contas a pagar'],['recebidas','Contas recebidas'],['pagas','Contas pagas'],['dre','Painel de acompanhamento']],
+  config:[['cats','Categorias'],['centros','Centros de custo']]
+};
+const fin = () => { const f=(S.dados&&S.dados.fin) || {contas:[],lanc:[],extrato:[],importacoes:[],categorias:[]}; f.centros=f.centros||[]; return f; };
+const hojeISO = () => { const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
+const fnConta = id => fin().contas.find(c=>String(c.ID)===String(id));
+const fnLanc = id => fin().lanc.find(l=>String(l.ID)===String(id));
+const fnVal = v => `<span class="${v<0?'bad':'ok'}" style="font-weight:700">${fR(v)}</span>`;
+function fnSaldo(c){ return (+c.SALDO_INICIAL||0) + fin().extrato.filter(e=>String(e.CONTA_ID)===String(c.ID)).reduce((s,e)=>s+(+e.VALOR||0),0); }
+
+function vFinanceiro(){
+  if(!S.dados) return '<p class="muted">Carregando…</p>';
+  const sec=FN.sec, sub=FN.sub[sec];
+  return `<div class="slim">
+  <div class="sl-head fn-top"><h2>Financeiro</h2><span class="sp"></span>
+    <div class="seg fn-seg">${FIN_SECOES.map(([k,n])=>`<button class="${k===sec?'on':''}" onclick="FN.sec='${k}';render()">${n}</button>`).join('')}</div></div>
+  <div class="fn-sub">${FIN_SUBS[sec].map(([k,n])=>`<button class="${k===sub?'on':''}" onclick="FN.sub.${sec}='${k}';render()">${n}</button>`).join('')}
+    <span class="sp"></span>${sec==='contas'?`<button class="btn sec sm" onclick="fnModalConta()">+ Adicionar conta</button><button class="btn sm" onclick="fnEscolherExtrato()">⬆ Importar extrato (Excel)</button><input type="file" id="fnInExt" accept=".xlsx,.xls,.csv" class="hide" onchange="if(this.files[0]) fnLerExtrato(this.files[0]); this.value=''">`:''}
+    ${(sec==='receb'||sec==='pagar')?`<button class="btn sec sm" onclick="FN.sub.${sec}='importar';render()">⬆ Importar lançamentos</button>`:''}
+    ${sec==='rel'&&sub!=='dre'?`<button class="btn sec sm" onclick="fnExportar()">Excel</button>`:''}
+  </div>
+  <div id="fnCorpo">${fnCorpo()}</div></div>`;
+}
+function fnCorpo(){
+  const sec=FN.sec, sub=FN.sub[sec];
+  if(sec==='contas') return sub==='conc'?fnConciliacao(): sub==='contas'?fnContas(): fnHistorico();
+  if(sec==='receb'||sec==='pagar') return sub==='importar'?fnImportarTela(): fnAgendar(sec==='receb'?'RECEBER':'PAGAR');
+  if(sec==='config') return sub==='centros'?fnCentrosTela():fnCategoriasTela();
+  if(sub==='dre') return fnDRE();
+  return fnRelatorio(sub);
+}
+function fnAtualizar(){ const el=document.getElementById('fnCorpo'); if(!el) return; el.innerHTML=fnCorpo(); ajustarTabelas(el); }
+function ligarFinanceiro(){ fnLigarAgendar(); }
+
+/* ---------- contas bancárias ---------- */
+function fnContas(){
+  const C=fin().contas;
+  return `<div class="tw sl-tab"><table><thead><tr><th>Conta</th><th>Banco</th><th>Agência</th><th>Conta nº</th><th class="n">Saldo inicial</th><th>Data do saldo</th><th class="n">Lançamentos do extrato</th><th class="n">Saldo atual</th><th></th></tr></thead><tbody>
+  ${C.map(c=>{ const n=fin().extrato.filter(e=>String(e.CONTA_ID)===String(c.ID)).length; return `<tr><td><b>${esc(c.NOME)}</b></td><td>${esc(c.BANCO)}</td><td>${esc(c.AGENCIA)}</td><td>${esc(c.CONTA)}</td><td class="n">${fR(+c.SALDO_INICIAL||0)}</td><td>${esc(c.DATA_SALDO)}</td><td class="n">${n}</td><td class="n">${fnVal(fnSaldo(c))}</td>
+    <td class="c" style="white-space:nowrap"><button class="ib" onclick="fnModalConta('${esc(c.ID)}')">✎ Editar</button><button class="ib del" title="Excluir conta" onclick="fnExcluirConta('${esc(c.ID)}')">✕</button></td></tr>`; }).join('')||'<tr><td colspan="9" class="muted">Nenhuma conta cadastrada. Clique em "+ Adicionar conta".</td></tr>'}
+  </tbody></table></div>`;
+}
+function fnModalConta(id){
+  const c=id?fnConta(id):{}; const f=(l,html,st)=>`<label class="sf" style="${st||'flex:1 1 160px'}"><span>${l}</span>${html}</label>`;
+  modal(`<div class="mh"><h3>${id?'Editar conta':'Adicionar conta'}</h3><button class="btn ghost" onclick="fecharModal()">✕</button></div>
+  <div class="row">${f('Nome da conta',`<input id="fcNome" value="${esc(c.NOME||'')}" placeholder="Ex.: Itaú PJ Miashop">`,'flex:2 1 240px')}${f('Banco',`<input id="fcBanco" value="${esc(c.BANCO||'')}">`)}</div>
+  <div class="row" style="margin-top:10px">${f('Agência',`<input id="fcAg" value="${esc(c.AGENCIA||'')}">`)}${f('Conta',`<input id="fcCc" value="${esc(c.CONTA||'')}">`)}${f('Saldo inicial',`<input id="fcSaldo" inputmode="decimal" value="${c.SALDO_INICIAL!==undefined&&c.SALDO_INICIAL!==''?fN(+c.SALDO_INICIAL,2):''}" placeholder="0,00">`)}${f('Data do saldo',`<input type="date" id="fcData" value="${isoBR(c.DATA_SALDO)}">`)}</div>
+  <div class="row" style="margin-top:14px;justify-content:flex-end"><button class="btn" onclick="fnSalvarConta('${esc(id||'')}')">Salvar conta</button></div>`);
+  setTimeout(()=>{ const e=document.getElementById('fcNome'); if(e) e.focus(); },50);
+}
+async function fnSalvarConta(id){
+  const g=i=>document.getElementById(i).value.trim();
+  if(!g('fcNome')){ toast('Informe o nome da conta'); return; }
+  try{ const r=await api('finSalvarConta',{id,nome:g('fcNome'),banco:g('fcBanco'),agencia:g('fcAg'),conta:g('fcCc'),saldoInicial:numBR(g('fcSaldo')),dataSaldo:brISO(g('fcData'))});
+    fecharModal(); toast('Conta salva'); if(!FN.conta) FN.conta=r.id; await carregar(true); render(); }catch(e){ toast('Erro: '+e.message,6000); }
+}
+async function fnExcluirConta(id){ const c=fnConta(id); if(!confirm('Excluir a conta '+(c?c.NOME:'')+'?')) return;
+  try{ await api('finExcluirConta',{id}); toast('Conta excluída'); if(FN.conta===id) FN.conta=''; await carregar(true); render(); }catch(e){ toast('Erro: '+e.message,7000); } }
+
+/* ---------- importar extrato (Excel do banco) ---------- */
+function fnEscolherExtrato(){ if(!fin().contas.length){ toast('Cadastre uma conta antes de importar o extrato'); fnModalConta(); return; } document.getElementById('fnInExt').click(); }
+function fnNumExtrato(v){ if(typeof v==='number') return v; let t=String(v==null?'':v).trim(); if(!t) return 0; let neg=/^-|\(.*\)|\bD$|-$/.test(t.toUpperCase());
+  t=t.replace(/[R$\s()]/g,'').replace(/[CD]$/i,'').replace(/-$/,'').replace(/^-/,''); const n=numBR(t); return neg?-Math.abs(n):n; }
+async function fnLerExtrato(f){
+  try{
+    const rows=await linhasXLSX(f); const H=v=>semAcento(v).replace(/[^A-Z ]/g,' ').replace(/\s+/g,' ').trim();
+    const hi=rows.findIndex(r=>{ const h=(r||[]).map(H); return h.some(x=>/^DATA/.test(x)) && h.some(x=>/^(VALOR|CREDITO|DEBITO|ENTRADA|SAIDA)/.test(x)); });
+    if(hi<0) throw new Error('não achei o cabeçalho (precisa ter DATA e VALOR, ou CRÉDITO e DÉBITO)');
+    const h=rows[hi].map(H); const col=re=>h.findIndex(x=>re.test(x));
+    const cD=col(/^DATA/), cDesc=col(/^(DESCRICAO|HISTORICO|LANCAMENTO|DETALHE|MEMO)/), cDoc=col(/^(DOCUMENTO|DOC|N DOC|NUMERO)/), cV=col(/^VALOR/), cCr=col(/^(CREDITO|ENTRADA)/), cDb=col(/^(DEBITO|SAIDA)/);
+    const linhas=rows.slice(hi+1).map(r=>r||[]).filter(r=>r.some(c=>String(c).trim()!=='')).map(r=>{
+      let v=cV>=0?fnNumExtrato(r[cV]):(fnNumExtrato(r[cCr])||0)-Math.abs(fnNumExtrato(r[cDb])||0);
+      return {data:dataExcel(r[cD]),descricao:String(cDesc>=0?r[cDesc]:'').trim(),documento:String(cDoc>=0?r[cDoc]:'').trim().replace(/\.0+$/,''),valor:Math.round(v*100)/100}; })
+      .filter(l=>/\d{2}\/\d{2}\/\d{4}/.test(l.data) && l.valor && !/^SALDO/i.test(semAcento(l.descricao)));
+    if(!linhas.length) throw new Error('nenhuma movimentação encontrada');
+    FN.imp={arquivo:f,linhas}; fnModalExtrato();
+  }catch(e){ toast(f.name+': '+e.message,7000); }
+}
+function fnModalExtrato(){
+  const L=FN.imp.linhas, C=fin().contas; const ent=L.filter(l=>l.valor>0).reduce((s,l)=>s+l.valor,0), sai=L.filter(l=>l.valor<0).reduce((s,l)=>s+l.valor,0);
+  modal(`<div class="mh"><h3>Importar extrato · <span class="muted small">${esc(FN.imp.arquivo.name)}</span></h3><button class="btn ghost" onclick="fecharModal()">✕</button></div>
+  <div class="row" style="align-items:flex-end;margin-bottom:10px"><label class="sf" style="flex:1 1 260px"><span>Conta bancária</span><select id="fnImpConta">${C.map(c=>`<option value="${esc(c.ID)}" ${String(c.ID)===String(FN.conta)?'selected':''}>${esc(c.NOME)}${c.BANCO?' · '+esc(c.BANCO):''}</option>`).join('')}</select></label>
+    <span class="small">${L.length} movimentações · entradas <b class="ok">${fR(ent)}</b> · saídas <b class="bad">${fR(sai)}</b></span><span class="sp"></span><button class="btn" id="fnImpBt" onclick="fnConfirmarExtrato()">Importar ${L.length} linha(s)</button></div>
+  <div class="tw sl-tab" style="max-height:60vh"><table><thead><tr><th>Data</th><th>Descrição</th><th>Documento</th><th class="n">Valor</th></tr></thead><tbody>
+  ${L.map(l=>`<tr><td>${esc(l.data)}</td><td>${esc(l.descricao)}</td><td>${esc(l.documento)}</td><td class="n">${fnVal(l.valor)}</td></tr>`).join('')}</tbody></table></div>
+  <p class="small muted">Linhas iguais já importadas antes (mesma data, valor, descrição e documento) são puladas automaticamente.</p>`);
+}
+async function fnConfirmarExtrato(){
+  const bt=document.getElementById('fnImpBt'); bt.disabled=true; bt.textContent='Importando…'; const contaId=document.getElementById('fnImpConta').value;
+  try{ const d={contaId,linhas:FN.imp.linhas,arquivoNome:FN.imp.arquivo.name,arquivoMime:FN.imp.arquivo.type}; d.arquivoBase64=await b64Arquivo(FN.imp.arquivo);
+    const r=await api('finImportarExtrato',d); fecharModal(); FN.imp=null; FN.conta=contaId; FN.sec='contas'; FN.sub.contas='conc';
+    toast(`${r.importadas} linha(s) importada(s)${r.ignoradas?' · '+r.ignoradas+' já existiam':''}`,5000); await carregar(true); render(); }
+  catch(e){ bt.disabled=false; bt.textContent='Importar'; toast('Erro: '+e.message,7000); }
+}
+function fnHistorico(){
+  const I=fin().importacoes.slice().sort((a,b)=>String(b.ID).localeCompare(String(a.ID)));
+  return `<div class="tw sl-tab"><table><thead><tr><th>Importado em</th><th>Tipo</th><th>Conta</th><th>Arquivo</th><th class="n">Linhas</th><th class="n">Puladas</th><th>Período</th><th>Usuário</th><th></th></tr></thead><tbody>
+  ${I.map(i=>`<tr><td>${esc(i.CRIADO_EM)}</td><td><span class="tag ${i.TIPO==='EXTRATO'?'t-acc':'t-mut'}">${i.TIPO==='EXTRATO'?'Extrato':'Lançamentos'}</span></td><td>${esc((fnConta(i.CONTA_ID)||{}).NOME||'—')}</td><td>${i.ARQUIVO_URL?`<a href="${esc(i.ARQUIVO_URL)}" target="_blank">${esc(i.ARQUIVO)}</a>`:esc(i.ARQUIVO)}</td>
+    <td class="n">${fN(+i.QTD)}</td><td class="n">${fN(+i.IGNORADAS)}</td><td>${i.PERIODO_INI?esc(i.PERIODO_INI)+' a '+esc(i.PERIODO_FIM):'—'}</td><td>${esc(i.USUARIO)}</td>
+    <td class="c"><button class="ib del" title="Desfazer esta importação" onclick="fnExcluirImport('${esc(i.ID)}')">✕ Desfazer</button></td></tr>`).join('')||'<tr><td colspan="9" class="muted">Nenhuma importação ainda.</td></tr>'}
+  </tbody></table></div>`;
+}
+async function fnExcluirImport(id){ const i=fin().importacoes.find(x=>x.ID===id); if(!confirm(`Desfazer a importação "${i?i.ARQUIVO:''}"?\n\n${i&&i.TIPO==='EXTRATO'?'As linhas do extrato serão apagadas e os lançamentos conciliados com elas voltam a ficar em aberto.':'Os lançamentos importados por ela serão apagados.'}`)) return;
+  try{ await api('finExcluirImportacao',{id}); toast('Importação desfeita'); await carregar(true); render(); }catch(e){ toast('Erro: '+e.message,6000); } }
+
+/* ---------- conciliação bancária ---------- */
+// sugestão: lançamento em aberto do mesmo tipo com valor igual (dif. até R$ 0,01) e vencimento na data do extrato
+function fnSugestoes(e){ const tipo=(+e.VALOR)>=0?'RECEBER':'PAGAR', v=Math.abs(+e.VALOR);
+  return fin().lanc.filter(l=>l.STATUS!=='QUITADO'&&l.TIPO===tipo&&Math.abs((+l.VALOR)-v)<=0.011&&String(l.VENCIMENTO)===String(e.DATA)); }
+function fnConciliacao(){
+  const C=fin().contas; if(!C.length) return '<div class="card muted">Cadastre uma conta bancária e importe o extrato em Excel para conciliar.</div>';
+  if(!FN.conta||!fnConta(FN.conta)) FN.conta=C[0].ID;
+  const c=fnConta(FN.conta); const E=fin().extrato.filter(e=>String(e.CONTA_ID)===String(FN.conta));
+  const pend=E.filter(e=>!e.LANC_ID); const L=(FN.concFiltro==='pend'?pend:FN.concFiltro==='conc'?E.filter(e=>e.LANC_ID):E).slice().sort((a,b)=>(isoBR(a.DATA)||'').localeCompare(isoBR(b.DATA)||'')||String(a.ID).localeCompare(String(b.ID)));
+  const q=semAcento(FN.q).trim(); const LL=q?L.filter(e=>semAcento([e.DESCRICAO,e.DOCUMENTO,e.DATA,fN(Math.abs(+e.VALOR),2)].join(' ')).includes(q)):L;
+  return `<div class="sl-filtros">
+    <select style="max-width:260px" onchange="FN.conta=this.value;fnAtualizar()">${C.map(x=>`<option value="${esc(x.ID)}" ${x.ID===FN.conta?'selected':''}>${esc(x.NOME)}</option>`).join('')}</select>
+    <select style="max-width:200px" onchange="FN.concFiltro=this.value;fnAtualizar()"><option value="pend" ${FN.concFiltro==='pend'?'selected':''}>Pendentes (${pend.length})</option><option value="conc" ${FN.concFiltro==='conc'?'selected':''}>Conciliadas (${E.length-pend.length})</option><option value="todas" ${FN.concFiltro==='todas'?'selected':''}>Todas (${E.length})</option></select>
+    <input type="search" class="w-q" value="${esc(FN.q)}" placeholder="Buscar no extrato…" oninput="FN.q=this.value;clearTimeout(window._fq);window._fq=setTimeout(fnAtualizar,250)">
+    <span class="sp"></span><span class="small">Saldo da conta: ${fnVal(fnSaldo(c))}</span>
+  </div>
+  <div class="tw sl-tab"><table class="fn-conc"><thead><tr><th>Data</th><th>Descrição no extrato</th><th class="n">Valor</th><th>Conciliação</th></tr></thead><tbody>
+  ${LL.map(e=>{ const lk=e.LANC_ID, la=lk&&lk!=='IGNORADO'?fnLanc(lk):null;
+    let acao;
+    if(lk==='IGNORADO') acao=`<span class="tag t-mut">Ignorado (sem lançamento)</span> <button class="ib" onclick="fnDesconciliar('${esc(e.ID)}')">desfazer</button>`;
+    else if(lk) acao=`<span class="tag t-ok">✓ Conciliado</span> <b>${esc(la?la.NOME:'(lançamento apagado)')}</b>${la&&la.CATEGORIA?' <span class="muted small">· '+esc(la.CATEGORIA)+'</span>':''}${la&&la.NOTA_FISCAL?' <span class="muted small">· NF '+esc(la.NOTA_FISCAL)+'</span>':''} <button class="ib" onclick="fnDesconciliar('${esc(e.ID)}')">desfazer</button>`;
+    else { const sg=fnSugestoes(e);
+      acao=(sg.length?sg.slice(0,3).map(l=>`<button class="fn-sug" onclick="fnConciliar('${esc(e.ID)}','${esc(l.ID)}')" title="Conciliar com este lançamento"><span class="fn-sug-k">Sugestão</span> <b>${esc(l.NOME)}</b>${l.NOTA_FISCAL?' · NF '+esc(l.NOTA_FISCAL):''} · venc. ${esc(l.VENCIMENTO)} · ${fR(+l.VALOR)} <span class="fn-sug-ok">✓ Conciliar</span></button>`).join(''):'<span class="muted small">Sem lançamento com mesmo valor e vencimento.</span>')
+        +` <span class="fn-acts"><button class="ib" onclick="fnBuscarLanc('${esc(e.ID)}')">🔍 Buscar lançamento</button><button class="ib" onclick="fnCriarDoExtrato('${esc(e.ID)}')">+ Criar lançamento</button><button class="ib" onclick="fnIgnorar('${esc(e.ID)}')" title="Sem lançamento (ex.: transferência entre contas)">Ignorar</button></span>`; }
+    return `<tr class="${lk?'fn-ok':''}"><td>${esc(e.DATA)}</td><td style="white-space:normal;min-width:200px">${esc(e.DESCRICAO)}${e.DOCUMENTO?' <span class="muted small">· doc '+esc(e.DOCUMENTO)+'</span>':''}</td><td class="n">${fnVal(+e.VALOR)}</td><td style="white-space:normal">${acao}</td></tr>`; }).join('')
+    ||`<tr><td colspan="4" class="muted">${E.length?(FN.concFiltro==='pend'?'Tudo conciliado nesta conta. ✓':'Nada aqui.'):'Nenhum extrato importado nesta conta. Use "⬆ Importar extrato (Excel)".'}</td></tr>`}
+  </tbody></table></div>`;
+}
+async function fnConciliar(exId,lancId){ try{ await api('finConciliar',{extratoId:exId,lancId}); fecharModal(); toast('Conciliado ✓'); await carregar(true); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
+async function fnDesconciliar(exId){ if(!confirm('Desfazer esta conciliação? O lançamento volta a ficar em aberto.')) return; try{ await api('finDesconciliar',{extratoId:exId}); toast('Conciliação desfeita'); await carregar(true); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
+async function fnIgnorar(exId){ try{ await api('finConciliar',{extratoId:exId,ignorar:true}); toast('Marcado como sem lançamento'); await carregar(true); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
+function fnBuscarLanc(exId){
+  const e=fin().extrato.find(x=>x.ID===exId); const tipo=(+e.VALOR)>=0?'RECEBER':'PAGAR', v=Math.abs(+e.VALOR), d=isoBR(e.DATA);
+  const dist=l=>Math.abs((+l.VALOR)-v)/Math.max(v,1)*100+Math.abs((new Date(isoBR(l.VENCIMENTO)||d)-new Date(d))/864e5)/30;
+  const L=fin().lanc.filter(l=>l.STATUS!=='QUITADO'&&l.TIPO===tipo).sort((a,b)=>dist(a)-dist(b));
+  modal(`<div class="mh"><h3>Conciliar: ${esc(e.DATA)} · ${fnVal(+e.VALOR)}</h3><button class="btn ghost" onclick="fecharModal()">✕</button></div>
+  <p class="small muted" style="margin-top:0">${esc(e.DESCRICAO)} — escolha a conta ${tipo==='RECEBER'?'a receber':'a pagar'} em aberto (mais parecidas primeiro).</p>
+  <input type="search" placeholder="Buscar nome, NF, valor…" style="width:100%;margin-bottom:8px" oninput="const q=semAcento(this.value);document.querySelectorAll('#fnBusca tr').forEach(t=>t.style.display=semAcento(t.innerText).includes(q)?'':'none')">
+  <div class="tw sl-tab" style="max-height:55vh"><table><thead><tr><th>Vencimento</th><th>Nome</th><th>Descrição</th><th>NF</th><th>Categoria</th><th class="n">Valor</th><th></th></tr></thead><tbody id="fnBusca">
+  ${L.map(l=>`<tr><td>${esc(l.VENCIMENTO)}</td><td><b>${esc(l.NOME)}</b></td><td>${esc(l.DESCRICAO)}</td><td>${esc(l.NOTA_FISCAL)}</td><td>${esc(l.CATEGORIA)}</td><td class="n">${fR(+l.VALOR)}${Math.abs((+l.VALOR)-v)>0.011?' <span class="warn small">≠</span>':''}</td><td><button class="btn sm" onclick="fnConciliar('${esc(exId)}','${esc(l.ID)}')">Conciliar</button></td></tr>`).join('')||'<tr><td colspan="7" class="muted">Nenhuma conta em aberto deste tipo.</td></tr>'}
+  </tbody></table></div>`);
+}
+function fnCriarDoExtrato(exId){
+  const e=fin().extrato.find(x=>x.ID===exId); const tipo=(+e.VALOR)>=0?'RECEBER':'PAGAR';
+  fnModalLanc(null,tipo,{VENCIMENTO:e.DATA,NOME:e.DESCRICAO,VALOR:Math.abs(+e.VALOR)},exId);
+}
+
+/* ---------- agendar recebimento / pagamento ---------- */
+function fnCats(tipo){ const t=tipo==='RECEBER'?'RECEITA':'DESPESA'; return fin().categorias.filter(c=>!tipo||c.TIPO===t).map(c=>c.NOME).sort((a,b)=>a.localeCompare(b,'pt-BR')); }
+function fnCentros(){ return fin().centros.map(c=>String(c.NOME||'').trim()).filter(Boolean).sort((a,b)=>a.localeCompare(b,'pt-BR')); }
+function fnNomes(tipo){ return [...new Set(fin().lanc.filter(l=>!tipo||l.TIPO===tipo).map(l=>String(l.NOME||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR')); }
+function fnFormLanc(pfx,tipo,l){ l=l||{}; const f=(lb,html,st)=>`<label class="sf" style="${st}"><span>${lb}</span>${html}</label>`;
+  return `<div class="sl-form fn-form">
+    ${f('Data vencimento',`<input type="date" id="${pfx}Venc" value="${isoBR(l.VENCIMENTO)||''}">`,'flex:0 0 140px')}
+    ${f('Nome',`<input id="${pfx}Nome" list="dlFnNome${tipo}" value="${esc(l.NOME||'')}" placeholder="${tipo==='RECEBER'?'Cliente / origem':'Fornecedor / favorecido'}">`,'flex:2 1 180px')}
+    ${f('Descrição',`<input id="${pfx}Desc" value="${esc(l.DESCRICAO||'')}">`,'flex:2 1 180px')}
+    ${f('Nota fiscal',`<input id="${pfx}NF" value="${esc(l.NOTA_FISCAL||'')}">`,'flex:0 0 100px')}
+    ${f('Categoria',`<input id="${pfx}Cat" list="dlFnCat${tipo}" value="${esc(l.CATEGORIA||'')}" placeholder="Escolha ou digite">`,'flex:1.5 1 160px')}
+    ${f('Centro de custo',`<input id="${pfx}CC" list="dlFnCC" value="${esc(l.CENTRO_CUSTO||'')}" placeholder="Escolha ou digite">`,'flex:1.2 1 140px')}
+    ${f('Valor',`<input id="${pfx}Valor" inputmode="decimal" value="${l.VALOR?fN(+l.VALOR,2):''}" placeholder="0,00">`,'flex:0 0 110px')}
+  </div><datalist id="dlFnNome${tipo}">${fnNomes(tipo).map(n=>`<option value="${esc(n)}">`).join('')}</datalist><datalist id="dlFnCat${tipo}">${fnCats(tipo).map(n=>`<option value="${esc(n)}">`).join('')}</datalist><datalist id="dlFnCC">${fnCentros().map(n=>`<option value="${esc(n)}">`).join('')}</datalist>`;
+}
+function fnLerLanc(pfx,tipo){ const g=i=>document.getElementById(pfx+i).value.trim();
+  return {tipo,vencimento:brISO(g('Venc')),nome:g('Nome'),descricao:g('Desc'),notaFiscal:g('NF'),categoria:g('Cat'),centroCusto:g('CC'),valor:numBR(g('Valor'))}; }
+function fnValidar(d){ if(!d.vencimento) return 'Informe a data de vencimento'; if(!d.nome) return 'Informe o nome'; if(!d.valor) return 'Informe o valor'; return ''; }
+function fnAgendar(tipo){
+  const rot=tipo==='RECEBER'?'recebimento':'pagamento';
+  const prox=fin().lanc.filter(l=>l.TIPO===tipo&&l.STATUS!=='QUITADO').sort((a,b)=>(isoBR(a.VENCIMENTO)||'').localeCompare(isoBR(b.VENCIMENTO)||''));
+  return `<div class="card" style="margin-bottom:12px;padding:12px">
+    <b>Agendar ${rot}</b>${fnFormLanc('fa',tipo)}
+    <div class="row" style="justify-content:flex-end;margin-top:4px"><button class="btn" id="fnAgBt" onclick="fnAgendarSalvar('${tipo}')">+ Agendar ${rot}</button></div></div>
+  <h3 class="rr-h">${tipo==='RECEBER'?'Contas a receber':'Contas a pagar'} em aberto <span class="muted small">— ${prox.length} lançamento(s) · ${fR(prox.reduce((s,l)=>s+(+l.VALOR||0),0))}</span></h3>
+  ${fnTabelaLanc(prox,false)}`;
+}
+function fnLigarAgendar(){ const v=document.getElementById('faValor'); if(v) v.onkeydown=e=>{ if(e.key==='Enter') document.getElementById('fnAgBt').click(); }; }
+async function fnAgendarSalvar(tipo){
+  const d=fnLerLanc('fa',tipo); const err=fnValidar(d); if(err){ toast(err); return; }
+  const bt=document.getElementById('fnAgBt'); bt.disabled=true;
+  try{ await api('finSalvarLanc',d); toast((tipo==='RECEBER'?'Recebimento':'Pagamento')+' agendado ✓'); await carregar(true); render(); setTimeout(()=>{ const e=document.getElementById('faVenc'); if(e) e.focus(); },50); }
+  catch(e){ bt.disabled=false; toast('Erro: '+e.message,6000); }
+}
+function fnModalLanc(id,tipo,pre,exId){ // editar lançamento, ou criar a partir de uma linha do extrato (exId)
+  const l=id?fnLanc(id):(pre||{}); tipo=id?l.TIPO:tipo;
+  modal(`<div class="mh"><h3>${exId?'Criar lançamento e conciliar':'Editar lançamento'} · ${tipo==='RECEBER'?'a receber':'a pagar'}</h3><button class="btn ghost" onclick="fecharModal()">✕</button></div>
+  ${fnFormLanc('fm',tipo,l)}
+  ${id&&l.STATUS==='QUITADO'?`<p class="small muted">${tipo==='RECEBER'?'Recebido':'Pago'} em ${esc(l.DATA_PAGAMENTO)} · ${fR(+l.VALOR_PAGO)}${l.CONTA_ID&&fnConta(l.CONTA_ID)?' · '+esc(fnConta(l.CONTA_ID).NOME):''}</p>`:''}
+  <div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn" onclick="fnSalvarModal('${esc(id||'')}','${tipo}','${esc(exId||'')}')">${exId?'Criar e conciliar':'Salvar'}</button></div>`);
+}
+async function fnSalvarModal(id,tipo,exId){
+  const d=fnLerLanc('fm',tipo); const err=fnValidar(d); if(err){ toast(err); return; }
+  try{ if(exId) await api('finConciliar',{extratoId:exId,novo:d}); else { d.id=id; const l=fnLanc(id); if(l&&l.STATUS==='QUITADO'){ d.quitado=true; d.dataPagamento=l.DATA_PAGAMENTO; d.valorPago=l.VALOR_PAGO; d.contaId=l.CONTA_ID; } await api('finSalvarLanc',d); }
+    fecharModal(); toast(exId?'Lançamento criado e conciliado ✓':'Lançamento salvo'); await carregar(true); render(); }catch(e){ toast('Erro: '+e.message,6000); }
+}
+async function fnExcluirLanc(id){ const l=fnLanc(id); if(!confirm(`Excluir ${l.NOME} · ${fR(+l.VALOR)}?${l.STATUS==='QUITADO'?'\n\nSe estiver conciliado, a linha do extrato volta a ficar pendente.':''}`)) return;
+  try{ await api('finExcluirLanc',{id}); toast('Lançamento excluído'); await carregar(true); render(); }catch(e){ toast('Erro: '+e.message,6000); } }
+function fnModalBaixa(id){ const l=fnLanc(id); const C=fin().contas;
+  modal(`<div class="mh"><h3>${l.TIPO==='RECEBER'?'Receber':'Pagar'} · ${esc(l.NOME)}</h3><button class="btn ghost" onclick="fecharModal()">✕</button></div>
+  <div class="row"><label class="sf" style="flex:0 0 150px"><span>Data</span><input type="date" id="fbData" value="${hojeISO()}"></label><label class="sf" style="flex:0 0 130px"><span>Valor</span><input id="fbValor" value="${fN(+l.VALOR,2)}"></label>
+  <label class="sf" style="flex:1 1 200px"><span>Conta</span><select id="fbConta"><option value="">—</option>${C.map(c=>`<option value="${esc(c.ID)}">${esc(c.NOME)}</option>`).join('')}</select></label></div>
+  <p class="small muted">Use quando não houver extrato para conciliar. Com extrato, prefira a Conciliação bancária.</p>
+  <div class="row" style="justify-content:flex-end"><button class="btn" onclick="fnBaixar('${esc(id)}')">Confirmar ${l.TIPO==='RECEBER'?'recebimento':'pagamento'}</button></div>`); }
+async function fnBaixar(id){ const g=i=>document.getElementById(i).value;
+  try{ await api('finBaixar',{id,data:brISO(g('fbData')),valor:numBR(g('fbValor')),contaId:g('fbConta')}); fecharModal(); toast('Baixa registrada ✓'); await carregar(true); render(); }catch(e){ toast('Erro: '+e.message,6000); } }
+async function fnEstornar(id){ if(!confirm('Estornar? O lançamento volta a ficar em aberto (e sai da conciliação).')) return;
+  try{ await api('finEstornar',{id}); toast('Estornado'); await carregar(true); render(); }catch(e){ toast('Erro: '+e.message,6000); } }
+function fnTabelaLanc(L,quitadas){
+  const hoje=hojeISO(); const tot=L.reduce((s,l)=>s+(+(quitadas?l.VALOR_PAGO:l.VALOR)||0),0);
+  return `<div class="tw sl-tab"><table><thead><tr><th>${quitadas?'Pago/recebido em':'Vencimento'}</th>${quitadas?'<th>Vencimento</th>':''}<th>Nome</th><th>Descrição</th><th>NF</th><th>Categoria</th><th>Centro de custo</th><th class="n">Valor</th>${quitadas?'<th>Conta</th>':''}<th></th></tr></thead><tbody>
+  ${L.map(l=>{ const venc=!quitadas&&isoBR(l.VENCIMENTO)&&isoBR(l.VENCIMENTO)<hoje;
+    return `<tr class="${venc?'fn-venc':''}"><td>${esc(quitadas?l.DATA_PAGAMENTO:l.VENCIMENTO)}${venc?' <span class="tag t-bad">vencido</span>':''}</td>${quitadas?`<td class="muted">${esc(l.VENCIMENTO)}</td>`:''}<td><b>${esc(l.NOME)}</b></td><td style="white-space:normal">${esc(l.DESCRICAO)}</td><td>${esc(l.NOTA_FISCAL)}</td><td>${esc(l.CATEGORIA)||'<span class="muted">—</span>'}</td><td>${esc(l.CENTRO_CUSTO)||'<span class="muted">—</span>'}</td>
+    <td class="n"><b>${fR(+(quitadas?l.VALOR_PAGO:l.VALOR))}</b></td>${quitadas?`<td>${esc((fnConta(l.CONTA_ID)||{}).NOME||'—')}${l.EXTRATO_ID?' <span class="tag t-ok" title="Conciliado com o extrato">✓</span>':''}</td>`:''}
+    <td class="c" style="white-space:nowrap">${quitadas?`<button class="ib" onclick="fnEstornar('${esc(l.ID)}')">Estornar</button>`:`<button class="ib" onclick="fnModalBaixa('${esc(l.ID)}')">✓ ${l.TIPO==='RECEBER'?'Receber':'Pagar'}</button>`}<button class="ib" onclick="fnModalLanc('${esc(l.ID)}')">✎</button><button class="ib del" onclick="fnExcluirLanc('${esc(l.ID)}')">✕</button></td></tr>`; }).join('')
+    ||`<tr><td colspan="10" class="muted">Nenhum lançamento.</td></tr>`}</tbody>
+  <tfoot><tr><td colspan="${quitadas?7:6}">TOTAL · ${L.length} lançamento(s)</td><td class="n">${fR(tot)}</td><td colspan="${quitadas?2:1}"></td></tr></tfoot></table></div>`;
+}
+
+/* ---------- importar lançamentos (Excel) ---------- */
+// colunas: DATA VENCIMENTO | NOME | DESCRIÇÃO | NOTA FISCAL | CATEGORIA | VALOR (opcional: DATA PAGAMENTO)
+function fnImportarTela(){
+  const sit=FN.impSit||(FN.sec==='receb'?'areceber':'apagar');
+  const ops=[['apagar','Contas a pagar'],['pagas','Contas pagas'],['areceber','Contas a receber'],['recebidas','Contas recebidas']];
+  return `<div class="card" style="padding:14px">
+    <b>Importar lançamentos por planilha Excel</b>
+    <p class="small muted" style="margin:4px 0 10px">Colunas (uma informação em cada): <b>DATA VENCIMENTO · NOME · DESCRIÇÃO · NOTA FISCAL · CATEGORIA · CENTRO DE CUSTO · VALOR</b>. Para contas pagas/recebidas pode ter também <b>DATA PAGAMENTO</b> (sem ela, usa o vencimento).</p>
+    <div class="row" style="align-items:flex-end"><label class="sf" style="flex:0 0 240px"><span>Os lançamentos da planilha são</span><select id="fnImpSit" onchange="FN.impSit=this.value">${ops.map(([k,n])=>`<option value="${k}" ${k===sit?'selected':''}>${n}</option>`).join('')}</select></label>
+      <button class="btn" onclick="document.getElementById('fnInLanc').click()">⬆ Escolher planilha</button><input type="file" id="fnInLanc" accept=".xlsx,.xls,.csv" class="hide" onchange="if(this.files[0]) fnLerLancPlanilha(this.files[0]); this.value=''">
+      <button class="btn ghost" onclick="fnModeloLanc()">Baixar modelo</button></div>
+  </div>`;
+}
+function fnModeloLanc(){ const ws=XLSX.utils.aoa_to_sheet([['DATA VENCIMENTO','NOME','DESCRIÇÃO','NOTA FISCAL','CATEGORIA','CENTRO DE CUSTO','VALOR','DATA PAGAMENTO'],['10/12/2026','CLINK','Pedido Natal 1/3','9080','Fornecedores / mercadorias','Lojas',4666.67,''],['15/12/2026','Getnet','Vendas cartão loja Londrina','','Vendas lojas','Londrina',3200.5,'']]);
+  ws['!cols']=[{wch:16},{wch:22},{wch:28},{wch:12},{wch:26},{wch:18},{wch:12},{wch:16}]; const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Lançamentos'); XLSX.writeFile(wb,'modelo-lancamentos-financeiro.xlsx'); }
+async function fnLerLancPlanilha(f){
+  try{
+    const sit=document.getElementById('fnImpSit').value; FN.impSit=sit; const tipo=(sit==='areceber'||sit==='recebidas')?'RECEBER':'PAGAR', quit=(sit==='pagas'||sit==='recebidas');
+    const rows=await linhasXLSX(f); const H=v=>semAcento(v).replace(/[^A-Z ]/g,' ').replace(/\s+/g,' ').trim();
+    const hi=rows.findIndex(r=>(r||[]).map(H).some(x=>x==='NOME'||/^(FORNECEDOR|CLIENTE|FAVORECIDO)$/.test(x))); if(hi<0) throw new Error('não achei a coluna NOME');
+    const h=rows[hi].map(H); const col=re=>h.findIndex(x=>re.test(x));
+    const C={venc:col(/^(DATA (DE )?VENCIMENTO|VENCIMENTO|DATA)$/),nome:col(/^(NOME|FORNECEDOR|CLIENTE|FAVORECIDO)$/),desc:col(/^(DESCRICAO|HISTORICO)/),nf:col(/^(NOTA FISCAL|NF|N NF)$/),cat:col(/^CATEGORIA/),cc:col(/^(CENTRO( DE)? CUSTO|CC)$/),val:col(/^VALOR/),pag:col(/^DATA (DE )?(PAGAMENTO|RECEBIMENTO|BAIXA)/)};
+    if(C.venc<0||C.val<0) throw new Error('precisa das colunas DATA VENCIMENTO e VALOR');
+    const g=(r,i)=>i>=0?r[i]:'';
+    const L=rows.slice(hi+1).map((r,k)=>({r:r||[],linha:hi+2+k})).filter(x=>x.r.some(c=>String(c).trim()!=='')).map(({r,linha})=>{
+      const v=g(r,C.val); const d={linha,tipo,vencimento:dataExcel(g(r,C.venc)),nome:String(g(r,C.nome)).trim(),descricao:String(g(r,C.desc)).trim(),notaFiscal:String(g(r,C.nf)).trim().replace(/\.0+$/,''),categoria:String(g(r,C.cat)).trim(),centroCusto:String(g(r,C.cc)).trim(),valor:Math.abs(typeof v==='number'?v:numBR(String(v).replace(/[R$\s]/g,'')))};
+      if(quit){ d.quitado=true; d.dataPagamento=dataExcel(g(r,C.pag))||d.vencimento; }
+      const erros=[]; if(!/\d{2}\/\d{2}\/\d{4}/.test(d.vencimento)) erros.push('sem data'); if(!d.nome) erros.push('sem nome'); if(!d.valor) erros.push('sem valor');
+      return {d,erros}; });
+    if(!L.length) throw new Error('nenhuma linha com dados');
+    FN.impL={arquivo:f,linhas:L,sit}; fnModalImpLanc();
+  }catch(e){ toast(f.name+': '+e.message,7000); }
+}
+function fnModalImpLanc(){
+  const {linhas:L,sit,arquivo}=FN.impL; const ok=L.filter(x=>!x.erros.length); const nomes={apagar:'contas a pagar',pagas:'contas pagas',areceber:'contas a receber',recebidas:'contas recebidas'};
+  const cats=new Set(fin().categorias.map(c=>up(c.NOME))); const novas=[...new Set(ok.map(x=>x.d.categoria).filter(c=>c&&!cats.has(up(c))))];
+  modal(`<div class="mh"><h3>Importar ${nomes[sit]} · <span class="muted small">${esc(arquivo.name)}</span></h3><button class="btn ghost" onclick="fecharModal()">✕</button></div>
+  <div class="row" style="margin-bottom:10px;align-items:center"><span class="small"><b>${ok.length}</b> de ${L.length} linha(s) · ${fR(ok.reduce((s,x)=>s+x.d.valor,0))}</span>
+    ${L.length>ok.length?`<span class="tag t-bad">${L.length-ok.length} com erro (não entram)</span>`:''}${novas.length?`<span class="tag t-warn" title="${esc(novas.join(', '))}">${novas.length} categoria(s) nova(s) serão criadas</span>`:''}
+    <span class="sp"></span><button class="btn" id="fnImpLBt" onclick="fnConfirmarImpLanc()" ${ok.length?'':'disabled'}>Importar ${ok.length} lançamento(s)</button></div>
+  <div class="tw sl-tab" style="max-height:60vh"><table><thead><tr><th>Lin.</th><th>Vencimento</th>${sit==='pagas'||sit==='recebidas'?'<th>Pago em</th>':''}<th>Nome</th><th>Descrição</th><th>NF</th><th>Categoria</th><th>Centro de custo</th><th class="n">Valor</th><th>Situação</th></tr></thead><tbody>
+  ${L.map(({d,erros})=>`<tr style="${erros.length?'opacity:.55':''}"><td class="muted">${d.linha}</td><td>${esc(d.vencimento)}</td>${d.quitado?`<td>${esc(d.dataPagamento)}</td>`:''}<td><b>${esc(d.nome)}</b></td><td>${esc(d.descricao)}</td><td>${esc(d.notaFiscal)}</td><td>${esc(d.categoria)}</td><td>${esc(d.centroCusto)}</td><td class="n">${fR(d.valor)}</td><td>${erros.length?`<span class="tag t-bad">${esc(erros.join(', '))}</span>`:'<span class="tag t-ok">ok</span>'}</td></tr>`).join('')}
+  </tbody></table></div>`);
+}
+async function fnConfirmarImpLanc(){
+  const bt=document.getElementById('fnImpLBt'); bt.disabled=true; bt.textContent='Importando…';
+  try{ const r=await api('finImportarLanc',{arquivoNome:FN.impL.arquivo.name,lista:FN.impL.linhas.filter(x=>!x.erros.length).map(x=>x.d)}); fecharModal();
+    const sit=FN.impL.sit; FN.impL=null; FN.sec='rel'; FN.sub.rel=sit; toast(`${r.importados} lançamento(s) importado(s)`+(r.erros.length?' · '+r.erros.length+' com erro':''),5000); await carregar(true); render(); }
+  catch(e){ bt.disabled=false; bt.textContent='Importar'; toast('Erro: '+e.message,7000); }
+}
+
+/* ---------- relatórios ---------- */
+function fnFiltrados(sub){
+  const quit=(sub==='pagas'||sub==='recebidas'), tipo=(sub==='areceber'||sub==='recebidas')?'RECEBER':'PAGAR'; const q=semAcento(FN.q).trim();
+  return fin().lanc.filter(l=>l.TIPO===tipo&&(quit?l.STATUS==='QUITADO':l.STATUS!=='QUITADO')).filter(l=>{
+    const d=isoBR(quit?l.DATA_PAGAMENTO:l.VENCIMENTO); if(FN.de&&(!d||d<FN.de)) return false; if(FN.ate&&(!d||d>FN.ate)) return false;
+    if(FN.cat&&up(l.CATEGORIA)!==up(FN.cat)) return false;
+    if(FN.cc&&up(l.CENTRO_CUSTO)!==up(FN.cc)) return false;
+    if(q&&!semAcento([l.NOME,l.DESCRICAO,l.NOTA_FISCAL,l.CATEGORIA,l.CENTRO_CUSTO,fN(+l.VALOR,2)].join(' ')).includes(q)) return false; return true; })
+    .sort((a,b)=>(isoBR(quit?a.DATA_PAGAMENTO:a.VENCIMENTO)||'').localeCompare(isoBR(quit?b.DATA_PAGAMENTO:b.VENCIMENTO)||'')*(quit?-1:1));
+}
+function fnRelatorio(sub){
+  const quit=(sub==='pagas'||sub==='recebidas'), tipo=(sub==='areceber'||sub==='recebidas')?'RECEBER':'PAGAR';
+  const L=fnFiltrados(sub); const hoje=hojeISO(); const vencidos=quit?[]:L.filter(l=>isoBR(l.VENCIMENTO)&&isoBR(l.VENCIMENTO)<hoje);
+  return `<div class="sl-filtros">
+    <input type="search" class="w-q" value="${esc(FN.q)}" placeholder="Buscar nome, descrição, NF, valor…" oninput="FN.q=this.value;clearTimeout(window._fq);window._fq=setTimeout(fnAtualizar,250)">
+    <span class="muted small">${quit?(tipo==='RECEBER'?'recebido':'pago'):'vencimento'} de</span><input type="date" value="${FN.de}" onchange="FN.de=this.value;fnAtualizar()"><span class="muted small">a</span><input type="date" value="${FN.ate}" onchange="FN.ate=this.value;fnAtualizar()">
+    <select onchange="FN.cat=this.value;fnAtualizar()" style="max-width:220px"><option value="">Categoria: todas</option>${fnCats(tipo).map(c=>`<option ${c===FN.cat?'selected':''}>${esc(c)}</option>`).join('')}</select>
+    <select onchange="FN.cc=this.value;fnAtualizar()" style="max-width:200px"><option value="">Centro de custo: todos</option>${fnCentros().map(c=>`<option ${c===FN.cc?'selected':''}>${esc(c)}</option>`).join('')}</select>
+    <button class="btn ghost sm" onclick="FN.q='';FN.de='';FN.ate='';FN.cat='';FN.cc='';fnAtualizar()">limpar</button>
+    ${vencidos.length?`<span class="tag t-bad">${vencidos.length} vencido(s) · ${fR(vencidos.reduce((s,l)=>s+(+l.VALOR||0),0))}</span>`:''}
+  </div>${fnTabelaLanc(L,quit)}`;
+}
+function fnExportar(){ const sub=FN.sub.rel, quit=(sub==='pagas'||sub==='recebidas');
+  const rows=fnFiltrados(sub).map(l=>({'Vencimento':l.VENCIMENTO,'Pago/recebido em':l.DATA_PAGAMENTO||'','Nome':l.NOME,'Descrição':l.DESCRICAO,'Nota fiscal':l.NOTA_FISCAL,'Categoria':l.CATEGORIA,'Centro de custo':l.CENTRO_CUSTO||'','Valor':+l.VALOR,'Valor pago':quit?+l.VALOR_PAGO:'','Conta':(fnConta(l.CONTA_ID)||{}).NOME||'','Conciliado':l.EXTRATO_ID?'SIM':''}));
+  const ws=XLSX.utils.json_to_sheet(rows); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Relatório'); XLSX.writeFile(wb,'financeiro-'+sub+'-'+hojeBR().replace(/\//g,'-')+'.xlsx'); }
+
+/* ---------- painel de acompanhamento (DRE) ---------- */
+// Realizado = contas pagas/recebidas pela data de pagamento · Agendado = contas em aberto pelo vencimento
+// A Receitas operacionais · B Despesas operacionais · C Resultado não operacional · D = A − B + C
+function fnDRE(){
+  const ano=FN.ano; const meses=Array.from({length:12},(_,k)=>ano+'-'+String(k+1).padStart(2,'0'));
+  const anos=new Set([new Date().getFullYear()]); fin().lanc.forEach(l=>{ [l.VENCIMENTO,l.DATA_PAGAMENTO].forEach(d=>{ const i=isoBR(d); if(i) anos.add(+i.slice(0,4)); }); });
+  return `<div class="sl-filtros"><select onchange="FN.ano=+this.value;fnAtualizar()">${[...anos].sort((a,b)=>b-a).map(a=>`<option ${a===ano?'selected':''}>${a}</option>`).join('')}</select>
+    <select onchange="FN.dreCC=this.value;fnAtualizar()" style="max-width:220px"><option value="">Centro de custo: todos</option>${fnCentros().map(c=>`<option ${c===FN.dreCC?'selected':''}>${esc(c)}</option>`).join('')}</select>
+    <span class="muted small">Categorias e grupos (operacional / não operacional) ficam em</span><button class="btn ghost sm" onclick="FN.sec='config';FN.sub.config='cats';render()">⚙ Configurações</button></div>
+  <h3 class="rr-h">DRE · Realizado <span class="muted small">— contas pagas e recebidas, pela data do pagamento</span></h3>${fnTabelaDRE(meses,true)}
+  <h3 class="rr-h">DRE · Agendado <span class="muted small">— contas a pagar e a receber em aberto, pelo vencimento</span></h3>${fnTabelaDRE(meses,false)}`;
+}
+function fnTabelaDRE(meses,realizado){
+  const catInfo={}; fin().categorias.forEach(c=>catInfo[up(c.NOME)]=c);
+  const grupos={A:{},B:{},CR:{},CD:{}};
+  fin().lanc.filter(l=>(realizado?l.STATUS==='QUITADO':l.STATUS!=='QUITADO')&&(!FN.dreCC||up(l.CENTRO_CUSTO)===up(FN.dreCC))).forEach(l=>{
+    const d=isoBR(realizado?l.DATA_PAGAMENTO:l.VENCIMENTO); if(!d) return; const m=d.slice(0,7); if(!meses.includes(m)) return;
+    const v=+(realizado?l.VALOR_PAGO:l.VALOR)||0; const nome=String(l.CATEGORIA||'').trim()||'Sem categoria'; const c=catInfo[up(nome)];
+    const nao=c&&c.GRUPO==='NAO_OPERACIONAL'; const g=l.TIPO==='RECEBER'?(nao?'CR':'A'):(nao?'CD':'B');
+    const o=grupos[g][nome]||(grupos[g][nome]={}); o[m]=(o[m]||0)+v; });
+  const soma=g=>{ const t={}; Object.values(grupos[g]).forEach(o=>meses.forEach(m=>t[m]=(t[m]||0)+(o[m]||0))); return t; };
+  const A=soma('A'),B=soma('B'),CR=soma('CR'),CD=soma('CD'); const C={},D={}; meses.forEach(m=>{ C[m]=(CR[m]||0)-(CD[m]||0); D[m]=(A[m]||0)-(B[m]||0)+C[m]; });
+  const tot=o=>meses.reduce((s,m)=>s+(o[m]||0),0);
+  const cel=(v,neg)=>{ v=v||0; return v?`<span class="${neg?'bad':''}">${fR(neg?-v:v)}</span>`:'<span class="muted">—</span>'; };
+  const linhaGrupo=(rot,o,cls,neg)=>`<tr class="${cls}"><td>${rot}</td>${meses.map(m=>`<td class="n">${cel(o[m],neg)}</td>`).join('')}<td class="n">${cel(tot(o),neg)}</td></tr>`;
+  const linhasCat=(g,neg)=>Object.keys(grupos[g]).sort((a,b)=>a.localeCompare(b,'pt-BR')).map(n=>`<tr class="dre-cat"><td>${esc(n)}</td>${meses.map(m=>`<td class="n">${cel(grupos[g][n][m],neg)}</td>`).join('')}<td class="n">${cel(tot(grupos[g][n]),neg)}</td></tr>`).join('');
+  const res=o=>`<tr class="dre-res"><td>D · RESULTADO (A − B + C)</td>${meses.map(m=>`<td class="n"><span class="${(o[m]||0)<0?'bad':'ok'}">${fR(o[m]||0)}</span></td>`).join('')}<td class="n"><span class="${tot(o)<0?'bad':'ok'}">${fR(tot(o))}</span></td></tr>`;
+  return `<div class="tw sl-tab rr-mat dre"><table><thead><tr><th></th>${meses.map(m=>`<th class="n">${rrMesNome(m)}</th>`).join('')}<th class="n">Total</th></tr></thead><tbody>
+    ${linhaGrupo('A · RECEITAS OPERACIONAIS',A,'dre-g')}${linhasCat('A')}
+    ${linhaGrupo('B · DESPESAS OPERACIONAIS',B,'dre-g',true)}${linhasCat('B',true)}
+    ${linhaGrupo('C · RESULTADO NÃO OPERACIONAL',C,'dre-g')}${linhasCat('CR')}${linhasCat('CD',true)}
+    ${res(D)}</tbody></table></div>`;
+}
+/* ---------- configurações: categorias e centros de custo ---------- */
+function fnCategoriasTela(){
+  const C=fin().categorias.slice().sort((a,b)=>(a.TIPO+a.NOME).localeCompare(b.TIPO+b.NOME,'pt-BR'));
+  const uso=n=>fin().lanc.filter(l=>up(l.CATEGORIA)===up(n)).length;
+  const linha=c=>`<tr><td><input class="lgi" value="${esc(c.NOME)}" data-antigo="${esc(c.NOME)}" data-c="nome"></td><td><select data-c="tipo"><option value="RECEITA" ${c.TIPO==='RECEITA'?'selected':''}>Receita</option><option value="DESPESA" ${c.TIPO!=='RECEITA'?'selected':''}>Despesa</option></select></td><td><select data-c="grupo"><option value="OPERACIONAL" ${c.GRUPO!=='NAO_OPERACIONAL'?'selected':''}>Operacional</option><option value="NAO_OPERACIONAL" ${c.GRUPO==='NAO_OPERACIONAL'?'selected':''}>Não operacional</option></select></td><td class="n muted">${uso(c.NOME)}</td>
+    <td class="c" style="white-space:nowrap"><button class="ib" onclick="fnSalvarCat(this)">Salvar</button><button class="ib del" onclick="fnExcluirCat(this)">✕</button></td></tr>`;
+  return `<div class="card" style="padding:12px;margin-bottom:12px"><b>Nova categoria</b>
+    <div class="row" style="align-items:flex-end;margin-top:8px" id="fnCatNova"><label class="sf" style="flex:2 1 220px"><span>Nome</span><input data-c="nome" data-antigo="" placeholder="Ex.: Marketing"></label>
+    <label class="sf" style="flex:0 0 140px"><span>Tipo</span><select data-c="tipo"><option value="DESPESA">Despesa</option><option value="RECEITA">Receita</option></select></label>
+    <label class="sf" style="flex:0 0 170px"><span>Grupo no DRE</span><select data-c="grupo"><option value="OPERACIONAL">Operacional</option><option value="NAO_OPERACIONAL">Não operacional</option></select></label>
+    <button class="btn" onclick="fnSalvarCat(this)">+ Criar categoria</button></div></div>
+  <p class="small muted">Receitas e despesas operacionais formam A e B do DRE; as não operacionais entram em C. Renomear atualiza todos os lançamentos da categoria.</p>
+  <div class="tw sl-tab"><table><thead><tr><th>Categoria</th><th>Tipo</th><th>Grupo</th><th class="n">Lançamentos</th><th></th></tr></thead><tbody>${C.map(linha).join('')||'<tr><td colspan="5" class="muted">Nenhuma categoria.</td></tr>'}</tbody></table></div>`;
+}
+async function fnSalvarCat(bt){ const tr=bt.closest('tr')||bt.closest('#fnCatNova'); const g=c=>tr.querySelector(`[data-c=${c}]`); const nome=g('nome').value.trim(); if(!nome){ toast('Informe o nome'); return; }
+  try{ await api('finSalvarCategoria',{nome,antigo:g('nome').dataset.antigo||nome,tipo:g('tipo').value,grupo:g('grupo').value}); toast('Categoria salva'); await carregar(true); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
+async function fnExcluirCat(bt){ const n=bt.closest('tr').querySelector('[data-c=nome]').dataset.antigo; if(!confirm('Excluir a categoria '+n+'? Os lançamentos continuam com esse nome.')) return;
+  try{ await api('finExcluirCategoria',{nome:n}); await carregar(true); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
+function fnCentrosTela(){
+  const C=fnCentros(); const uso=n=>fin().lanc.filter(l=>up(l.CENTRO_CUSTO)===up(n));
+  return `<div class="card" style="padding:12px;margin-bottom:12px"><b>Novo centro de custo</b>
+    <div class="row" style="align-items:flex-end;margin-top:8px"><label class="sf" style="flex:1 1 280px"><span>Nome</span><input id="fnCCNovo" placeholder="Ex.: Loja Londrina, E-commerce, Administrativo" onkeydown="if(event.key==='Enter') fnSalvarCC('')"></label>
+    <button class="btn" onclick="fnSalvarCC('')">+ Criar centro de custo</button></div></div>
+  <div class="tw sl-tab"><table><thead><tr><th>Centro de custo</th><th class="n">Lançamentos</th><th class="n">A receber/recebido</th><th class="n">A pagar/pago</th><th></th></tr></thead><tbody>
+  ${C.map(n=>{ const L=uso(n); const sm=t=>L.filter(l=>l.TIPO===t).reduce((s,l)=>s+(+l.VALOR||0),0);
+    return `<tr><td><input class="lgi" value="${esc(n)}" data-antigo="${esc(n)}"></td><td class="n muted">${L.length}</td><td class="n">${fR(sm('RECEBER'))}</td><td class="n">${fR(sm('PAGAR'))}</td>
+    <td class="c" style="white-space:nowrap"><button class="ib" onclick="fnSalvarCC(this)">Salvar</button><button class="ib del" onclick="fnExcluirCC(this)">✕</button></td></tr>`; }).join('')||'<tr><td colspan="5" class="muted">Nenhum centro de custo cadastrado.</td></tr>'}
+  </tbody></table></div>`;
+}
+async function fnSalvarCC(bt){ let nome,antigo='';
+  if(bt){ const i=bt.closest('tr').querySelector('input'); nome=i.value.trim(); antigo=i.dataset.antigo; } else nome=document.getElementById('fnCCNovo').value.trim();
+  if(!nome){ toast('Informe o nome'); return; }
+  try{ await api('finSalvarCentro',{nome,antigo}); toast('Centro de custo salvo'); await carregar(true); fnAtualizar(); const e=document.getElementById('fnCCNovo'); if(e&&!bt) e.focus(); }catch(e){ toast('Erro: '+e.message,6000); } }
+async function fnExcluirCC(bt){ const n=bt.closest('tr').querySelector('input').dataset.antigo; if(!confirm('Excluir o centro de custo '+n+'? Os lançamentos continuam com esse nome.')) return;
+  try{ await api('finExcluirCentro',{nome:n}); await carregar(true); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
 
 iniciar();
 </script>
