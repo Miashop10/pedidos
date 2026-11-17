@@ -177,6 +177,8 @@ tr.fn-sel td{background:var(--acc-soft)!important}
 .cs-t .ib{padding:2px 5px}
 .fila-b{cursor:pointer;background:#fdecea;color:#b3261e;font-weight:800;font-size:12px;border-radius:20px;padding:4px 10px;margin-right:8px}
 .fila-b.ok{background:var(--acc-soft);color:var(--acc-ink)}
+.ap-form{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;padding:12px;margin-bottom:12px}
+.ap-res{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}.ap-chip{cursor:pointer;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:4px 12px;font-size:13px}.ap-chip:hover{border-color:var(--acc)}
 .fnd-drop{display:block;border:2px dashed var(--line);border-radius:10px;padding:9px 12px;margin:0 0 10px;font-size:13px;cursor:pointer;background:var(--card);text-align:center}
 .fnd-drop:hover,.fnd-drop.on{border-color:var(--acc);background:var(--acc-soft)}
 .fnd-drop.lendo{opacity:.7;pointer-events:none}
@@ -440,6 +442,7 @@ td.desc{white-space:normal;min-width:220px;max-width:340px}
       <button data-v="logistica">Controle de Logística</button>
       <button data-v="relreceb">Relatórios de Recebimento</button>
       <button data-v="financeiro">Financeiro</button>
+      <button data-v="aplicacoes">Aplicações</button>
     </nav>
     <div class="sp"></div>
     <div class="who"><button class="btn sec sm hide" id="btConfig" onclick="irPara('config')" title="Configurações: usuários e agrupamento de filiais">⚙<span class="bc-txt"> Configurações</span></button><span id="filaBadge" class="fila-b hide" onclick="irPara('financeiro');fnIr('config','nuvem')" title="Há informações que ainda não chegaram na nuvem — clique para enviar"></span><span id="whoNome"></span><span id="whoSync"></span>
@@ -719,6 +722,10 @@ if(typeof module!=='undefined') module.exports.parseRateio=parseRateio;
 
 /* =================== ESTADO =================== */
 const S = { senha:'', usuario:'', url:'', dados:null, view:'pedidos', sort:{}, fila:[], vendasCache:{} };
+// campo de data: enquanto o ano ainda está sendo digitado (ex.: "0002"), o navegador já avisa "mudou" e a tela era redesenhada,
+// tirando o cursor do campo. Aqui seguramos esse aviso até o ano ter 4 dígitos de verdade (>= 1900).
+['change','input'].forEach(ev=>document.addEventListener(ev,e=>{ const t=e.target;
+  if(t&&t.tagName==='INPUT'&&t.type==='date'&&t.value&&+t.value.slice(0,4)<1900) e.stopImmediatePropagation(); },true));
 const LS = { get(k){ try{return localStorage.getItem(k);}catch(e){return null;} }, set(k,v){ try{localStorage.setItem(k,v);}catch(e){} }, del(k){ try{localStorage.removeItem(k);}catch(e){} } };
 const emAppsScript = () => !!(window.google && google.script && google.script.run);
 if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -794,7 +801,7 @@ function render(){
   const v=S.view; const m=document.getElementById('main');
   if(v==='semacesso'){ m.innerHTML='<div class="card muted" style="margin-top:20px">Seu usuário ainda não tem acesso a nenhuma aba. Peça ao administrador para liberar em Configurações.</div>'; return; }
   document.body.classList.toggle('fin-mode', v==='financeiro'); const hd=document.querySelector('header'); if(hd) document.documentElement.style.setProperty('--hh',hd.offsetHeight+'px');
-  m.innerHTML = v==='financeiro'?vFinanceiro(): v==='logistica'?vLogistica(): v==='relreceb'?vRelReceb(): v==='faturar'?vFaturar(): v==='config'?vConfig(): vPedidos();
+  m.innerHTML = v==='aplicacoes'?vAplicacoes(): v==='financeiro'?vFinanceiro(): v==='logistica'?vLogistica(): v==='relreceb'?vRelReceb(): v==='faturar'?vFaturar(): v==='config'?vConfig(): vPedidos();
   if(v==='pedidos') ligarPedidos(); if(v==='logistica') ligarLogistica(); if(v==='financeiro') ligarFinanceiro();
   ajustarTabelas();
 }
@@ -1623,7 +1630,7 @@ function faExportar(){
 
 /* =================== CONFIGURAÇÕES (somente master) =================== */
 const CFG = { usuarios:null };
-const ABAS_NOMES = [['pedidos','Pedidos'],['faturar','Pedidos a faturar'],['logistica','Controle de Logística'],['relreceb','Relatórios de Recebimento'],['financeiro','Financeiro']];
+const ABAS_NOMES = [['pedidos','Pedidos'],['faturar','Pedidos a faturar'],['logistica','Controle de Logística'],['relreceb','Relatórios de Recebimento'],['financeiro','Financeiro'],['aplicacoes','Aplicações']];
 function vConfig(){
   if(!S.master) return '<div class="card muted">Somente o usuário master (senha YY17) acessa as Configurações.</div>';
   if(CFG.usuarios===null){ cfgCarregarUsuarios(); }
@@ -2594,6 +2601,60 @@ function fnNuvemTela(){
       <td class="c"><button class="ib del" title="Descartar este envio (não será gravado)" onclick="if(confirm('Descartar este envio? Ele NÃO será gravado na nuvem.')){ filaTirar('${esc(x.cli)}'); fnAtualizar(); }">Descartar</button></td></tr>`).join('')}</tbody></table></div>`
   :'<div class="card muted" style="padding:14px">✓ Tudo já está na nuvem. Nenhum envio pendente neste computador.</div>'}`;
 }
+
+/* =================== APLICAÇÕES FINANCEIRAS =================== */
+const AP={q:'',nome:'',ano:''};
+const apl=()=>(S.dados&&S.dados.aplicacoes)||[];
+function apNomes(){ const v=new Set(); return apl().map(a=>String(a.NOME||'').trim()).filter(n=>{ const k=up(n); if(!n||v.has(k)) return false; v.add(k); return true; }).sort((a,b)=>a.localeCompare(b,'pt-BR')); }
+function apFiltrados(){ const q=semAcento(AP.q).trim();
+  return apl().filter(a=>(!AP.nome||up(a.NOME)===up(AP.nome))&&(!AP.ano||String(a.DATA).slice(6,10)===AP.ano)&&(!q||semAcento([a.DATA,a.NOME,a.OBS,fN(+a.VALOR,2)].join(' ')).includes(q)))
+    .map(a=>({a,k:isoBR(a.DATA)||''})).sort((x,y)=>y.k.localeCompare(x.k)||String(y.a.ID).localeCompare(String(x.a.ID))).map(x=>x.a); }
+function vAplicacoes(){
+  if(!S.dados) return '<p class="muted">Carregando…</p>';
+  const L=apFiltrados(), tot=L.reduce((s,a)=>s+(+a.VALOR||0),0);
+  const anos=[...new Set(apl().map(a=>String(a.DATA).slice(6,10)).filter(x=>/^\d{4}$/.test(x)))].sort().reverse();
+  const porNome={}; L.forEach(a=>{ const n=String(a.NOME).trim(); porNome[n]=(porNome[n]||0)+(+a.VALOR||0); });
+  return `<div class="slim">
+  <div class="sl-head"><h2>Aplicações</h2><span class="sp"></span></div>
+  <div class="card ap-form">
+    <label class="sf" style="flex:0 0 160px"><span>Data</span><input type="date" id="apData" value="${hojeISO()}"></label>
+    <label class="sf" style="flex:2 1 260px"><span>Nome da aplicação</span><input id="apNome" list="dlApNome" placeholder="Ex.: CDB Itaú, Tesouro Selic, LCI Bradesco"><datalist id="dlApNome">${apNomes().map(n=>`<option value="${esc(n)}">`).join('')}</datalist></label>
+    <label class="sf" style="flex:0 0 150px"><span>Valor</span><input id="apValor" inputmode="decimal" placeholder="0,00" onkeydown="if(event.key==='Enter') apSalvar()"></label>
+    <label class="sf" style="flex:1 1 200px"><span>Observação <i class="muted" style="font-weight:400;text-transform:none">(opcional)</i></span><input id="apObs" onkeydown="if(event.key==='Enter') apSalvar()"></label>
+    <button class="btn" id="apBt" onclick="apSalvar()">+ Lançar aplicação</button>
+  </div>
+  <div class="sl-filtros">
+    <input type="search" class="w-q" value="${esc(AP.q)}" placeholder="Buscar nome, valor, data…" oninput="AP.q=this.value;clearTimeout(window._aq);window._aq=setTimeout(apAtualizar,250)">
+    <select onchange="AP.nome=this.value;apAtualizar()"><option value="">Aplicação: todas</option>${apNomes().map(n=>`<option value="${esc(n)}" ${n===AP.nome?'selected':''}>${esc(n)}</option>`).join('')}</select>
+    <select onchange="AP.ano=this.value;apAtualizar()"><option value="">Ano: todos</option>${anos.map(a=>`<option ${a===AP.ano?'selected':''}>${a}</option>`).join('')}</select>
+    <span class="sp"></span><button class="btn ghost sm" onclick="apExcel()">Exportar Excel</button>
+  </div>
+  <div id="apCorpo">${apCorpo(L,tot,porNome)}</div></div>`;
+}
+function apCorpo(L,tot,porNome){
+  const res=Object.entries(porNome).sort((a,b)=>b[1]-a[1]);
+  return `${res.length>1?`<div class="ap-res">${res.map(([n,v])=>`<span class="ap-chip" onclick="AP.nome=AP.nome===${JSON.stringify(n).replace(/"/g,'&quot;')}?'':${JSON.stringify(n).replace(/"/g,'&quot;')};render()"><b>${esc(n)}</b> ${fR(v)}</span>`).join('')}</div>`:''}
+  <div class="tw sl-tab"><table><thead><tr><th style="width:120px">Data</th><th>Aplicação</th><th>Observação</th><th class="n">Valor</th><th style="width:80px"></th></tr></thead><tbody>
+  ${L.slice(0,AP.lim||300).map(a=>`<tr><td>${esc(a.DATA)}</td><td><b>${esc(a.NOME)}</b></td><td class="muted">${esc(a.OBS||'')}</td><td class="n"><b>${fR(+a.VALOR||0)}</b></td>
+    <td class="c" style="white-space:nowrap"><button class="ib" title="Editar" onclick="apEditar('${esc(a.ID)}')">✎</button><button class="ib del" title="Excluir" onclick="apExcluir('${esc(a.ID)}')">✕</button></td></tr>`).join('')||'<tr><td colspan="5" class="muted">Nenhuma aplicação lançada.</td></tr>'}
+  </tbody><tfoot>${L.length>(AP.lim||300)?`<tr><td colspan="5" class="c" style="background:var(--card);font-weight:400">Mostrando ${AP.lim||300} de ${L.length} · <button class="btn ghost sm" onclick="AP.lim=1e9;apAtualizar()">Mostrar todas</button></td></tr>`:''}<tr><td colspan="3">TOTAL · ${L.length} aplicação(ões)</td><td class="n">${fR(tot)}</td><td></td></tr></tfoot></table></div>`;
+}
+function apAtualizar(){ const el=document.getElementById('apCorpo'); if(!el){ render(); return; } const L=apFiltrados(); const porNome={}; L.forEach(a=>{ const n=String(a.NOME).trim(); porNome[n]=(porNome[n]||0)+(+a.VALOR||0); }); el.innerHTML=apCorpo(L,L.reduce((s,a)=>s+(+a.VALOR||0),0),porNome); ajustarTabelas(el); }
+async function apSalvar(){
+  const g=i=>document.getElementById(i).value.trim(); const d={id:AP.edit||'',data:brISO(g('apData')),nome:g('apNome'),valor:numBR(g('apValor')),obs:g('apObs')};
+  if(!d.data){ toast('Informe a data'); return; } if(!d.nome){ toast('Informe o nome da aplicação'); return; } if(!d.valor){ toast('Informe o valor'); return; }
+  const bt=document.getElementById('apBt'); bt.disabled=true;
+  try{ const r=await api('aplSalvar',d); const L=S.dados.aplicacoes=S.dados.aplicacoes||[];
+    const reg={ID:r.id,DATA:d.data,NOME:d.nome,VALOR:d.valor,OBS:d.obs}; const i=L.findIndex(x=>x.ID===r.id); if(i>=0) Object.assign(L[i],reg); else L.push(reg);
+    toast(AP.edit?'Aplicação alterada ✓':'Aplicação lançada ✓'); AP.edit=''; render(); setTimeout(()=>{ const e=document.getElementById('apNome'); if(e) e.focus(); },50); }
+  catch(e){ bt.disabled=false; toast('Erro: '+e.message,6000); }
+}
+function apEditar(id){ const a=apl().find(x=>x.ID===id); if(!a) return; AP.edit=id;
+  document.getElementById('apData').value=isoBR(a.DATA); document.getElementById('apNome').value=a.NOME; document.getElementById('apValor').value=fN(+a.VALOR,2); document.getElementById('apObs').value=a.OBS||'';
+  const bt=document.getElementById('apBt'); bt.textContent='Salvar alteração'; window.scrollTo({top:0,behavior:'smooth'}); document.getElementById('apValor').focus(); }
+async function apExcluir(id){ const a=apl().find(x=>x.ID===id); if(!a||!confirm(`Excluir a aplicação ${a.NOME} · ${fR(+a.VALOR)} (${a.DATA})?`)) return;
+  try{ await api('aplExcluir',{id}); S.dados.aplicacoes=apl().filter(x=>x.ID!==id); toast('Aplicação excluída'); render(); }catch(e){ toast('Erro: '+e.message,6000); } }
+function apExcel(){ const ws=XLSX.utils.json_to_sheet(apFiltrados().map(a=>({'Data':a.DATA,'Aplicação':a.NOME,'Valor':+a.VALOR||0,'Observação':a.OBS||''}))); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Aplicações'); XLSX.writeFile(wb,'aplicacoes.xlsx'); }
 
 iniciar();
 </script>
