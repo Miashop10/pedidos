@@ -156,6 +156,10 @@ tr.fn-sel td{background:var(--acc-soft)!important}
 .fnd-bol{margin-bottom:12px;padding:14px;font-size:14px;border-color:#9fb3d9;background:#f3f6fc}
 .fnd-bolinfo{background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:-4px 0 12px;font-size:13px;line-height:1.7}
 .fnd-parc{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}.fnd-parc span{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 8px;font-size:12px}
+.fn-pend{align-self:center;margin-left:12px;font-size:12px;font-weight:700;color:var(--acc-ink);background:var(--acc-soft);border-radius:20px;padding:3px 10px}
+.fnd-pt{width:100%;border-collapse:collapse;margin-top:6px;font-size:12.5px;background:var(--card)}.fnd-pt th,.fnd-pt td{border:1px solid var(--line);padding:3px 6px;text-align:left}.fnd-pt th.n,.fnd-pt td.n{text-align:right}.fnd-pt input{padding:2px 4px;font-size:12.5px;height:26px}
+.fnd-cbm{font-family:ui-monospace,Consolas,monospace;font-size:11.5px}
+.fnd-cb{display:flex;gap:8px}.fnd-cb input{flex:1;font-family:ui-monospace,Consolas,monospace;letter-spacing:.3px}
 .fnd-drop{display:block;border:2px dashed var(--line);border-radius:10px;padding:9px 12px;margin:0 0 10px;font-size:13px;cursor:pointer;background:var(--card);text-align:center}
 .fnd-drop:hover,.fnd-drop.on{border-color:var(--acc);background:var(--acc-soft)}
 .fnd-drop.lendo{opacity:.7;pointer-events:none}
@@ -718,7 +722,7 @@ function loading(on){ document.getElementById('loading').classList.toggle('hide'
 /* =================== API =================== */
 function api(acao, dados){
   loading(true);
-  const fim = r => { loading(false); if(r && r.ok && r.fin && S.dados){ S.dados.fin=r.fin; S.finFresco=true; } if(r && r.ok){ S.master=!!r.master; S.abas=r.abas||[]; const b=document.getElementById('btConfig'); if(b) b.classList.toggle('hide',!S.master); aplicarAbas(); } if(!r || !r.ok){ if(r && r.erro==='SENHA_INVALIDA'){ sair(); throw new Error('Senha inválida'); } throw new Error(r&&r.erro||'Falha na comunicação'); } return r.dados; };
+  const fim = r => { loading(false); if(r && r.ok && r.fin && S.dados){ if(r.finParcial&&S.dados.fin){ Object.assign(S.dados.fin,r.fin); if(r.finHist){ (S.dados.fin.historico=S.dados.fin.historico||[]).push(r.finHist); } } else S.dados.fin=r.fin; S.finFresco=true; } if(r&&r.tempos&&window.console) console.info('[api]',acao,r.tempos); if(r && r.ok){ S.master=!!r.master; S.abas=r.abas||[]; const b=document.getElementById('btConfig'); if(b) b.classList.toggle('hide',!S.master); aplicarAbas(); } if(!r || !r.ok){ if(r && r.erro==='SENHA_INVALIDA'){ sair(); throw new Error('Senha inválida'); } throw new Error(r&&r.erro||'Falha na comunicação'); } return r.dados; };
   if (emAppsScript()) return new Promise((res,rej)=>google.script.run.withSuccessHandler(r=>{try{res(fim(r));}catch(e){rej(e);}}).withFailureHandler(e=>{loading(false);rej(e);}).api(acao,S.senha,dados||{},S.usuario));
   return fetch(S.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({acao,senha:S.senha,usuario:S.usuario,dados:dados||{}})})
     .then(r=>r.json()).then(fim).catch(e=>{loading(false);throw e;});
@@ -1723,7 +1727,7 @@ function vFinanceiro(){
       ${ab?`<div class="fn-gl">${FIN_SUBS[k].map(([s2,n2])=>`<button class="${k===sec&&s2===sub?'on':''}" onclick="fnIr('${k}','${s2}')">${n2}</button>`).join('')}</div>`:''}</div>`; }).join('')}
   </aside>
   <div class="fn-main">
-    <div class="sl-head fn-top"><div><div class="fn-crumb">Financeiro · ${esc((FIN_SECOES.find(x=>x[0]===sec)||[])[1])}</div><h2>${esc(titulo)}</h2></div><span class="sp"></span>${acoes}</div>
+    <div class="sl-head fn-top"><div><div class="fn-crumb">Financeiro · ${esc((FIN_SECOES.find(x=>x[0]===sec)||[])[1])}</div><h2>${esc(titulo)}</h2></div><span id="fnPend" class="fn-pend${S.finPend?'':' hide'}">⟳ salvando ${S.finPend||''}…</span><span class="sp"></span>${acoes}</div>
     <div id="fnCorpo">${fnCorpo()}</div>
   </div>
 </div>`;
@@ -1902,6 +1906,8 @@ function fnAbrirLanc(id,tipo,pre,exId){
         ${f('Categoria',`<input id="fmCat" list="dlFnCat${tipo}" value="${esc(l.CATEGORIA||'')}" placeholder="Selecione ou digite uma categoria…">`)}
         ${f('Valor',`<div class="fnd-val"><span class="${rec?'ok':'bad'}">${rec?'↑':'↓'}</span><input id="fmValor" inputmode="decimal" value="${l.VALOR?fN(+l.VALOR,2):''}" placeholder="0,00" oninput="fnDrRecalc()"></div>`)}
       </div>
+      <label class="sf" style="margin-top:12px"><span>Código de barras <i class="muted" style="font-weight:400;text-transform:none">(linha digitável — preenchido pelo boleto)</i></span>
+        <div class="fnd-cb"><input id="fmCB" inputmode="numeric" value="${esc(fnFmtCB(l.COD_BARRAS||''))}" placeholder="Anexe o boleto ou cole a linha digitável" oninput="this.value=fnFmtCB(this.value)"><button type="button" class="btn sec sm" onclick="fnCopiarCB(document.getElementById('fmCB').value)">📋 Copiar</button></div></label>
       <label class="sf" style="margin-top:12px"><span>Observações <i class="muted" style="font-weight:400;text-transform:none">(opcional)</i></span><textarea id="fmObs" rows="2" style="width:100%;resize:vertical">${esc(l.OBS||'')}</textarea></label>
       <div class="fnd-cc">
         <div class="row" style="align-items:center"><b>Centro de custo</b><span class="sp"></span>
@@ -1969,6 +1975,20 @@ function fnDrLerCC(){ const m={}; [...document.querySelectorAll('#fmCCs .fnd-ccl
   if(a.length===1&&!a[0].pct) a[0].pct=100; return a; }
 function fnFecharLanc(){ const d=document.getElementById('fnDrawer'); if(!d) return; d.classList.remove('on'); setTimeout(()=>{ if(!d.classList.contains('on')) d.innerHTML=''; },220); FN.dr=null; }
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&FN.dr&&!document.querySelector('.mbg')) fnFecharLanc(); });
+// parcelas do PDF: os campos do painel valem para todas; vencimento e valor de cada uma ficam na lista
+function fnDrSync(el){ const D=FN.dr; if(!D||!D.boletos||D.boletos.length<2) return; const id=el&&el.id;
+  if(id==='fmNF'){ const ds=document.getElementById('fmDesc'), nf=el.value.trim(); if(ds&&(ds.value.trim()===('NF '+D.nfAnt).trim()||!ds.value.trim())) ds.value=nf?'NF '+nf:''; D.nfAnt=nf; }
+  if(id==='fmVenc'&&el.value){ const novo=brISO(el.value), ant=D.vencAnt; if(novo&&ant&&novo!==ant){ const dias=Math.round((new Date(isoBR(novo))-new Date(isoBR(ant)))/864e5); D.boletos.forEach(b=>{ const d=new Date(isoBR(b.venc)+'T12:00'); d.setDate(d.getDate()+dias); b.venc=brISO(d.toISOString().slice(0,10)); }); D.vencAnt=novo; } }
+  if(id==='fmValor'){ const v=numBR(el.value); if(v&&v!==D.valorAnt){ D.boletos.forEach(b=>b.valor=v); D.valorAnt=v; } }
+  fnDrParcelas(); }
+function fnDrParcelas(){ const D=FN.dr, el=document.getElementById('fmParc'); if(!el||!D||!D.boletos) return; const B=D.boletos, g=i=>(document.getElementById(i)||{}).value||'';
+  const on=(document.getElementById('fmBolTodos')||{}).checked; const desc=g('fmDesc').trim();
+  el.innerHTML=!on?'<div class="small muted">Só a primeira parcela será agendada.</div>':`<table class="fnd-pt"><thead><tr><th>Parcela</th><th>Vencimento</th><th>Nome</th><th>Descrição</th><th>NF</th><th>Código de barras</th><th class="n">Valor</th></tr></thead><tbody>
+    ${B.map((b,i)=>`<tr><td>${esc(b.parcela)}</td><td><input type="date" value="${isoBR(b.venc)}" onchange="FN.dr.boletos[${i}].venc=brISO(this.value);${i===0?"FN.dr.vencAnt=FN.dr.boletos[0].venc;document.getElementById('fmVenc').value=this.value;":''}fnDrParcTot()"></td><td>${esc(g('fmNome'))}</td><td>${esc(desc)}</td><td>${esc(g('fmNF'))}</td><td>${b.linha?`<span class="fnd-cbm" title="${esc(fnFmtCB(b.linha))}">…${esc(fnFmtCB(b.linha).split(' ').slice(1,3).join(' '))}…</span> <button class="ib" type="button" onclick="fnCopiarCB('${esc(b.linha)}')">📋</button>`:'—'}</td>
+      <td class="n"><input inputmode="decimal" value="${fN(b.valor,2)}" style="width:100px;text-align:right" onchange="FN.dr.boletos[${i}].valor=numBR(this.value);fnDrParcTot()"></td></tr>`).join('')}</tbody></table>`;
+  fnDrParcTot(); }
+function fnDrParcTot(){ const B=(FN.dr||{}).boletos||[]; const t=B.reduce((s,b)=>s+(+b.valor||0),0); const e=document.getElementById('fmParcTot'); if(e) e.textContent='('+fR(t)+')';
+  if(B.length>1&&(document.getElementById('fmBolTodos')||{}).checked) ['fmTotTop','fmTotBot'].forEach(i=>{ const x=document.getElementById(i); if(x) x.innerHTML=fR(t)+' <small style="font-size:55%">('+B.length+'x)</small>'; }); }
 async function fnDrBoleto(f){
   const box=document.getElementById('fmBolDrop'); const txt=box.innerHTML; box.classList.add('lendo'); box.innerHTML='Lendo '+esc(f.name)+'…';
   try{
@@ -1976,11 +1996,14 @@ async function fnDrBoleto(f){
     const set=(i,v)=>{ const e=document.getElementById(i); if(e&&v!=null&&v!=='') e.value=v; };
     const igual=fnNomeParecido(b.benef); const nome=igual||b.benef;
     set('fmNome',nome); set('fmVenc',isoBR(b.venc)); set('fmValor',fN(b.valor,2)); if(b.doc) set('fmNF',b.doc);
-    const dsc=document.getElementById('fmDesc'); if(dsc&&!dsc.value.trim()) dsc.value=b.doc?('NF '+b.doc):'';
-    const ob=document.getElementById('fmObs'); if(ob&&!ob.value.trim()&&b.linha&&B.length===1) ob.value='Linha digitável: '+b.linha;
+
+    const cbi=document.getElementById('fmCB'); if(cbi&&b.linha) cbi.value=fnFmtCB(b.linha);
     // categoria (e centro, se o CNPJ não resolver): do último lançamento desse fornecedor
     const ult=fin().lanc.filter(l=>l.TIPO==='PAGAR'&&up(String(l.NOME).trim())===up(nome)).sort((x,y)=>String(y.CRIADO_EM||y.ID).localeCompare(String(x.CRIADO_EM||x.ID)))[0];
     const cat=document.getElementById('fmCat'); if(cat&&!cat.value.trim()&&ult&&ult.CATEGORIA) cat.value=ult.CATEGORIA;
+    // descrição: a mesma usada no último lançamento desse fornecedor (senão "NF …")
+    const ultD=fin().lanc.filter(l=>l.TIPO==='PAGAR'&&up(l.NOME)===up(nome)&&String(l.DESCRICAO||'').trim()).sort((x,y)=>String(y.CRIADO_EM||y.ID).localeCompare(String(x.CRIADO_EM||x.ID)))[0];
+    const dsc=document.getElementById('fmDesc'); if(dsc&&!dsc.value.trim()) dsc.value=ultD?String(ultD.DESCRICAO).trim():(b.doc?('NF '+b.doc):'');
     const cc=fnCentroDoCnpj(b.pagadorCnpj); const ccTxt=cc||(ult&&ult.CENTRO_CUSTO)||'';
     if(ccTxt){ const lin=fnCCParse(ccTxt); document.getElementById('fmCCs').innerHTML=lin.map(fnDrLinhaCC).join(''); }
     fnDrRecalc();
@@ -1988,17 +2011,21 @@ async function fnDrBoleto(f){
     document.getElementById('fmBolInfo').innerHTML=`<div class="fnd-bolinfo">
       <div>Beneficiário no boleto: <b>${esc(b.benef||'—')}</b>${b.benefCnpj?' · '+esc(b.benefCnpj):''}${igual&&igual!==b.benef?` <span class="tag t-ok">usando o nome já cadastrado: ${esc(igual)}</span>`:(!igual?' <span class="tag t-warn">nome novo</span>':'')}</div>
       <div>Pagador: <b>${esc(b.pagadorCnpj||'não identificado')}</b> → centro de custo ${cc?`<span class="tag t-ok">${esc(cc)}</span>`:`<span class="tag t-warn">${b.pagadorCnpj?'CNPJ sem centro de custo — cadastre em Configurações → Centros de custo':'escolha abaixo'}</span>`}
-        ${!cc&&ult&&ult.CENTRO_CUSTO?' (usei o do último lançamento)':''}${ult&&ult.CATEGORIA?` · categoria do último lançamento: <b>${esc(ult.CATEGORIA)}</b>`:''}</div>
-      ${n>1?`<div style="margin-top:6px"><label class="fnd-rd" style="margin:0"><input type="checkbox" id="fmBolTodos" checked> <b>Agendar as ${n} parcelas do PDF</b> (${fR(tot)})</label>
-        <div class="fnd-parc">${B.map((x,i)=>`<span>${x.parcela||((i+1)+'/'+n)} · ${esc(x.venc)} · ${fR(x.valor)}</span>`).join('')}</div></div>`:''}
+        ${!cc&&ult&&ult.CENTRO_CUSTO?' (usei o do último lançamento)':''}${ult&&ult.CATEGORIA?` · categoria do último lançamento: <b>${esc(ult.CATEGORIA)}</b>`:''}${ultD?` · descrição do último lançamento: <b>${esc(ultD.DESCRICAO)}</b>`:''}</div>
+      ${n>1?`<div style="margin-top:6px"><label class="fnd-rd" style="margin:0"><input type="checkbox" id="fmBolTodos" checked onchange="fnDrParcelas()"> <b>Agendar as ${n} parcelas do PDF</b> <span id="fmParcTot">(${fR(tot)})</span></label>
+        <div class="small muted" style="margin-top:2px">O que você mudar nos campos abaixo (nome, descrição, NF, categoria, centro de custo, forma de pagamento, observações) vale para todas as parcelas. Vencimento e valor de cada parcela podem ser ajustados aqui na lista.</div>
+        <div id="fmParc"></div></div>`:''}
     </div>`;
+    B.forEach((x,i)=>{ x.parcela=x.parcela||((i+1)+'/'+n); });
+    FN.dr.nfAnt=b.doc||''; FN.dr.vencAnt=b.venc; FN.dr.valorAnt=b.valor;
+    if(n>1){ const corpo=document.querySelector('#fnDrawer .fnd-b'); if(corpo&&!corpo.dataset.parcLig){ corpo.dataset.parcLig='1'; corpo.addEventListener('input',e=>{ if(!e.target.closest('#fmParc')) fnDrSync(e.target); }); corpo.addEventListener('change',e=>{ if(!e.target.closest('#fmParc')) fnDrSync(e.target); }); } fnDrParcelas(); }
     toast(n>1?`${n} boletos lidos — confira e clique em Agendar`:'Boleto lido — confira e clique em Agendar',5000);
   }catch(e){ toast(f.name+': '+e.message,7000); }
   box.classList.remove('lendo'); box.innerHTML=txt;
 }
 async function fnSalvarLancDr(){
   const {id,tipo,exId}=FN.dr; const g=i=>document.getElementById(i).value.trim();
-  const d={tipo,vencimento:brISO(g('fmVenc')),nome:g('fmNome'),descricao:g('fmDesc'),notaFiscal:g('fmNF'),categoria:g('fmCat'),valor:numBR(g('fmValor')),formaPagamento:(document.querySelector('input[name=fmFP]:checked')||{}).value||'CONTA CORRENTE',obs:g('fmObs')};
+  const d={tipo,vencimento:brISO(g('fmVenc')),nome:g('fmNome'),descricao:g('fmDesc'),notaFiscal:g('fmNF'),categoria:g('fmCat'),valor:numBR(g('fmValor')),formaPagamento:(document.querySelector('input[name=fmFP]:checked')||{}).value||'CONTA CORRENTE',obs:g('fmObs'),codBarras:soDig(g('fmCB'))};
   const err=fnValidar(d); if(err){ toast(err); return; }
   if(document.querySelector('#fmCCs .fnd-ccl.falta')){ toast('Escolha o centro de custo dos códigos em amarelo (ou remova a linha)',6000); return; }
   const aliases=[...document.querySelectorAll('#fmCCs .fnd-ccl[data-cod]')].map(r=>({codigo:r.dataset.cod,centro:r.querySelector('.cc-n').value.trim(),ini:r.dataset.ini})).filter(a=>a.centro&&up(a.centro)!==up(a.ini));
@@ -2009,10 +2036,18 @@ async function fnSalvarLancDr(){
   const bt=document.getElementById('fmSalvar'); bt.disabled=true;
   const B=(FN.dr.boletos||[]); const todos=B.length>1&&(document.getElementById('fmBolTodos')||{}).checked;
   if(todos){ try{
-      const lista=B.map((b,i)=>Object.assign({},d,{linha:i+1,vencimento:b.venc,valor:b.valor,descricao:((d.descricao||'')+' · parcela '+(b.parcela||((i+1)+'/'+B.length))).replace(/^ · /,''),obs:[d.obs,b.linha?'Linha digitável: '+b.linha:''].filter(Boolean).join(' · ')}));
+      const lista=B.map((b,i)=>Object.assign({},d,{linha:i+1,vencimento:b.venc,valor:b.valor,descricao:d.descricao||'',codBarras:b.linha||''}));
       const r=await api('finImportarLanc',{arquivoNome:FN.dr.bolArq||'boleto.pdf',lista}); toast(`${r.importados} parcela(s) agendada(s) ✓`,5000);
       await fnRecarregar(); render(); fnFecharLanc(); }catch(e){ bt.disabled=false; toast('Erro: '+e.message,6000); } return; }
-  if(B.length===1&&!d.obs&&B[0].linha) d.obs='Linha digitável: '+B[0].linha;
+  if(B.length===1&&!d.codBarras&&B[0].linha) d.codBarras=B[0].linha;
+  if(!exId){ // grava em segundo plano: fecha o painel na hora
+    if(id){ d.id=id; const l=fnLanc(id); if(l&&l.STATUS==='QUITADO'){ d.quitado=true; d.dataPagamento=l.DATA_PAGAMENTO; d.valorPago=l.VALOR_PAGO; d.contaId=l.CONTA_ID; } }
+    const reg={TIPO:tipo,VENCIMENTO:d.vencimento,NOME:d.nome,DESCRICAO:d.descricao,NOTA_FISCAL:d.notaFiscal,CATEGORIA:d.categoria,CENTRO_CUSTO:d.centroCusto,FORMA_PAGAMENTO:d.formaPagamento,OBS:d.obs,COD_BARRAS:d.codBarras,VALOR:d.valor};
+    const cont=!id&&FN.continuar; if(cont) fnAbrirLanc(null,tipo); else fnFecharLanc();
+    fnBg('finSalvarLanc',d,{local:()=>{ if(id) Object.assign(fnLanc(id)||{},reg); else fin().lanc.push(Object.assign({ID:'tmp'+Date.now(),STATUS:'ABERTO',CRIADO_EM:''},reg)); },
+      ok:()=>{ if(aliases.length) api('finSalvarAliasCC',{lista:aliases}).catch(()=>{}); }});
+    toast(id?'Lançamento salvo':(tipo==='RECEBER'?'Recebimento':'Pagamento')+' agendado ✓'); return;
+  }
   try{
     if(exId) await api('finConciliar',{extratoId:exId,novo:d});
     else { if(id){ d.id=id; const l=fnLanc(id); if(l&&l.STATUS==='QUITADO'){ d.quitado=true; d.dataPagamento=l.DATA_PAGAMENTO; d.valorPago=l.VALOR_PAGO; d.contaId=l.CONTA_ID; } } await api('finSalvarLanc',d); }
@@ -2024,7 +2059,7 @@ async function fnSalvarLancDr(){
 }
 function fnModalLanc(id,tipo,pre,exId){ fnAbrirLanc(id,tipo,pre,exId); }
 async function fnExcluirLanc(id){ const l=fnLanc(id); if(!confirm(`Excluir ${l.NOME} · ${fR(+l.VALOR)}?${l.STATUS==='QUITADO'?'\n\nSe estiver conciliado, a linha do extrato volta a ficar pendente.':''}`)) return;
-  try{ await api('finExcluirLanc',{id}); toast('Lançamento excluído'); await fnRecarregar(); render(); }catch(e){ toast('Erro: '+e.message,6000); } }
+  fnBg('finExcluirLanc',{id},{local:()=>{ const F=fin(); F.lanc=F.lanc.filter(x=>x.ID!==id); }}); toast('Lançamento excluído'); }
 function fnModalBaixa(id){ const l=fnLanc(id); const C=fin().contas;
   modal(`<div class="mh"><h3>${l.TIPO==='RECEBER'?'Receber':'Pagar'} · ${esc(l.NOME)}</h3><button class="btn ghost" onclick="fecharModal()">✕</button></div>
   <div class="row"><label class="sf" style="flex:0 0 150px"><span>Data</span><input type="date" id="fbData" value="${hojeISO()}"></label><label class="sf" style="flex:0 0 130px"><span>Valor</span><input id="fbValor" value="${fN(+l.VALOR,2)}"></label>
@@ -2041,7 +2076,7 @@ function fnTabelaLanc(L,quitadas,sel){
   ${L.map(l=>{ const venc=!quitadas&&isoBR(l.VENCIMENTO)&&isoBR(l.VENCIMENTO)<hoje;
     return `<tr class="${venc?'fn-venc':''}${sel&&FN.sel.has(l.ID)?' fn-sel':''}">${sel?`<td class="c"><input type="checkbox" class="fn-ck" data-id="${esc(l.ID)}" ${FN.sel.has(l.ID)?'checked':''} onchange="fnSelUm(this)"></td>`:''}<td>${esc(quitadas?l.DATA_PAGAMENTO:l.VENCIMENTO)}${venc?' <span class="tag t-bad">vencido</span>':''}</td>${quitadas?`<td class="muted">${esc(l.VENCIMENTO)}</td>`:''}<td><b>${esc(l.NOME)}</b>${/CART/i.test(l.FORMA_PAGAMENTO||'')?' <span class="tag t-warn" title="Cartão de crédito">💳 cartão</span>':''}</td><td style="white-space:normal">${esc(l.DESCRICAO)}${l.OBS?`<div class="muted small" title="Observações">📝 ${esc(l.OBS)}</div>`:''}</td><td>${esc(l.NOTA_FISCAL)}</td><td>${esc(l.CATEGORIA)||'<span class="muted">—</span>'}</td><td style="white-space:normal">${fnCCHtml(l.CENTRO_CUSTO)}</td>
     <td class="n"><b>${fR(+(quitadas?l.VALOR_PAGO:l.VALOR))}</b></td>${quitadas?`<td>${esc((fnConta(l.CONTA_ID)||{}).NOME||'—')}${l.EXTRATO_ID?' <span class="tag t-ok" title="Conciliado com o extrato">✓</span>':''}</td>`:''}
-    <td class="c" style="white-space:nowrap">${quitadas?`<button class="ib" onclick="fnEstornar('${esc(l.ID)}')">Estornar</button>`:`<button class="ib" onclick="fnModalBaixa('${esc(l.ID)}')">✓ ${l.TIPO==='RECEBER'?'Receber':'Pagar'}</button>`}<button class="ib" onclick="fnModalLanc('${esc(l.ID)}')">✎</button><button class="ib del" onclick="fnExcluirLanc('${esc(l.ID)}')">✕</button></td></tr>`; }).join('')
+    <td class="c" style="white-space:nowrap">${l.COD_BARRAS?`<button class="ib" title="Copiar código de barras: ${esc(fnFmtCB(l.COD_BARRAS))}" onclick="fnCopiarCB('${esc(l.COD_BARRAS)}')">📋</button>`:''}${quitadas?`<button class="ib" onclick="fnEstornar('${esc(l.ID)}')">Estornar</button>`:`<button class="ib" onclick="fnModalBaixa('${esc(l.ID)}')">✓ ${l.TIPO==='RECEBER'?'Receber':'Pagar'}</button>`}<button class="ib" onclick="fnModalLanc('${esc(l.ID)}')">✎</button><button class="ib del" onclick="fnExcluirLanc('${esc(l.ID)}')">✕</button></td></tr>`; }).join('')
     ||`<tr><td colspan="10" class="muted">Nenhum lançamento.</td></tr>`}</tbody>
   <tfoot><tr><td colspan="${(quitadas?7:6)+(sel?1:0)}">TOTAL · ${L.length} lançamento(s)</td><td class="n">${fR(tot)}</td><td colspan="${quitadas?2:1}"></td></tr></tfoot></table></div>`;
 }
@@ -2049,7 +2084,7 @@ function fnTabelaLanc(L,quitadas,sel){
 /* ---------- importar lançamentos (Excel) ---------- */
 // colunas: DATA VENCIMENTO | NOME | DESCRIÇÃO | NOTA FISCAL | CATEGORIA | VALOR (opcional: DATA PAGAMENTO)
 /* importar lançamentos colando dados de uma planilha (Ctrl+C no Excel → Ctrl+V aqui) */
-const FIN_COLS=[['','— ignorar —'],['venc','Vencimento'],['nome','Nome'],['desc','Descrição'],['nf','Nota fiscal'],['cat','Categoria'],['cc','Centro de custo'],['val','Valor'],['pag','Data pagamento'],['fp','Forma de pagamento'],['obs','Observações']];
+const FIN_COLS=[['','— ignorar —'],['venc','Vencimento'],['nome','Nome'],['desc','Descrição'],['nf','Nota fiscal'],['cat','Categoria'],['cc','Centro de custo'],['val','Valor'],['pag','Data pagamento'],['fp','Forma de pagamento'],['obs','Observações'],['cb','Código de barras']];
 const FIN_MODELO=['VENCIMENTO','NOME','DESCRIÇÃO','NOTA FISCAL','CATEGORIA','CENTRO DE CUSTO','VALOR','DATA PAGAMENTO','FORMA DE PAGAMENTO','OBSERVAÇÕES'];
 function fnImportarTela(){
   if(FN.impSitDe!==FN.sec){ FN.impSit=FN.sec==='receb'?'areceber':'apagar'; FN.impSitDe=FN.sec; } const sit=FN.impSit;
@@ -2071,7 +2106,7 @@ function fnColaLer(){
   const linhas=t.replace(/\r/g,'').split('\n').map(l=>l.split('\t').map(c=>c.trim())).filter(r=>r.some(c=>c!==''));
   const nc=Math.max(...linhas.map(r=>r.length)); linhas.forEach(r=>{ while(r.length<nc) r.push(''); });
   const H=v=>semAcento(v).replace(/[^A-Z ]/g,' ').replace(/\s+/g,' ').trim();
-  const RE={venc:/^(DATA (DE )?VENCIMENTO|VENCIMENTO|VENC|DATA)$/,nome:/^(NOME|FORNECEDOR|CLIENTE|FAVORECIDO|CONTATO)$/,desc:/^(DESCRICAO|HISTORICO)/,nf:/^(NOTA FISCAL|NF|N NF|NFE|NOTA)$/,cat:/^CATEGORIA/,cc:/^(CENTRO( DE)? CUSTO|CC)$/,val:/^(VALOR|TOTAL)/,pag:/^DATA (DE )?(PAGAMENTO|RECEBIMENTO|BAIXA)|^(PAGO|RECEBIDO) EM/,fp:/^FORMA( DE)? PAGAMENTO/,obs:/^(OBSERVACOES|OBSERVACAO|OBS)$/};
+  const RE={venc:/^(DATA (DE )?VENCIMENTO|VENCIMENTO|VENC|DATA)$/,nome:/^(NOME|FORNECEDOR|CLIENTE|FAVORECIDO|CONTATO)$/,desc:/^(DESCRICAO|HISTORICO)/,nf:/^(NOTA FISCAL|NF|N NF|NFE|NOTA)$/,cat:/^CATEGORIA/,cc:/^(CENTRO( DE)? CUSTO|CC)$/,val:/^(VALOR|TOTAL)/,pag:/^DATA (DE )?(PAGAMENTO|RECEBIMENTO|BAIXA)|^(PAGO|RECEBIDO) EM/,fp:/^FORMA( DE)? PAGAMENTO/,obs:/^(OBSERVACOES|OBSERVACAO|OBS)$/,cb:/^(CODIGO( DE)? BARRAS|LINHA DIGITAVEL|COD BARRAS)/};
   const h=linhas[0].map(H); let cab=h.filter(x=>Object.values(RE).some(re=>re.test(x))).length>=2 && !linhas[0].some(c=>/^\d{1,2}\/\d{1,2}\/\d{2,4}$|^\d{4}-\d{2}-\d{2}/.test(c)||/\d,\d{2}$/.test(c));
   let map=h.map(x=>{ const k=Object.keys(RE).find(k=>RE[k].test(x)); return cab&&k?k:''; });
   if(!cab&&nc>=7){ map=FIN_MODELO.map((_,i)=>['venc','nome','desc','nf','cat','cc','val','pag','fp','obs'][i]).slice(0,nc); while(map.length<nc) map.push(''); }
@@ -2092,7 +2127,7 @@ function fnColaMontar(){
   const {linhas,cab,map}=FN.cola; const sit=FN.impSit; const tipo=(sit==='areceber'||sit==='recebidas')?'RECEBER':'PAGAR', quit=(sit==='pagas'||sit==='recebidas');
   const ix=k=>map.indexOf(k); const g=(r,k)=>ix(k)>=0?r[ix(k)]:'';
   return linhas.slice(cab?1:0).map((r,k)=>{
-    const d={linha:k+1,tipo,vencimento:fnColaData(g(r,'venc')),nome:g(r,'nome'),descricao:g(r,'desc'),notaFiscal:g(r,'nf'),categoria:g(r,'cat'),centroCusto:fnCCTexto(fnCCParse(g(r,'cc'))),formaPagamento:/CART/i.test(semAcento(g(r,'fp')))?'CARTÃO DE CRÉDITO':'CONTA CORRENTE',obs:g(r,'obs'),valor:Math.abs(fnNumExtrato(g(r,'val')))};
+    const d={linha:k+1,tipo,vencimento:fnColaData(g(r,'venc')),nome:g(r,'nome'),descricao:g(r,'desc'),notaFiscal:g(r,'nf'),categoria:g(r,'cat'),centroCusto:fnCCTexto(fnCCParse(g(r,'cc'))),formaPagamento:/CART/i.test(semAcento(g(r,'fp')))?'CARTÃO DE CRÉDITO':'CONTA CORRENTE',obs:g(r,'obs'),codBarras:soDig(g(r,'cb')),valor:Math.abs(fnNumExtrato(g(r,'val')))};
     if(quit){ d.quitado=true; d.dataPagamento=fnColaData(g(r,'pag'))||d.vencimento; }
     const erros=[]; if(!/^\d{2}\/\d{2}\/\d{4}$/.test(d.vencimento)) erros.push('sem data'); if(!d.nome) erros.push('sem nome'); if(!d.valor) erros.push('sem valor');
     { const cc=fnCCParse(d.centroCusto); const sm=cc.reduce((x,c)=>x+c.pct,0); if(cc.length&&Math.abs(sm-100)>=0.01) erros.push('centros de custo somam '+fN(sm,2)+'%'); }
@@ -2153,7 +2188,7 @@ function fnRelatorio(sub){
   </div>${fnBarraSel(L)}${fnTabelaLanc(L,quit,true)}`;
 }
 function fnExportar(){ const sub=FN.sub.rel, quit=(sub==='pagas'||sub==='recebidas');
-  const rows=fnFiltrados(sub).map(l=>({'Vencimento':l.VENCIMENTO,'Pago/recebido em':l.DATA_PAGAMENTO||'','Nome':l.NOME,'Descrição':l.DESCRICAO,'Nota fiscal':l.NOTA_FISCAL,'Categoria':l.CATEGORIA,'Centro de custo':l.CENTRO_CUSTO||'','Forma de pagamento':l.FORMA_PAGAMENTO||'CONTA CORRENTE','Observações':l.OBS||'','Valor':+l.VALOR,'Valor pago':quit?+l.VALOR_PAGO:'','Conta':(fnConta(l.CONTA_ID)||{}).NOME||'','Conciliado':l.EXTRATO_ID?'SIM':''}));
+  const rows=fnFiltrados(sub).map(l=>({'Vencimento':l.VENCIMENTO,'Pago/recebido em':l.DATA_PAGAMENTO||'','Nome':l.NOME,'Descrição':l.DESCRICAO,'Nota fiscal':l.NOTA_FISCAL,'Categoria':l.CATEGORIA,'Centro de custo':l.CENTRO_CUSTO||'','Forma de pagamento':l.FORMA_PAGAMENTO||'CONTA CORRENTE','Observações':l.OBS||'','Código de barras':l.COD_BARRAS?fnFmtCB(l.COD_BARRAS):'','Valor':+l.VALOR,'Valor pago':quit?+l.VALOR_PAGO:'','Conta':(fnConta(l.CONTA_ID)||{}).NOME||'','Conciliado':l.EXTRATO_ID?'SIM':''}));
   const ws=XLSX.utils.json_to_sheet(rows); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Relatório'); XLSX.writeFile(wb,'financeiro-'+sub+'-'+hojeBR().replace(/\//g,'-')+'.xlsx'); }
 
 /* ---------- painel de acompanhamento (DRE) ---------- */
@@ -2255,11 +2290,11 @@ async function fnSalvarCat(bt){ const tr=bt.closest('#fnCatNova')||bt.closest('t
   if(!nome){ if(antigo){ ni.value=antigo; toast('O nome não pode ficar vazio'); } else toast('Informe o nome'); return; }
   if(!antigo&&fin().categorias.some(c=>up(c.NOME)===up(nome))){ toast('Essa categoria já existe'); return; }
   if(antigo&&up(antigo)!==up(nome)&&fin().categorias.some(c=>up(c.NOME)===up(nome))&&!confirm(`Já existe a categoria "${nome}". Juntar "${antigo}" com ela?`)){ ni.value=antigo; return; }
-  tr.dataset.salvando='1'; tr.style.opacity='.5';
-  try{ await api('finSalvarCategoria',{nome,antigo:antigo||nome,tipo:g('tipo').value,grupo:g('grupo').value});
-    const c=fin().categorias; if(antigo){ const o=c.find(x=>x.NOME===antigo); if(o){ o.NOME=nome; o.TIPO=g('tipo').value; o.GRUPO=g('grupo').value; } } // mostra na hora
-    toast(antigo&&antigo!==nome?`Categoria renomeada: ${antigo} → ${nome}`:'Categoria salva'); await fnRecarregar(); fnAtualizar(); }
-  catch(e){ tr.style.opacity=''; delete tr.dataset.salvando; toast('Erro ao salvar: '+e.message,7000); } }
+  const tipo=g('tipo').value, grupo=g('grupo').value; if(antigo&&nome===antigo){ const o=fin().categorias.find(x=>x.NOME===antigo); if(o&&o.TIPO===tipo&&(o.GRUPO||'OPERACIONAL')===grupo) return; }
+  fnBg('finSalvarCategoria',{nome,antigo:antigo||nome,tipo,grupo},{local:()=>{ const F=fin(); const o=antigo&&F.categorias.find(x=>x.NOME===antigo);
+      if(o){ if(up(antigo)!==up(nome)) F.lanc.forEach(l=>{ if(up(l.CATEGORIA)===up(antigo)) l.CATEGORIA=nome; }); const dup=F.categorias.find(x=>x!==o&&up(x.NOME)===up(nome)); if(dup) F.categorias=F.categorias.filter(x=>x!==o); else Object.assign(o,{NOME:nome,TIPO:tipo,GRUPO:grupo}); }
+      else F.categorias.push({NOME:nome,TIPO:tipo,GRUPO:grupo}); }});
+  toast(antigo&&antigo!==nome?`Categoria renomeada: ${antigo} → ${nome}`:'Categoria salva'); }
 async function fnExcluirCat(bt){ const n=bt.closest('tr').querySelector('[data-c=nome]').dataset.antigo; const u=fin().lanc.filter(l=>up(String(l.CATEGORIA||'').trim())===up(n)).length; if(u){ if(confirm(`A categoria "${n}" tem ${u} lançamento(s) e não pode ser apagada direto.\n\nQuer agrupá-la em outra categoria? (os lançamentos passam para a outra e esta é apagada)`)) fnModalAgrupar(n); return; } if(!confirm('Excluir a categoria '+n+'?')) return;
   try{ await api('finExcluirCategoria',{nome:n}); await fnRecarregar(); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
 function fnCentrosTela(){
@@ -2328,9 +2363,14 @@ function fnAgruparInfo(){
 }
 async function fnAgrupar(){
   const o=document.getElementById('agOrig').value, d=document.getElementById('agDest').value, cc=FN.agCC; if(!confirm(`Agrupar "${o}" em "${d}"?\n\n"${o}" será apagado(a). (Dá para desfazer em Histórico de ações.)`)) return;
-  const bt=document.getElementById('agBt'); bt.disabled=true; bt.textContent='Agrupando…';
-  try{ const r=await api(cc?'finAgruparCentro':'finAgruparCategoria',{origem:o,destino:d}); fecharModal(); toast(`${r.transferidos} lançamento(s) transferido(s) para ${r.destino} · ${o} apagado(a) ✓`,6000); await fnRecarregar(); fnAtualizar(); }
-  catch(e){ bt.disabled=false; bt.textContent='Agrupar'; toast('Erro: '+e.message,7000); }
+  fecharModal(); let n=0;
+  fnBg(cc?'finAgruparCentro':'finAgruparCategoria',{origem:o,destino:d},{
+    local:()=>{ const F=fin();
+      if(cc){ F.lanc.forEach(l=>{ const a=fnCCParse(l.CENTRO_CUSTO); if(!a.some(x=>up(x.nome)===up(o))) return; n++; const m={}; a.forEach(x=>{ const nm=up(x.nome)===up(o)?d:x.nome; const k=up(nm); if(m[k]) m[k].pct+=x.pct; else m[k]={nome:nm,pct:x.pct}; }); l.CENTRO_CUSTO=fnCCTexto(Object.values(m)); });
+        F.centros=F.centros.filter(c=>up(c.NOME)!==up(o)); }
+      else { F.lanc.forEach(l=>{ if(up(l.CATEGORIA)===up(o)){ l.CATEGORIA=d; n++; } }); F.categorias=F.categorias.filter(c=>up(c.NOME)!==up(o)); } },
+    ok:r=>toast(`✓ ${r.transferidos} lançamento(s) de ${o} gravados em ${r.destino}`,5000) });
+  toast(`${n} lançamento(s) passados para ${d} — gravando no Google, pode continuar usando`,5000);
 }
 
 /* ---------- seleção e edição em lote (relatórios) ---------- */
@@ -2455,6 +2495,25 @@ function fnNomeParecido(nome){
     if(p>sc||(p===sc&&p&&fnNomes('PAGAR').includes(c)&&!fnNomes('PAGAR').includes(best))){ sc=p; best=c; } });
   return sc>=55?best:'';
 }
+
+/* ---------- salvar em segundo plano: a tela atualiza na hora e o Google grava enquanto você continua ---------- */
+function fnPendAtualizar(){ const e=document.getElementById('fnPend'); if(e){ e.classList.toggle('hide',!S.finPend); e.textContent=`⟳ salvando${S.finPend>1?' '+S.finPend:''}…`; } }
+window.addEventListener('beforeunload',e=>{ if(S.finPend){ e.preventDefault(); e.returnValue='Ainda salvando no Financeiro'; } });
+function fnRedesenharSeguro(){ const a=document.activeElement; if(a&&a.closest&&a.closest('#fnCorpo')&&/INPUT|SELECT|TEXTAREA/.test(a.tagName)) return; if(S.view==='financeiro') fnAtualizar(); }
+function fnBg(acao,dados,{local,ok,erro}={}){
+  if(local) try{ local(); }catch(e){}
+  if(S.view==='financeiro') fnAtualizar();
+  S.finPend=(S.finPend||0)+1; fnPendAtualizar();
+  return api(acao,dados).then(r=>{ S.finFresco=false; if(ok) ok(r); fnRedesenharSeguro(); return r; })
+    .catch(async e=>{ toast('⚠ Não salvou: '+e.message+' — recarregando os dados',8000); if(erro) erro(e); try{ await carregar(true); fnRedesenharSeguro(); }catch(x){} })
+    .finally(()=>{ S.finPend--; fnPendAtualizar(); });
+}
+
+/* ---------- código de barras (linha digitável) ---------- */
+function fnFmtCB(t){ const d=soDig(t); if(d.length===47) return d.replace(/^(\d{5})(\d{5})(\d{5})(\d{6})(\d{5})(\d{6})(\d)(\d{14})$/,'$1.$2 $3.$4 $5.$6 $7 $8'); if(d.length===48) return d.replace(/^(\d{12})(\d{12})(\d{12})(\d{12})$/,'$1 $2 $3 $4'); return String(t||'').replace(/[^\d. ]/g,''); }
+async function fnCopiarCB(t){ const d=soDig(t); if(!d){ toast('Sem código de barras'); return; }
+  try{ await navigator.clipboard.writeText(d); }catch(e){ const x=document.createElement('textarea'); x.value=d; document.body.appendChild(x); x.select(); document.execCommand('copy'); x.remove(); }
+  toast('Código de barras copiado ✓ ('+d.length+' números)',3000); }
 
 iniciar();
 </script>
