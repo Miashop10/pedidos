@@ -193,6 +193,7 @@ tr.fn-sel td{background:var(--acc-soft)!important}
 .dc-hoje{outline:2px solid var(--acc);outline-offset:-1px}.dc-hoje .dc-n{color:var(--acc-ink)}
 .dc-venc .dc-v{color:var(--bad)}
 .fn-cbtxt{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;letter-spacing:.2px;white-space:nowrap}
+.fn-sug-par{box-shadow:0 0 0 2px var(--ok)}
 .fnd-drop{display:block;border:2px dashed var(--line);border-radius:10px;padding:9px 12px;margin:0 0 10px;font-size:13px;cursor:pointer;background:var(--card);text-align:center}
 .fnd-drop:hover,.fnd-drop.on{border-color:var(--acc);background:var(--acc-soft)}
 .fnd-drop.lendo{opacity:.7;pointer-events:none}
@@ -740,6 +741,31 @@ const S = { senha:'', usuario:'', url:'', dados:null, view:'pedidos', sort:{}, f
 // tirando o cursor do campo. Aqui seguramos esse aviso até o ano ter 4 dígitos de verdade (>= 1900).
 ['change','input'].forEach(ev=>document.addEventListener(ev,e=>{ const t=e.target;
   if(t&&t.tagName==='INPUT'&&t.type==='date'&&t.value&&+t.value.slice(0,4)<1900) e.stopImmediatePropagation(); },true));
+/* ---------- Exportar PDF: reaproveita a mesma lista do "Exportar Excel" e monta uma tabela em PDF ---------- */
+function pdfTabelas(titulo,folhas,nomeArq,opt){ // folhas: [{nome, linhas:[[...]] (1ª = cabeçalho)}]
+  const { jsPDF } = window.jspdf; const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'}); let y=14; opt=opt||{};
+  doc.setFontSize(14); doc.setFont(undefined,'bold'); doc.text(titulo,10,y); doc.setFontSize(8); doc.setFont(undefined,'normal'); doc.setTextColor(120); doc.text('MIASHOP · gerado em '+new Date().toLocaleString('pt-BR'),287,y,{align:'right'}); doc.setTextColor(0); y+=4;
+  const fmt=v=>typeof v==='number'?fN(v,Math.abs(v%1)>1e-9||Math.abs(v)>=1000?2:0):String(v==null?'':v);
+  folhas.forEach((f,i)=>{ let L=f.linhas.filter(r=>r&&r.length); if(!L.length) return;
+    if(!opt.estilo){ // tira colunas sem nenhum valor e soma as colunas de valor no fim
+      const nc=L[0].length, vazia=[...Array(nc).keys()].filter(j=>L.slice(1).every(r=>r[j]===''||r[j]==null)); if(vazia.length&&vazia.length<nc) L=L.map(r=>r.filter((_,j)=>!vazia.includes(j)));
+      const somar=L[0].map((h,j)=>/valor|total|recebido|pedido/i.test(String(h))&&L.slice(1).some(r=>typeof r[j]==='number'));
+      if(somar.some(Boolean)&&L.length>2&&!L.slice(1).some(r=>/^TOTAL/i.test(String(r[0])))){ const t=L[0].map((_,j)=>somar[j]?L.slice(1).reduce((x,r)=>x+(typeof r[j]==='number'?r[j]:0),0):''); t[0]='TOTAL · '+(L.length-1); L.push(t); } }
+    const head=L[0].map(fmt), body=L.slice(1).map(r=>head.map((_,j)=>fmt(r[j])).map(x=>x.replace(/−/g,'-')));
+    if(folhas.length>1){ if(i&&y>170){ doc.addPage(); y=14; } doc.setFontSize(10); doc.setFont(undefined,'bold'); doc.text(f.nome||'',10,y+4); doc.setFont(undefined,'normal'); y+=6; }
+    const numCol=head.map((_,j)=>body.length&&body.every(r=>r[j]===''||/^[-()\d.,\s%R$]+$/.test(r[j])));
+    doc.autoTable({head:[head],body,startY:y,margin:{left:8,right:8},theme:'grid',styles:{fontSize:head.length>12?6.3:head.length>8?7:8,cellPadding:1.4,overflow:'linebreak'},
+      headStyles:{fillColor:[235,235,235],textColor:40,fontStyle:'bold'},columnStyles:Object.fromEntries(numCol.map((n,j)=>[j,n?{halign:'right'}:{}]).filter(x=>x[1].halign)),
+      didParseCell:d=>{ if(d.section!=='body') return; const t=String(d.cell.raw||''); if(opt.estilo) opt.estilo(d,t); else if(/^TOTAL/i.test(String(d.row.raw[0]||''))) d.cell.styles.fontStyle='bold'; } });
+    y=doc.lastAutoTable.finalY+8; });
+  doc.save(nomeArq.replace(/\.xlsx$/i,'')+'.pdf');
+}
+function exportarPDF(fnExcel,titulo){ // roda a exportação do Excel "por baixo" e transforma a planilha em PDF
+  if(!window.jspdf){ toast('Gerador de PDF não carregou'); return; }
+  const orig=XLSX.writeFile; let wb=null,nome='relatorio.xlsx'; XLSX.writeFile=(w,n)=>{ wb=w; nome=n; };
+  try{ fnExcel(); }finally{ XLSX.writeFile=orig; }
+  if(!wb) return; pdfTabelas(titulo,wb.SheetNames.map(n=>({nome:n,linhas:XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,defval:''})})),nome);
+}
 const LS = { get(k){ try{return localStorage.getItem(k);}catch(e){return null;} }, set(k,v){ try{localStorage.setItem(k,v);}catch(e){} }, del(k){ try{localStorage.removeItem(k);}catch(e){} } };
 const emAppsScript = () => !!(window.google && google.script && google.script.run);
 if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -1172,7 +1198,7 @@ function vLogistica(){
   </div>
   <div class="sl-filtros">
     <input type="search" class="w-q" style="flex:1 1 auto;max-width:520px" value="${esc(F.q)}" placeholder="Buscar fornecedor, filial, NF, data, cálculo, obs, valor…" oninput="LG.f.q=this.value;LG.lim=0;clearTimeout(window._lq);window._lq=setTimeout(lgAtualizar,200)">
-    <span class="sp"></span><button class="btn sec sm" onclick="lgExportar()">Excel</button>
+    <span class="sp"></span><button class="btn sec sm" onclick="lgExportar()">Excel</button><button class="btn sec sm" onclick="exportarPDF(lgExportar,'Controle de Logística')">PDF</button>
   </div>
   <div class="tw sl-tab"><table id="tbLog">${lgTabela()}</table></div>
   <datalist id="dlForn">${nomesLog('FORNECEDOR').map(n=>`<option value="${esc(n)}">`).join('')}</datalist><datalist id="dlFil">${nomesLog('FILIAL').map(n=>`<option value="${esc(n)}">`).join('')}</datalist>${document.getElementById('lgCalcLista')?'':`<datalist id="lgCalcLista">${CALCULOS.map(([c])=>`<option value="${c}">`).join('')}</datalist>`}
@@ -1321,7 +1347,7 @@ function vRelReceb(){
   <div class="sl-filtros">
     <select style="max-width:none" onchange="RR.f.ano=+this.value;RR.sel=null;rrAtualizar()">${rrAnos().map(a=>`<option value="${a}" ${a===RR.f.ano?'selected':''}>Ano ${a}</option>`).join('')}</select>
     <select style="max-width:220px" onchange="RR.f.forn=this.value;rrAtualizar()"><option value="">Fornecedor: todos</option>${nomesLog('FORNECEDOR').filter(n=>usoNome('FORNECEDOR',n)).map(n=>`<option ${n===F.forn?'selected':''}>${esc(n)}</option>`).join('')}</select>
-    <span class="sp"></span><button class="btn sec sm" onclick="rrExportar()">Excel</button>
+    <span class="sp"></span><button class="btn sec sm" onclick="rrExportar()">Excel</button><button class="btn sec sm" onclick="exportarPDF(rrExportar,'Relatórios de Recebimento '+RR.f.ano)">PDF</button>
   </div>
   <div id="rrCorpo">${rrCorpo()}</div></div>`;
 }
@@ -1606,7 +1632,7 @@ function vFaturar(){
     <input type="search" class="w-q" value="${esc(PF2.q)}" placeholder="Buscar fornecedor…" oninput="PF2.q=this.value;faAtualizar()">
     <label class="check small"><input type="checkbox" ${PF2.anteriores?'checked':''} onchange="PF2.anteriores=this.checked;faAtualizar()"> mostrar meses anteriores</label>
     <span class="sp"></span>
-    <button class="btn sec sm" onclick="faExportar()">Excel</button>
+    <button class="btn sec sm" onclick="faExportar()">Excel</button><button class="btn sec sm" onclick="exportarPDF(faExportar,'Pedidos a faturar')">PDF</button>
   </div>
   <div class="tw sl-tab fa-tab"><table id="tbFat">${faTabela()}</table></div>
   <p class="small muted" style="margin-top:6px">Clique no fornecedor para ver cada pedido e as parcelas. Prazo lido do campo "Prazo acordado", cada 30 dias = 1 mês após o mês do pedido (ou a partir do "1º pagamento" definido no pedido): "30/60/90 dias" = 3 parcelas · "60 dias" = 1 parcela em 2 meses · "3x" = 30/60/90 · sem número = no mês do pedido.</p>
@@ -1773,7 +1799,9 @@ function vFinanceiro(){
   const titulo=(FIN_SUBS[sec].find(x=>x[0]===sub)||[])[1]||'';
   const acoes = sec==='contas'?`<button class="btn sec sm" onclick="fnModalConta()">+ Adicionar conta</button><button class="btn sm" onclick="fnEscolherExtrato()">⬆ Importar extrato (Excel)</button><input type="file" id="fnInExt" accept=".xlsx,.xls,.csv" class="hide" onchange="if(this.files[0]) fnLerExtrato(this.files[0]); this.value=''">`
     : (sec==='receb'||sec==='pagar')&&sub!=='importar'&&sub!=='boletos'?`<button class="btn sec sm" onclick="fnIr('${sec}','importar')">⬆ Importar lançamentos</button><button class="btn" onclick="fnAbrirLanc(null,'${sec==='receb'?'RECEBER':'PAGAR'}')">+ Agendar ${sec==='receb'?'recebimento':'pagamento'}</button>`
-    : sec==='rel'&&sub!=='dre'&&sub!=='drep'?`<button class="btn sec sm" onclick="fnExportar()">Exportar Excel</button>${sub==='apagar'||sub==='areceber'?`<button class="btn" onclick="fnAbrirLanc(null,'${sub==='areceber'?'RECEBER':'PAGAR'}')">+ Agendar ${sub==='areceber'?'recebimento':'pagamento'}</button>`:''}`:'';
+    : sec==='rel'&&(sub==='dre'||sub==='drep')?`<button class="btn sec sm" onclick="fnDREPdf(${sub==='drep'})">Exportar PDF</button>`
+    : sec==='pagar'&&sub==='boletos'?`<button class="btn sec sm" onclick="exportarPDF(fnBoletosExcel,'Histórico de boletos lançados')">Exportar PDF</button>`
+    : sec==='rel'?`<button class="btn sec sm" onclick="fnExportar()">Exportar Excel</button><button class="btn sec sm" onclick="exportarPDF(fnExportar,(FIN_SUBS.rel.find(x=>x[0]===FN.sub.rel)||[])[1])">Exportar PDF</button>${sub==='apagar'||sub==='areceber'?`<button class="btn" onclick="fnAbrirLanc(null,'${sub==='areceber'?'RECEBER':'PAGAR'}')">+ Agendar ${sub==='areceber'?'recebimento':'pagamento'}</button>`:''}`:'';
   return `<div class="slim fn-wrap">
   <aside class="fn-side"><div class="fn-side-t">FINANCEIRO</div>
     ${FIN_SECOES.map(([k,n])=>{ const ab=FN.aberto===k; return `<div class="fn-grp ${ab?'ab':''} ${k===sec?'atv':''}">
@@ -1883,23 +1911,30 @@ function fnConciliacao(){
   const c=fnConta(FN.conta); const E=fin().extrato.filter(e=>String(e.CONTA_ID)===String(FN.conta));
   const pend=E.filter(e=>!e.LANC_ID); const L=(FN.concFiltro==='pend'?pend:FN.concFiltro==='conc'?E.filter(e=>e.LANC_ID):E).slice().sort((a,b)=>(isoBR(a.DATA)||'').localeCompare(isoBR(b.DATA)||'')||String(a.ID).localeCompare(String(b.ID)));
   const q=semAcento(FN.q).trim(); const LL=q?L.filter(e=>semAcento([e.DESCRICAO,e.DOCUMENTO,e.DATA,fN(Math.abs(+e.VALOR),2)].join(' ')).includes(q)):L;
+  // par sugerido para cada linha pendente (sem repetir o mesmo lançamento em duas linhas)
+  const usados=new Set(); FN.concPar={}; FN.concSel=FN.concSel||new Set();
+  LL.forEach(e=>{ if(e.LANC_ID) return; const l=fnSugestoes(e).find(x=>!usados.has(x.ID)); if(l){ FN.concPar[e.ID]=l.ID; usados.add(l.ID); } });
+  [...FN.concSel].forEach(id=>{ if(!FN.concPar[id]) FN.concSel.delete(id); });
+  const nPar=Object.keys(FN.concPar).length, nSel=FN.concSel.size; const limC=FN.lim||300;
   return `<div class="sl-filtros">
     <select style="max-width:260px" onchange="FN.conta=this.value;fnAtualizar()">${C.map(x=>`<option value="${esc(x.ID)}" ${x.ID===FN.conta?'selected':''}>${esc(x.NOME)}</option>`).join('')}</select>
     <select style="max-width:200px" onchange="FN.concFiltro=this.value;fnAtualizar()"><option value="pend" ${FN.concFiltro==='pend'?'selected':''}>Pendentes (${pend.length})</option><option value="conc" ${FN.concFiltro==='conc'?'selected':''}>Conciliadas (${E.length-pend.length})</option><option value="todas" ${FN.concFiltro==='todas'?'selected':''}>Todas (${E.length})</option></select>
     <input type="search" class="w-q" value="${esc(FN.q)}" placeholder="Buscar no extrato…" oninput="FN.q=this.value;FN.lim=0;clearTimeout(window._fq);window._fq=setTimeout(fnAtualizar,250)">
     <span class="sp"></span><span class="small">Saldo da conta: ${fnVal(fnSaldo(c))}</span>
   </div>
-  <div class="tw sl-tab"><table class="fn-conc"><thead><tr><th>Data</th><th>Descrição no extrato</th><th class="n">Valor</th><th>Conciliação</th></tr></thead><tbody>
-  ${LL.map(e=>{ const lk=e.LANC_ID, la=lk&&lk!=='IGNORADO'?fnLanc(lk):null;
+  ${nPar?`<div class="fn-selbar" id="fnConcBar"><label class="fnd-rd" style="margin:0"><input type="checkbox" ${nSel&&nSel===nPar?'checked':''} onchange="fnConcTodos(this.checked)"> Marcar todas com sugestão (${nPar})</label>
+    <span class="sp"></span><button class="btn" ${nSel?'':'disabled'} onclick="fnConciliarMarcados()">✓ Conciliar lançamentos marcados${nSel?' ('+nSel+')':''}</button></div>`:''}
+  <div class="tw sl-tab"><table class="fn-conc"><thead><tr><th style="width:28px"></th><th>Data</th><th>Descrição no extrato</th><th class="n">Valor</th><th>Conciliação</th></tr></thead><tbody>
+  ${LL.slice(0,limC).map(e=>{ const lk=e.LANC_ID, la=lk&&lk!=='IGNORADO'?fnLanc(lk):null;
     let acao;
     if(lk==='IGNORADO') acao=`<span class="tag t-mut">Ignorado (sem lançamento)</span> <button class="ib" onclick="fnDesconciliar('${esc(e.ID)}')">desfazer</button>`;
     else if(lk) acao=`<span class="tag t-ok">✓ Conciliado</span> <b>${esc(la?la.NOME:'(lançamento apagado)')}</b>${la&&la.CATEGORIA?' <span class="muted small">· '+esc(la.CATEGORIA)+'</span>':''}${la&&la.NOTA_FISCAL?' <span class="muted small">· NF '+esc(la.NOTA_FISCAL)+'</span>':''} <button class="ib" onclick="fnDesconciliar('${esc(e.ID)}')">desfazer</button>`;
     else { const sg=fnSugestoes(e);
-      acao=(sg.length?sg.slice(0,3).map(l=>`<button class="fn-sug" onclick="fnConciliar('${esc(e.ID)}','${esc(l.ID)}')" title="Conciliar com este lançamento"><span class="fn-sug-k">Sugestão</span> <b>${esc(l.NOME)}</b>${l.NOTA_FISCAL?' · NF '+esc(l.NOTA_FISCAL):''} · venc. ${esc(l.VENCIMENTO)} · ${fR(+l.VALOR)} <span class="fn-sug-ok">✓ Conciliar</span></button>`).join(''):'<span class="muted small">Sem lançamento com mesmo valor e vencimento.</span>')
+      acao=(sg.length?sg.slice(0,3).map(l=>`<button class="fn-sug${FN.concPar[e.ID]===l.ID?' fn-sug-par':''}" onclick="fnConciliar('${esc(e.ID)}','${esc(l.ID)}')" title="Conciliar com este lançamento"><span class="fn-sug-k">Sugestão</span> <b>${esc(l.NOME)}</b>${l.NOTA_FISCAL?' · NF '+esc(l.NOTA_FISCAL):''} · venc. ${esc(l.VENCIMENTO)} · ${fR(+l.VALOR)} <span class="fn-sug-ok">✓ Conciliar</span></button>`).join(''):'<span class="muted small">Sem lançamento com mesmo valor e vencimento.</span>')
         +` <span class="fn-acts"><button class="ib" onclick="fnBuscarLanc('${esc(e.ID)}')">🔍 Buscar lançamento</button><button class="ib" onclick="fnCriarDoExtrato('${esc(e.ID)}')">+ Criar lançamento</button><button class="ib" onclick="fnIgnorar('${esc(e.ID)}')" title="Sem lançamento (ex.: transferência entre contas)">Ignorar</button></span>`; }
-    return `<tr class="${lk?'fn-ok':''}"><td>${esc(e.DATA)}</td><td style="white-space:normal;min-width:200px">${esc(e.DESCRICAO)}${e.DOCUMENTO?' <span class="muted small">· doc '+esc(e.DOCUMENTO)+'</span>':''}</td><td class="n">${fnVal(+e.VALOR)}</td><td style="white-space:normal">${acao}</td></tr>`; }).join('')
-    ||`<tr><td colspan="4" class="muted">${E.length?(FN.concFiltro==='pend'?'Tudo conciliado nesta conta. ✓':'Nada aqui.'):'Nenhum extrato importado nesta conta. Use "⬆ Importar extrato (Excel)".'}</td></tr>`}
-  </tbody></table></div>`;
+    return `<tr class="${lk?'fn-ok':''}${FN.concSel.has(e.ID)?' fn-sel':''}"><td class="c">${!lk&&FN.concPar[e.ID]?`<input type="checkbox" class="fn-cck" ${FN.concSel.has(e.ID)?'checked':''} onchange="fnConcMarcar('${esc(e.ID)}',this.checked)" title="Marcar para conciliar com a sugestão destacada">`:''}</td><td>${esc(e.DATA)}</td><td style="white-space:normal;min-width:200px">${esc(e.DESCRICAO)}${e.DOCUMENTO?' <span class="muted small">· doc '+esc(e.DOCUMENTO)+'</span>':''}</td><td class="n">${fnVal(+e.VALOR)}</td><td style="white-space:normal">${acao}</td></tr>`; }).join('')
+    ||`<tr><td colspan="5" class="muted">${E.length?(FN.concFiltro==='pend'?'Tudo conciliado nesta conta. ✓':'Nada aqui.'):'Nenhum extrato importado nesta conta. Use "⬆ Importar extrato (Excel)".'}</td></tr>`}
+  </tbody>${LL.length>limC?`<tfoot><tr><td colspan="5" class="c" style="background:var(--card);font-weight:400">Mostrando ${limC} de ${LL.length} · <button class="btn ghost sm" onclick="FN.lim=1e9;fnAtualizar()">Mostrar todas</button></td></tr></tfoot>`:''}</table></div>`;
 }
 async function fnConciliar(exId,lancId){ try{ await api('finConciliar',{extratoId:exId,lancId}); fecharModal(); toast('Conciliado ✓'); await fnRecarregar(); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
 async function fnDesconciliar(exId){ if(!confirm('Desfazer esta conciliação? O lançamento volta a ficar em aberto.')) return; try{ await api('finDesconciliar',{extratoId:exId}); toast('Conciliação desfeita'); await fnRecarregar(); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
@@ -2695,6 +2730,40 @@ function fnHistBoletos(){
   </tbody><tfoot>${L.length>lim?`<tr><td colspan="6" class="c" style="background:var(--card);font-weight:400">Mostrando ${lim} de ${L.length} · <button class="btn ghost sm" onclick="FN.blim=1e9;fnAtualizar()">Mostrar todos</button></td></tr>`:''}<tr><td colspan="3">TOTAL · ${L.length} boleto(s)</td><td class="n">${fR(tot)}</td><td colspan="2"></td></tr></tfoot></table></div>`;
 }
 
+/* ---------- conciliação em lote ---------- */
+function fnConcMarcar(id,on){ on?FN.concSel.add(id):FN.concSel.delete(id); fnAtualizar(); }
+function fnConcTodos(on){ FN.concSel=new Set(on?Object.keys(FN.concPar):[]); fnAtualizar(); }
+function fnConciliarMarcados(){
+  const pares=[...FN.concSel].filter(id=>FN.concPar[id]).map(id=>({extratoId:id,lancId:FN.concPar[id]})); if(!pares.length) return;
+  const tot=pares.reduce((s,p)=>{ const e=fin().extrato.find(x=>x.ID===p.extratoId); return s+Math.abs(+(e||{}).VALOR||0); },0);
+  if(!confirm(`Conciliar ${pares.length} linha(s) do extrato com as sugestões destacadas (${fR(tot)})?`)) return;
+  FN.concSel=new Set();
+  fnBg('finConciliarLote',{pares},{rotulo:`Conciliar ${pares.length} lançamento(s) do extrato`,
+    local:()=>{ const F=fin(); pares.forEach(p=>{ const e=F.extrato.find(x=>x.ID===p.extratoId), l=F.lanc.find(x=>x.ID===p.lancId); if(!e||!l) return;
+      e.LANC_ID=l.ID; l.STATUS='QUITADO'; l.DATA_PAGAMENTO=e.DATA; l.VALOR_PAGO=Math.abs(+e.VALOR); l.CONTA_ID=e.CONTA_ID; l.EXTRATO_ID=e.ID; }); },
+    ok:r=>toast(`✓ ${r.conciliados} conciliação(ões) gravada(s)${r.erros&&r.erros.length?' · '+r.erros.length+' não conciliada(s): '+r.erros.slice(0,3).join('; '):''}`,6000)});
+  toast(`${pares.length} linha(s) conciliada(s) — gravando no Google`,4000);
+}
+
+/* ---------- PDF do DRE (realizado e, embaixo, agendado — com todas as categorias) ---------- */
+function fnDREPdf(part){
+  const ano=FN.ano; const meses=Array.from({length:12},(_,k)=>ano+'-'+String(k+1).padStart(2,'0'));
+  const R=fnDRECalc(meses,true,part), P=fnDRECalc(meses,false,part); const MN=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const tot=o=>meses.reduce((s,m)=>s+((o||{})[m]||0),0); const num=x=>{ x=Math.round(x||0); const t=fN(Math.abs(x),0); return x<0?'('+t+')':t; };
+  const L=[['RESULTADO',...MN,String(ano)]]; const tipos=[];
+  const add=(rot,oR,oP,neg,k)=>{ const s=neg?-1:1; L.push([rot,...meses.map(m=>num(s*((oR||{})[m]||0))),num(s*tot(oR))]); tipos.push(k);
+    L.push(['   agendado',...meses.map(m=>num(s*((oP||{})[m]||0))),num(s*tot(oP))]); tipos.push('ag'); };
+  const grupo=(rot,g,neg)=>{ add(rot,R.T[g],P.T[g],neg,'g'); [...new Set([...Object.keys(R.grupos[g]),...Object.keys(P.grupos[g])])].sort((a,b)=>a.localeCompare(b,'pt-BR')).forEach(n=>add('   '+n,R.grupos[g][n],P.grupos[g][n],neg,'c')); };
+  if(part){ grupo('A · RECEITAS','A'); grupo('B · DESPESAS','B',true); add('RESULTADO (A−B)',R.T.R,P.T.R,false,'r'); }
+  else { grupo('A · RECEITAS OPERACIONAIS','A'); grupo('B · DESPESAS OPERACIONAIS','B',true); grupo('C · FOLHA DE PAGAMENTO','C',true); add('TOTAL DESPESAS OPERACIONAIS + FOLHA (B+C)',R.T.BC,P.T.BC,true,'r');
+    grupo('D · PRODUTOS','D',true); grupo('E · DESPESAS MONTAGEM','E',true); add('F · RESULTADO REAL (A−B−C−D−E)',R.T.F,P.T.F,false,'r'); add('G · RESULTADO OPERACIONAL (A−B−C−D)',R.T.G,P.T.G,false,'r'); }
+  pdfTabelas((part?'DRE particular':'DRE Miashop')+' · '+ano+(FN.dreCC?' · centro de custo '+FN.dreCC:''),[{nome:'',linhas:L.map(r=>r.map(x=>String(x).replace(/−/g,'-')))}],(part?'dre-particular-':'dre-miashop-')+ano,
+    {estilo:(d,t)=>{ const k=tipos[d.row.index]; if(k==='g'){ d.cell.styles.fontStyle='bold'; d.cell.styles.fillColor=[243,244,246]; } if(k==='r'){ d.cell.styles.fontStyle='bold'; d.cell.styles.fillColor=[227,233,245]; }
+      if(k==='ag'){ d.cell.styles.textColor=[150,150,150]; d.cell.styles.fontSize=5.8; d.cell.styles.fontStyle='italic'; } else if(/^\(/.test(t)) d.cell.styles.textColor=[198,40,40]; }});
+}
+function fnBoletosExcel(){ const T=fin().lanc.filter(l=>l.TIPO==='PAGAR'&&soDig(l.COD_BARRAS)).map(l=>({l,k:fnCriadoChave(l.CRIADO_EM)||String(l.ID)})).sort((a,b)=>b.k.localeCompare(a.k)).map(x=>x.l);
+  const ws=XLSX.utils.json_to_sheet(T.map(l=>({'Data do lançamento':String(l.CRIADO_EM||'').slice(0,16),'Vencimento':l.VENCIMENTO,'Nome':l.NOME,'Valor':+l.VALOR||0,'Código de barras':fnFmtCB(l.COD_BARRAS)}))); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Boletos'); XLSX.writeFile(wb,'boletos-lancados.xlsx'); }
+
 /* =================== APLICAÇÕES FINANCEIRAS =================== */
 const AP={q:'',nome:'',ano:''};
 const apl=()=>(S.dados&&S.dados.aplicacoes)||[];
@@ -2720,7 +2789,7 @@ function vAplicacoes(){
     <input type="search" class="w-q" value="${esc(AP.q)}" placeholder="Buscar nome, valor, data…" oninput="AP.q=this.value;clearTimeout(window._aq);window._aq=setTimeout(apAtualizar,250)">
     <select onchange="AP.nome=this.value;apAtualizar()"><option value="">Aplicação: todas</option>${apNomes().map(n=>`<option value="${esc(n)}" ${n===AP.nome?'selected':''}>${esc(n)}</option>`).join('')}</select>
     <select onchange="AP.ano=this.value;apAtualizar()"><option value="">Ano: todos</option>${anos.map(a=>`<option ${a===AP.ano?'selected':''}>${a}</option>`).join('')}</select>
-    <span class="sp"></span><button class="btn ghost sm" onclick="apExcel()">Exportar Excel</button>
+    <span class="sp"></span><button class="btn ghost sm" onclick="apExcel()">Exportar Excel</button><button class="btn ghost sm" onclick="exportarPDF(apExcel,'Aplicações')">Exportar PDF</button>
   </div>
   <div id="apCorpo">${apCorpo(L,tot,porNome)}</div></div>`;
 }
