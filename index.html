@@ -179,6 +179,20 @@ tr.fn-sel td{background:var(--acc-soft)!important}
 .fila-b.ok{background:var(--acc-soft);color:var(--acc-ink)}
 .ap-form{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;padding:12px;margin-bottom:12px}
 .ap-res{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}.ap-chip{cursor:pointer;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:4px 12px;font-size:13px}.ap-chip:hover{border-color:var(--acc)}
+.dc-top{display:flex;align-items:center;gap:8px;margin-bottom:10px}.dc-mes{font-size:18px;min-width:170px;text-align:center}
+.dc-kpis{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px}.dc-k{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 14px;min-width:190px}.dc-k span{display:block;font-size:12px;color:var(--mut)}.dc-k b{font-size:20px}.dc-k.bad b{color:var(--bad)}.dc-k.ok b{color:var(--ok)}
+.dc-cols{display:grid;grid-template-columns:1fr;gap:12px;align-items:start}
+@media (min-width:2000px){.dc-cols{grid-template-columns:1fr 1fr}}
+.dc-card{padding:12px}.dc-card h3{margin:0 0 8px;font-size:15px}
+.dc-sem,.dc-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}.dc-sem span{font-size:11px;font-weight:700;color:var(--mut);text-align:center;text-transform:uppercase}
+.dc-d{min-height:58px;border:1px solid var(--line);border-radius:8px;padding:4px 6px;background:var(--card);font-size:12px;overflow:hidden}
+.dc-vz{border:0;background:transparent}.dc-fds{background:var(--soft)}
+.dc-tem{cursor:pointer;border-color:#c9cfdc}.dc-tem:hover{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc-soft)}
+.dc-n{font-weight:700;color:var(--mut);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dc-fer{font-weight:600;font-size:9.5px;color:#a15c00}
+.dc-v{font-weight:800;font-size:14px;margin-top:4px;color:var(--ink);white-space:nowrap}.dc-q{font-size:10.5px;color:var(--mut)}
+.dc-hoje{outline:2px solid var(--acc);outline-offset:-1px}.dc-hoje .dc-n{color:var(--acc-ink)}
+.dc-venc .dc-v{color:var(--bad)}
+.fn-cbtxt{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;letter-spacing:.2px;white-space:nowrap}
 .fnd-drop{display:block;border:2px dashed var(--line);border-radius:10px;padding:9px 12px;margin:0 0 10px;font-size:13px;cursor:pointer;background:var(--card);text-align:center}
 .fnd-drop:hover,.fnd-drop.on{border-color:var(--acc);background:var(--acc-soft)}
 .fnd-drop.lendo{opacity:.7;pointer-events:none}
@@ -759,8 +773,11 @@ function iniciar(){
   document.getElementById('lgUrlBox').classList.toggle('hide', emAppsScript() || !!API_URL);
   document.getElementById('lgUrl').value = S.url;
   document.getElementById('lgNome').value = LS.get('mc_user')||'';
-  const s = LS.get('mc_senha');
-  if (s && (emAppsScript() || S.url)) { S.senha=s; S.usuario=LS.get('mc_user')||''; abrirApp(); }
+  const tk = LS.get('mc_tok'), antiga = LS.get('mc_senha');
+  if (tk && (emAppsScript() || S.url)) { S.senha=tk; S.usuario=LS.get('mc_user')||''; abrirApp(); }
+  else if (antiga && (emAppsScript() || S.url)) { // versão anterior guardava a senha: troca por um passe de sessão e apaga a senha do navegador
+    S.senha=antiga; S.usuario=LS.get('mc_user')||'';
+    api('login').then(d=>{ if(d&&d.sessao){ S.senha=d.sessao; LS.set('mc_tok',d.sessao); } LS.del('mc_senha'); abrirApp(); }).catch(()=>{ LS.del('mc_senha'); document.getElementById('telaLogin').classList.remove('hide'); }); }
   else document.getElementById('telaLogin').classList.remove('hide');
   ['lgSenha','lgNome','lgUrl'].forEach(id=>document.getElementById(id).addEventListener('keydown',e=>{if(e.key==='Enter')entrar();}));
 }
@@ -769,10 +786,11 @@ async function entrar(){
   S.senha=document.getElementById('lgSenha').value.trim(); S.usuario=document.getElementById('lgNome').value.trim();
   if(!emAppsScript() && !API_URL){ S.url=document.getElementById('lgUrl').value.trim(); if(!/^https:\/\/script\.google(usercontent)?\.com\//.test(S.url)){ err.textContent='Informe a URL /exec do Apps Script.'; return; } }
   if(!S.usuario){ err.textContent='Informe o usuário.'; return; }
-  try{ await api('login'); LS.set('mc_senha',S.senha); LS.set('mc_user',S.usuario); if(!API_URL) LS.set('mc_url',S.url); document.getElementById('telaLogin').classList.add('hide'); abrirApp(); }
+  try{ const d=await api('login'); if(d&&d.sessao){ S.senha=d.sessao; LS.set('mc_tok',d.sessao); } LS.del('mc_senha'); document.getElementById('lgSenha').value=''; LS.set('mc_user',S.usuario);
+    if(d&&S.master&&!d.masterTrocada) setTimeout(()=>toast('🔒 Por segurança, troque a senha master em ⚙ Configurações → Trocar senha master',12000),1500); if(!API_URL) LS.set('mc_url',S.url); document.getElementById('telaLogin').classList.add('hide'); abrirApp(); }
   catch(e){ err.textContent = e.message==='Senha inválida' ? 'Usuário ou senha incorretos.' : ('Não conectou: '+e.message); }
 }
-function sair(){ LS.del('mc_senha'); S.senha=''; document.getElementById('telaApp').classList.add('hide'); document.getElementById('telaLogin').classList.remove('hide'); document.getElementById('lgUrlBox').classList.toggle('hide', emAppsScript() || !!API_URL); }
+function sair(){ if(S.senha&&String(S.senha).startsWith('tk:')){ const s=S.senha; try{ (emAppsScript()?Promise.resolve():fetch(S.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({acao:'sair',senha:s,usuario:S.usuario,dados:{}})})).catch(()=>{}); }catch(e){} } LS.del('mc_senha'); LS.del('mc_tok'); S.senha=''; document.getElementById('telaApp').classList.add('hide'); document.getElementById('telaLogin').classList.remove('hide'); document.getElementById('lgUrlBox').classList.toggle('hide', emAppsScript() || !!API_URL); }
 function abrirApp(){
   document.getElementById('telaApp').classList.remove('hide');
   document.getElementById('whoNome').textContent=S.usuario;
@@ -1632,11 +1650,18 @@ function faExportar(){
 const CFG = { usuarios:null };
 const ABAS_NOMES = [['pedidos','Pedidos'],['faturar','Pedidos a faturar'],['logistica','Controle de Logística'],['relreceb','Relatórios de Recebimento'],['financeiro','Financeiro'],['aplicacoes','Aplicações']];
 function vConfig(){
-  if(!S.master) return '<div class="card muted">Somente o usuário master (senha YY17) acessa as Configurações.</div>';
+  if(!S.master) return '<div class="card muted">Somente o usuário master acessa as Configurações.</div>';
   if(CFG.usuarios===null){ cfgCarregarUsuarios(); }
+  if(CFG.masterTrocada===undefined){ CFG.masterTrocada=null; api('infoSeguranca').then(d=>{ CFG.masterTrocada=d.masterTrocada; if(S.view==='config') render(); }).catch(()=>{}); }
   const fil=nomesLog('FILIAL').map(n=>({n,u:usoNome('FILIAL',n)}));
   return `<div class="slim">
   <div class="sl-head"><h2>Configurações</h2><span class="muted small">Acesso master. Usuários entram com login e senha próprios; a senha master continua valendo para entrar.</span></div>
+  <div class="card cfg-seg" style="padding:12px 14px;margin-bottom:12px">
+    <div class="row" style="align-items:flex-end;gap:10px"><div style="flex:1 1 260px"><b>🔒 Trocar senha master</b><div class="small muted">${CFG.masterTrocada===false?'<span class="bad"><b>A senha master ainda é a antiga — troque agora.</b></span> ':''}Mínimo 8 caracteres, com letras e números. Ela fica guardada só embaralhada; ao trocar, os outros computadores logados como master precisam entrar de novo.</div></div>
+    <label class="sf" style="flex:0 0 170px"><span>Senha atual</span><input type="password" id="cfgMAt" autocomplete="current-password"></label>
+    <label class="sf" style="flex:0 0 170px"><span>Nova senha</span><input type="password" id="cfgMNova" autocomplete="new-password"></label>
+    <label class="sf" style="flex:0 0 170px"><span>Repita a nova</span><input type="password" id="cfgMNova2" autocomplete="new-password"></label>
+    <button class="btn" onclick="cfgTrocarMaster()">Trocar senha</button></div></div>
   <div class="grid two" style="align-items:start">
     <div class="card">
       <b>Usuários</b><div class="small muted" style="margin:2px 0 10px">Login e senha para entrar no sistema. Marque abaixo de cada usuário as abas que ele pode acessar.</div>
@@ -1716,15 +1741,19 @@ async function cfgPermissao(ck){ // libera/bloqueia uma aba para o usuário
   catch(e){ ck.checked=!ck.checked; toast('Erro: '+e.message,6000); }
 }
 
+async function cfgTrocarMaster(){ const g=i=>document.getElementById(i).value; if(g('cfgMNova')!==g('cfgMNova2')){ toast('As duas senhas novas não são iguais'); return; }
+  try{ await api('trocarSenhaMaster',{atual:g('cfgMAt'),nova:g('cfgMNova')}); CFG.masterTrocada=true; toast('Senha master trocada ✓ — entre de novo com a nova senha',6000); setTimeout(()=>sair(),1500); }catch(e){ toast('Erro: '+e.message,7000); } }
+
 
 /* =================== FINANCEIRO =================== */
 // Lançamentos (FIN_LANCAMENTOS): TIPO RECEBER/PAGAR · STATUS ABERTO/QUITADO · extrato bancário (FIN_EXTRATO) conciliado com os lançamentos
-const FN = { sec:'contas', sub:{contas:'conc',receb:'agendar',pagar:'agendar',rel:'areceber',config:'cats'}, conta:'', concFiltro:'pend', q:'', de:'', ate:'', cat:'', cc:'', dreCC:'', ano:new Date().getFullYear(), imp:null };
-const FIN_SECOES = [['contas','Contas e extratos'],['receb','Recebimento'],['pagar','Pagamentos'],['rel','Relatórios'],['config','Configurações']];
+const FN = { sec:'inicio', mesDash:'', sub:{inicio:'dash',contas:'conc',receb:'agendar',pagar:'agendar',rel:'areceber',config:'cats'}, conta:'', concFiltro:'pend', q:'', de:'', ate:'', cat:'', cc:'', dreCC:'', ano:new Date().getFullYear(), imp:null };
+const FIN_SECOES = [['inicio','Dashboard inicial'],['contas','Contas e extratos'],['receb','Recebimento'],['pagar','Pagamentos'],['rel','Relatórios'],['config','Configurações']];
 const FIN_SUBS = {
+  inicio:[['dash','Dashboard inicial']],
   contas:[['conc','Conciliação bancária'],['contas','Contas bancárias'],['hist','Histórico de importações']],
   receb:[['agendar','Agendar recebimento'],['importar','Importar lançamentos']],
-  pagar:[['agendar','Agendar pagamento'],['importar','Importar lançamentos']],
+  pagar:[['agendar','Agendar pagamento'],['importar','Importar lançamentos'],['boletos','Histórico de boletos lançados']],
   rel:[['areceber','Contas a receber'],['apagar','Contas a pagar'],['recebidas','Contas recebidas'],['pagas','Contas pagas'],['dre','DRE Miashop'],['drep','DRE particular']],
   config:[['cats','Categorias'],['centros','Centros de custo'],['hist','Histórico de ações'],['nuvem','Envio para a nuvem']]
 };
@@ -1736,20 +1765,20 @@ const fnLanc = id => fin().lanc.find(l=>String(l.ID)===String(id));
 const fnVal = v => `<span class="${v<0?'bad':'ok'}" style="font-weight:700">${fR(v)}</span>`;
 function fnSaldo(c){ return (+c.SALDO_INICIAL||0) + fin().extrato.filter(e=>String(e.CONTA_ID)===String(c.ID)).reduce((s,e)=>s+(+e.VALOR||0),0); }
 
-const FIN_ICON={contas:'🏦',receb:'↑',pagar:'↓',rel:'📄',config:'⚙'};
+const FIN_ICON={inicio:'📊',contas:'🏦',receb:'↑',pagar:'↓',rel:'📄',config:'⚙'};
 function fnIr(sec,sub){ FN.lim=0; if(sub){ FN.sec=sec; FN.sub[sec]=sub; FN.aberto=sec; } else if(FN.aberto===sec){ FN.aberto=''; } else { FN.aberto=sec; FN.sec=sec; } render(); }
 function vFinanceiro(){
   if(!S.dados) return '<p class="muted">Carregando…</p>';
   const sec=FN.sec, sub=FN.sub[sec]; if(FN.aberto===undefined) FN.aberto=sec;
   const titulo=(FIN_SUBS[sec].find(x=>x[0]===sub)||[])[1]||'';
   const acoes = sec==='contas'?`<button class="btn sec sm" onclick="fnModalConta()">+ Adicionar conta</button><button class="btn sm" onclick="fnEscolherExtrato()">⬆ Importar extrato (Excel)</button><input type="file" id="fnInExt" accept=".xlsx,.xls,.csv" class="hide" onchange="if(this.files[0]) fnLerExtrato(this.files[0]); this.value=''">`
-    : (sec==='receb'||sec==='pagar')&&sub!=='importar'?`<button class="btn sec sm" onclick="fnIr('${sec}','importar')">⬆ Importar lançamentos</button><button class="btn" onclick="fnAbrirLanc(null,'${sec==='receb'?'RECEBER':'PAGAR'}')">+ Agendar ${sec==='receb'?'recebimento':'pagamento'}</button>`
+    : (sec==='receb'||sec==='pagar')&&sub!=='importar'&&sub!=='boletos'?`<button class="btn sec sm" onclick="fnIr('${sec}','importar')">⬆ Importar lançamentos</button><button class="btn" onclick="fnAbrirLanc(null,'${sec==='receb'?'RECEBER':'PAGAR'}')">+ Agendar ${sec==='receb'?'recebimento':'pagamento'}</button>`
     : sec==='rel'&&sub!=='dre'&&sub!=='drep'?`<button class="btn sec sm" onclick="fnExportar()">Exportar Excel</button>${sub==='apagar'||sub==='areceber'?`<button class="btn" onclick="fnAbrirLanc(null,'${sub==='areceber'?'RECEBER':'PAGAR'}')">+ Agendar ${sub==='areceber'?'recebimento':'pagamento'}</button>`:''}`:'';
   return `<div class="slim fn-wrap">
   <aside class="fn-side"><div class="fn-side-t">FINANCEIRO</div>
     ${FIN_SECOES.map(([k,n])=>{ const ab=FN.aberto===k; return `<div class="fn-grp ${ab?'ab':''} ${k===sec?'atv':''}">
-      <button class="fn-gh" onclick="fnIr('${k}')"><span class="fn-ic">${FIN_ICON[k]}</span><span>${n}</span><span class="fn-ch">${ab?'︿':'﹀'}</span></button>
-      ${ab?`<div class="fn-gl">${FIN_SUBS[k].map(([s2,n2])=>`<button class="${k===sec&&s2===sub?'on':''}" onclick="fnIr('${k}','${s2}')">${n2}</button>`).join('')}</div>`:''}</div>`; }).join('')}
+      <button class="fn-gh" onclick="${k==='inicio'?"fnIr('inicio','dash')":`fnIr('${k}')`}"><span class="fn-ic">${FIN_ICON[k]}</span><span>${n}</span>${k==='inicio'?'':`<span class="fn-ch">${ab?'︿':'﹀'}</span>`}</button>
+      ${ab&&k!=='inicio'?`<div class="fn-gl">${FIN_SUBS[k].map(([s2,n2])=>`<button class="${k===sec&&s2===sub?'on':''}" onclick="fnIr('${k}','${s2}')">${n2}</button>`).join('')}</div>`:''}</div>`; }).join('')}
   </aside>
   <div class="fn-main">
     <div class="sl-head fn-top"><div><div class="fn-crumb">Financeiro · ${esc((FIN_SECOES.find(x=>x[0]===sec)||[])[1])}</div><h2>${esc(titulo)}</h2></div><span id="fnPend" class="fn-pend${S.finPend?'':' hide'}">⟳ salvando ${S.finPend||''}…</span><span class="sp"></span>${acoes}</div>
@@ -1759,7 +1788,9 @@ function vFinanceiro(){
 }
 function fnCorpo(){
   const sec=FN.sec, sub=FN.sub[sec];
+  if(sec==='inicio') return fnDashboard();
   if(sec==='contas') return sub==='conc'?fnConciliacao(): sub==='contas'?fnContas(): fnHistorico();
+  if(sec==='pagar'&&sub==='boletos') return fnHistBoletos();
   if(sec==='receb'||sec==='pagar') return sub==='importar'?fnImportarTela(): fnAgendar(sec==='receb'?'RECEBER':'PAGAR');
   if(sec==='config'&&sub==='nuvem') return fnNuvemTela();
   if(sec==='config'&&sub!=='hist'&&!S.master) return fnCadastroSoLeitura(sub);
@@ -2600,6 +2631,68 @@ function fnNuvemTela(){
     ${F.map(x=>`<tr><td>${esc(x.em)}</td><td style="white-space:normal">${esc(x.rotulo)}</td><td class="n">${x.tent||0}</td><td style="white-space:normal">${x.env?'<span class="tag t-acc">enviando…</span>':x.recusado?`<span class="tag t-bad">${esc(x.erro)}</span>`:`<span class="tag t-warn">pendente</span> <span class="muted small">${esc(x.erro||'')}</span>`}</td>
       <td class="c"><button class="ib del" title="Descartar este envio (não será gravado)" onclick="if(confirm('Descartar este envio? Ele NÃO será gravado na nuvem.')){ filaTirar('${esc(x.cli)}'); fnAtualizar(); }">Descartar</button></td></tr>`).join('')}</tbody></table></div>`
   :'<div class="card muted" style="padding:14px">✓ Tudo já está na nuvem. Nenhum envio pendente neste computador.</div>'}`;
+}
+
+/* ---------- Dashboard inicial: calendários do mês ---------- */
+// feriados nacionais (fixos + móveis pela Páscoa: Carnaval seg/ter, Sexta-feira Santa, Corpus Christi)
+const FN_FER={};
+function fnFeriados(ano){ if(FN_FER[ano]) return FN_FER[ano];
+  const a=ano%19,b=Math.floor(ano/100),c=ano%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451);
+  const mes=Math.floor((h+l-7*m+114)/31), dia=((h+l-7*m+114)%31)+1; const pas=new Date(ano,mes-1,dia);
+  const iso=dt=>dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+  const mov=(n,nome)=>{ const x=new Date(pas); x.setDate(x.getDate()+n); return [iso(x),nome]; };
+  const F=Object.fromEntries([[`${ano}-01-01`,'Confraternização Universal'],[`${ano}-04-21`,'Tiradentes'],[`${ano}-05-01`,'Dia do Trabalho'],[`${ano}-09-07`,'Independência'],[`${ano}-10-12`,'N. Sra. Aparecida'],[`${ano}-11-02`,'Finados'],[`${ano}-11-15`,'Proclamação da República'],[`${ano}-11-20`,'Consciência Negra'],[`${ano}-12-25`,'Natal'],
+    mov(-48,'Carnaval'),mov(-47,'Carnaval'),mov(-2,'Sexta-feira Santa'),mov(60,'Corpus Christi')]);
+  return FN_FER[ano]=F; }
+function fnDiaUtil(iso){ // sábado, domingo e feriado passam para o próximo dia útil
+  let d=new Date(iso+'T12:00'); for(let n=0;n<15;n++){ const s=d.toISOString().slice(0,10); if(d.getDay()!==0&&d.getDay()!==6&&!fnFeriados(d.getFullYear())[s]) return s; d.setDate(d.getDate()+1); } return iso; }
+function fnDashboard(){
+  const hoje=hojeISO(); const mes=FN.mesDash||hoje.slice(0,7); const [A,M]=mes.split('-').map(Number);
+  let nomeMes=new Date(A,M-1,1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'}); nomeMes=nomeMes.charAt(0).toUpperCase()+nomeMes.slice(1);
+  const nav=(n)=>{ const d=new Date(A,M-1+n,1); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); };
+  // a pagar: em aberto, pelo vencimento ajustado ao dia útil
+  const pagar={}, receb={};
+  fin().lanc.forEach(l=>{
+    if(l.TIPO==='PAGAR'&&l.STATUS!=='QUITADO'){ const v=isoBR(l.VENCIMENTO); if(!v) return; const u=fnDiaUtil(v); if(u.slice(0,7)!==mes) return; (pagar[u]=pagar[u]||[]).push(l); }
+    if(l.TIPO==='RECEBER'&&l.STATUS==='QUITADO'){ const d=isoBR(l.DATA_PAGAMENTO); if(!d||d.slice(0,7)!==mes) return; (receb[d]=receb[d]||[]).push(l); } });
+  FN.dashDias={pagar,receb};
+  const soma=L=>(L||[]).reduce((s,l)=>s+(+(l.STATUS==='QUITADO'?l.VALOR_PAGO:l.VALOR)||0),0);
+  const totP=Object.values(pagar).reduce((s,L)=>s+soma(L),0), totPres=Object.entries(pagar).filter(([d])=>d>=hoje).reduce((s,[,L])=>s+soma(L),0), totPvenc=Object.entries(pagar).filter(([d])=>d<hoje).reduce((s,[,L])=>s+soma(L),0);
+  const totR=Object.values(receb).reduce((s,L)=>s+soma(L),0);
+  const cal=(tipo,dados)=>{ const prim=new Date(A,M-1,1), ult=new Date(A,M,0).getDate(); const ini=prim.getDay(); const F=fnFeriados(A);
+    let h='<div class="dc-sem">'+['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(x=>`<span>${x}</span>`).join('')+'</div><div class="dc-grid">';
+    for(let i=0;i<ini;i++) h+='<div class="dc-d dc-vz"></div>';
+    for(let d=1;d<=ult;d++){ const iso=`${mes}-${String(d).padStart(2,'0')}`; const dt=new Date(A,M-1,d); const fds=dt.getDay()===0||dt.getDay()===6, fer=F[iso]; const L=dados[iso]; const v=soma(L);
+      const cls=['dc-d',fds||fer?'dc-fds':'',iso===hoje?'dc-hoje':'',tipo==='pagar'&&v&&iso<hoje?'dc-venc':'',v?'dc-tem':''].join(' ');
+      h+=`<div class="${cls}" ${v?`onclick="fnDashDia('${tipo}','${iso}')" title="Ver ${L.length} lançamento(s)"`:''}><div class="dc-n">${d}${fer?` <span class="dc-fer" title="${esc(fer)}">${esc(fer)}</span>`:''}</div>${v?`<div class="dc-v">${fR(v)}</div><div class="dc-q">${L.length} ${tipo==='pagar'?(L.length>1?'contas':'conta'):(L.length>1?'recebimentos':'recebimento')}</div>`:''}</div>`; }
+    return h+'</div>'; };
+  return `<div class="dc-top"><button class="btn ghost sm" onclick="FN.mesDash='${nav(-1)}';fnAtualizar()">◀</button><b class="dc-mes">${nomeMes}</b><button class="btn ghost sm" onclick="FN.mesDash='${nav(1)}';fnAtualizar()">▶</button>${mes!==hoje.slice(0,7)?`<button class="btn ghost sm" onclick="FN.mesDash='';fnAtualizar()">mês atual</button>`:''}</div>
+  <div class="dc-kpis"><div class="dc-k bad"><span>A pagar no mês</span><b>${fR(totP)}</b></div><div class="dc-k"><span>A pagar de hoje até o fim do mês</span><b>${fR(totPres)}</b></div>${totPvenc?`<div class="dc-k bad"><span>Vencido e não pago</span><b>${fR(totPvenc)}</b></div>`:''}<div class="dc-k ok"><span>Recebido no mês</span><b>${fR(totR)}</b></div></div>
+  <div class="dc-cols"><div class="card dc-card"><h3>📅 Calendário a pagar <span class="muted small">— contas em aberto; sábado, domingo e feriado caem no próximo dia útil</span></h3>${cal('pagar',pagar)}</div>
+  <div class="card dc-card"><h3>💰 Calendário recebido <span class="muted small">— valores recebidos em cada dia</span></h3>${cal('receb',receb)}</div></div>`;
+}
+function fnDashDia(tipo,iso){ const L=(FN.dashDias[tipo]||{})[iso]||[]; const dt=new Date(iso+'T12:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'});
+  const tot=L.reduce((s,l)=>s+(+(tipo==='pagar'?l.VALOR:l.VALOR_PAGO)||0),0);
+  modal(`<div class="mh"><h3>${tipo==='pagar'?'A pagar':'Recebido'} · ${esc(dt)}</h3><button class="btn ghost" onclick="fecharModal()">✕</button></div>
+  <p class="small muted" style="margin-top:0">${L.length} lançamento(s) · total <b>${fR(tot)}</b></p>
+  <div class="tw sl-tab" style="max-height:60vh"><table><thead><tr><th>${tipo==='pagar'?'Vencimento':'Recebido em'}</th><th>Nome</th><th>Descrição</th><th>Categoria</th><th class="n">Valor</th><th></th></tr></thead><tbody>
+  ${L.map(l=>`<tr><td>${esc(tipo==='pagar'?l.VENCIMENTO:l.DATA_PAGAMENTO)}${tipo==='pagar'&&isoBR(l.VENCIMENTO)!==iso?' <span class="tag t-mut" title="Vence em fim de semana/feriado">→ dia útil</span>':''}</td><td><b>${esc(l.NOME)}</b></td><td>${esc(l.DESCRICAO)}</td><td>${esc(l.CATEGORIA)}</td><td class="n"><b>${fR(+(tipo==='pagar'?l.VALOR:l.VALOR_PAGO)||0)}</b></td>
+    <td class="c">${l.COD_BARRAS?`<button class="ib" title="Copiar código de barras" onclick="fnCopiarCB('${esc(l.COD_BARRAS)}')">📋</button>`:''}<button class="ib" onclick="fecharModal();fnAbrirLanc('${esc(l.ID)}')">✎</button></td></tr>`).join('')}</tbody></table></div>`); }
+
+/* ---------- Histórico de boletos lançados (pagamentos com código de barras) ---------- */
+function fnCriadoChave(t){ const m=String(t||'').match(/^(\d{2})\/(\d{2})\/(\d{4})\s*(\d{2}:\d{2}(:\d{2})?)?/); return m?m[3]+m[2]+m[1]+(m[4]||''):''; }
+function fnHistBoletos(){
+  const q=semAcento(FN.bq||'').trim();
+  const T=fin().lanc.filter(l=>l.TIPO==='PAGAR'&&soDig(l.COD_BARRAS));
+  const L=T.filter(l=>!q||semAcento([l.CRIADO_EM,l.VENCIMENTO,l.NOME,l.DESCRICAO,l.NOTA_FISCAL,fN(+l.VALOR,2),l.COD_BARRAS].join(' ')).includes(q))
+    .map(l=>({l,k:fnCriadoChave(l.CRIADO_EM)||String(l.ID)})).sort((a,b)=>b.k.localeCompare(a.k)).map(x=>x.l);
+  const lim=FN.blim||300, tot=L.reduce((s,l)=>s+(+l.VALOR||0),0);
+  return `<div class="sl-filtros"><input type="search" class="w-q" value="${esc(FN.bq||'')}" placeholder="Buscar nome, valor, vencimento, código…" oninput="FN.bq=this.value;FN.blim=0;clearTimeout(window._fq);window._fq=setTimeout(fnAtualizar,250)">
+    <span class="muted small">${T.length} boleto(s) lançado(s) no sistema</span></div>
+  <div class="tw sl-tab"><table><thead><tr><th style="width:150px">Data do lançamento</th><th style="width:105px">Vencimento</th><th>Nome</th><th class="n" style="width:120px">Valor</th><th>Código de barras</th><th style="width:90px"></th></tr></thead><tbody>
+  ${L.slice(0,lim).map(l=>`<tr><td>${esc(String(l.CRIADO_EM||'').slice(0,16))}</td><td>${esc(l.VENCIMENTO)}${l.STATUS==='QUITADO'?' <span class="tag t-ok" title="Pago em '+esc(l.DATA_PAGAMENTO)+'">pago</span>':''}</td><td><b>${esc(l.NOME)}</b>${l.DESCRICAO?`<div class="muted small">${esc(l.DESCRICAO)}</div>`:''}</td><td class="n"><b>${fR(+l.VALOR||0)}</b></td>
+    <td><span class="fn-cbtxt">${esc(fnFmtCB(l.COD_BARRAS))}</span></td><td class="c" style="white-space:nowrap"><button class="btn sec sm" onclick="fnCopiarCB('${esc(l.COD_BARRAS)}')">📋 Copiar</button><button class="ib" title="Abrir lançamento" onclick="fnAbrirLanc('${esc(l.ID)}')">✎</button></td></tr>`).join('')||'<tr><td colspan="6" class="muted">Nenhum boleto lançado ainda. Os boletos anexados em Agendar pagamento aparecem aqui.</td></tr>'}
+  </tbody><tfoot>${L.length>lim?`<tr><td colspan="6" class="c" style="background:var(--card);font-weight:400">Mostrando ${lim} de ${L.length} · <button class="btn ghost sm" onclick="FN.blim=1e9;fnAtualizar()">Mostrar todos</button></td></tr>`:''}<tr><td colspan="3">TOTAL · ${L.length} boleto(s)</td><td class="n">${fR(tot)}</td><td colspan="2"></td></tr></tfoot></table></div>`;
 }
 
 /* =================== APLICAÇÕES FINANCEIRAS =================== */
