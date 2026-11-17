@@ -153,6 +153,9 @@ tr.fn-sel td{background:var(--acc-soft)!important}
 .fn-lote-l{display:flex;align-items:flex-start;gap:12px;padding:8px 0;border-bottom:1px solid var(--line)}
 .fn-lote-l #fmCCs .fnd-ccl{grid-template-columns:1fr 130px 30px}.fn-lote-l #fmCCs .fnd-pv:has(.cc-v){display:none}
 .fn-lote-l .off{opacity:.35;pointer-events:none}
+.fnd-bol{margin-bottom:12px;padding:14px;font-size:14px;border-color:#9fb3d9;background:#f3f6fc}
+.fnd-bolinfo{background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:-4px 0 12px;font-size:13px;line-height:1.7}
+.fnd-parc{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}.fnd-parc span{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 8px;font-size:12px}
 .fnd-drop{display:block;border:2px dashed var(--line);border-radius:10px;padding:9px 12px;margin:0 0 10px;font-size:13px;cursor:pointer;background:var(--card);text-align:center}
 .fnd-drop:hover,.fnd-drop.on{border-color:var(--acc);background:var(--acc-soft)}
 .fnd-drop.lendo{opacity:.7;pointer-events:none}
@@ -705,7 +708,7 @@ const fN = (v,d=0) => (v==null||isNaN(v)||!isFinite(v)) ? '—' : v.toLocaleStri
 const fP = v => (v==null||isNaN(v)||!isFinite(v)) ? '—' : (v*100).toLocaleString('pt-BR',{maximumFractionDigits:0})+'%';
 const fD = v => (v==null||isNaN(v)||!isFinite(v)) ? '—' : (v<1 ? '< 1 dia' : Math.ceil(v)===1 ? '1 dia' : fN(Math.ceil(v))+' dias');
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const up = s => String(s==null?'':s).trim().toUpperCase();
+const up = s => String(s==null?'':s).replace(/\s+/g,' ').trim().toUpperCase(); // ignora espaços duplos
 function dnum(s){ const m=String(s||'').match(/(\d{2})\/(\d{2})\/(\d{4})/); return m? +(m[3]+m[2]+m[1]) : 0; }
 function dfmt(n){ if(!n) return '—'; n=String(n); return n.substr(6,2)+'/'+n.substr(4,2)+'/'+n.substr(0,4); }
 function hojeBR(){ const d=new Date(); return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear(); }
@@ -1886,6 +1889,9 @@ function fnAbrirLanc(id,tipo,pre,exId){
   dr.innerHTML=`<div class="fnd-bg" onclick="fnFecharLanc()"></div><div class="fnd ${rec?'rec':'pag'}">
     <div class="fnd-h"><h3>${titulo}</h3><button class="btn ghost" onclick="fnFecharLanc()" title="Fechar (Esc)">✕</button></div>
     <div class="fnd-b">
+      ${!rec&&!id?`<label class="fnd-drop fnd-bol" id="fmBolDrop" ondragover="event.preventDefault();this.classList.add('on')" ondragleave="this.classList.remove('on')" ondrop="event.preventDefault();this.classList.remove('on');if(event.dataTransfer.files[0]) fnDrBoleto(event.dataTransfer.files[0])">
+        <input type="file" accept=".pdf" class="hide" onchange="if(this.files[0]) fnDrBoleto(this.files[0]); this.value=''">🧾 <b>Arraste aqui o boleto (PDF)</b> <span class="muted">ou clique para escolher — preenche nome, vencimento, valor, categoria e centro de custo</span></label>
+      <div id="fmBolInfo"></div>`:''}
       <div class="fnd-r1">${f('Vencimento',`<input type="date" id="fmVenc" value="${isoBR(l.VENCIMENTO)||''}">`,'flex:0 0 170px')}
         ${f('Forma de pagamento',`<div class="fnd-fp">${['CONTA CORRENTE','CARTÃO DE CRÉDITO'].map(o=>`<label><input type="radio" name="fmFP" value="${o}" ${(/CART/i.test(l.FORMA_PAGAMENTO||'')?'CARTÃO DE CRÉDITO':'CONTA CORRENTE')===o?'checked':''}><span>${o==='CONTA CORRENTE'?'🏦':'💳'} ${o}</span></label>`).join('')}</div>`,'flex:0 0 auto')}<span class="sp"></span>
         <div class="fnd-tot"><span>Total a ${rec?'receber':'pagar'}</span><b id="fmTotTop">${fR(+l.VALOR||0)}</b></div></div>
@@ -1963,6 +1969,33 @@ function fnDrLerCC(){ const m={}; [...document.querySelectorAll('#fmCCs .fnd-ccl
   if(a.length===1&&!a[0].pct) a[0].pct=100; return a; }
 function fnFecharLanc(){ const d=document.getElementById('fnDrawer'); if(!d) return; d.classList.remove('on'); setTimeout(()=>{ if(!d.classList.contains('on')) d.innerHTML=''; },220); FN.dr=null; }
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&FN.dr&&!document.querySelector('.mbg')) fnFecharLanc(); });
+async function fnDrBoleto(f){
+  const box=document.getElementById('fmBolDrop'); const txt=box.innerHTML; box.classList.add('lendo'); box.innerHTML='Lendo '+esc(f.name)+'…';
+  try{
+    const B=await fnLerBoleto(f); const b=B[0]; FN.dr.boletos=B; FN.dr.bolArq=f.name;
+    const set=(i,v)=>{ const e=document.getElementById(i); if(e&&v!=null&&v!=='') e.value=v; };
+    const igual=fnNomeParecido(b.benef); const nome=igual||b.benef;
+    set('fmNome',nome); set('fmVenc',isoBR(b.venc)); set('fmValor',fN(b.valor,2)); if(b.doc) set('fmNF',b.doc);
+    const dsc=document.getElementById('fmDesc'); if(dsc&&!dsc.value.trim()) dsc.value=b.doc?('NF '+b.doc):'';
+    const ob=document.getElementById('fmObs'); if(ob&&!ob.value.trim()&&b.linha&&B.length===1) ob.value='Linha digitável: '+b.linha;
+    // categoria (e centro, se o CNPJ não resolver): do último lançamento desse fornecedor
+    const ult=fin().lanc.filter(l=>l.TIPO==='PAGAR'&&up(String(l.NOME).trim())===up(nome)).sort((x,y)=>String(y.CRIADO_EM||y.ID).localeCompare(String(x.CRIADO_EM||x.ID)))[0];
+    const cat=document.getElementById('fmCat'); if(cat&&!cat.value.trim()&&ult&&ult.CATEGORIA) cat.value=ult.CATEGORIA;
+    const cc=fnCentroDoCnpj(b.pagadorCnpj); const ccTxt=cc||(ult&&ult.CENTRO_CUSTO)||'';
+    if(ccTxt){ const lin=fnCCParse(ccTxt); document.getElementById('fmCCs').innerHTML=lin.map(fnDrLinhaCC).join(''); }
+    fnDrRecalc();
+    const n=B.length, tot=B.reduce((x,y)=>x+y.valor,0);
+    document.getElementById('fmBolInfo').innerHTML=`<div class="fnd-bolinfo">
+      <div>Beneficiário no boleto: <b>${esc(b.benef||'—')}</b>${b.benefCnpj?' · '+esc(b.benefCnpj):''}${igual&&igual!==b.benef?` <span class="tag t-ok">usando o nome já cadastrado: ${esc(igual)}</span>`:(!igual?' <span class="tag t-warn">nome novo</span>':'')}</div>
+      <div>Pagador: <b>${esc(b.pagadorCnpj||'não identificado')}</b> → centro de custo ${cc?`<span class="tag t-ok">${esc(cc)}</span>`:`<span class="tag t-warn">${b.pagadorCnpj?'CNPJ sem centro de custo — cadastre em Configurações → Centros de custo':'escolha abaixo'}</span>`}
+        ${!cc&&ult&&ult.CENTRO_CUSTO?' (usei o do último lançamento)':''}${ult&&ult.CATEGORIA?` · categoria do último lançamento: <b>${esc(ult.CATEGORIA)}</b>`:''}</div>
+      ${n>1?`<div style="margin-top:6px"><label class="fnd-rd" style="margin:0"><input type="checkbox" id="fmBolTodos" checked> <b>Agendar as ${n} parcelas do PDF</b> (${fR(tot)})</label>
+        <div class="fnd-parc">${B.map((x,i)=>`<span>${x.parcela||((i+1)+'/'+n)} · ${esc(x.venc)} · ${fR(x.valor)}</span>`).join('')}</div></div>`:''}
+    </div>`;
+    toast(n>1?`${n} boletos lidos — confira e clique em Agendar`:'Boleto lido — confira e clique em Agendar',5000);
+  }catch(e){ toast(f.name+': '+e.message,7000); }
+  box.classList.remove('lendo'); box.innerHTML=txt;
+}
 async function fnSalvarLancDr(){
   const {id,tipo,exId}=FN.dr; const g=i=>document.getElementById(i).value.trim();
   const d={tipo,vencimento:brISO(g('fmVenc')),nome:g('fmNome'),descricao:g('fmDesc'),notaFiscal:g('fmNF'),categoria:g('fmCat'),valor:numBR(g('fmValor')),formaPagamento:(document.querySelector('input[name=fmFP]:checked')||{}).value||'CONTA CORRENTE',obs:g('fmObs')};
@@ -1974,6 +2007,12 @@ async function fnSalvarLancDr(){
   if(new Set(cc.map(c=>up(c.nome))).size<cc.length){ toast('Centro de custo repetido'); return; }
   d.centroCusto=fnCCTexto(cc);
   const bt=document.getElementById('fmSalvar'); bt.disabled=true;
+  const B=(FN.dr.boletos||[]); const todos=B.length>1&&(document.getElementById('fmBolTodos')||{}).checked;
+  if(todos){ try{
+      const lista=B.map((b,i)=>Object.assign({},d,{linha:i+1,vencimento:b.venc,valor:b.valor,descricao:((d.descricao||'')+' · parcela '+(b.parcela||((i+1)+'/'+B.length))).replace(/^ · /,''),obs:[d.obs,b.linha?'Linha digitável: '+b.linha:''].filter(Boolean).join(' · ')}));
+      const r=await api('finImportarLanc',{arquivoNome:FN.dr.bolArq||'boleto.pdf',lista}); toast(`${r.importados} parcela(s) agendada(s) ✓`,5000);
+      await fnRecarregar(); render(); fnFecharLanc(); }catch(e){ bt.disabled=false; toast('Erro: '+e.message,6000); } return; }
+  if(B.length===1&&!d.obs&&B[0].linha) d.obs='Linha digitável: '+B[0].linha;
   try{
     if(exId) await api('finConciliar',{extratoId:exId,novo:d});
     else { if(id){ d.id=id; const l=fnLanc(id); if(l&&l.STATUS==='QUITADO'){ d.quitado=true; d.dataPagamento=l.DATA_PAGAMENTO; d.valorPago=l.VALOR_PAGO; d.contaId=l.CONTA_ID; } } await api('finSalvarLanc',d); }
@@ -2186,7 +2225,6 @@ function fnTabelaDRE(meses,part){
     return cab+grupo('RECEITAS','A','A')+grupo('DESPESAS','B','B',true)+res('dre-res','RESULTADO','(A−B)','R')+'</tbody></table></div>'; }
   return cab+grupo('RECEITAS OPERACIONAIS','A','A')+grupo('DESPESAS OPERACIONAIS','B','B',true)+grupo('FOLHA DE PAGAMENTO','C','C',true)
     +linha('dre-sub',`TOTAL DESPESAS OPERACIONAIS + FOLHA <span class="dre-letra">(B+C)</span><div class="dre-sub-l">Agendado</div>`,R.T.BC,P.T.BC,true,'BC','',true)
-    +`<tr class="dre-esp"><td colspan="${meses.length+2}"></td></tr>`
     +grupo('PRODUTOS','D','D',true)+grupo('DESPESAS MONTAGEM','E','E',true)
     +res('dre-res','RESULTADO REAL','(A−B−C−D−E=F)','F')+res('dre-res2','RESULTADO OPERACIONAL','(A−B−C−D=G)','G')+'</tbody></table></div>';
 }
@@ -2229,17 +2267,20 @@ function fnCentrosTela(){
   return `<div class="row" style="margin-bottom:10px"><span class="sp"></span><button class="btn sec" onclick="fnModalAgrupar('',true)">⇢ Agrupar centros de custo</button></div>
   <div class="card" style="padding:12px;margin-bottom:12px"><b>Novo centro de custo</b>
     <div class="row" style="align-items:flex-end;margin-top:8px"><label class="sf" style="flex:1 1 280px"><span>Nome</span><input id="fnCCNovo" placeholder="Ex.: Loja Londrina, E-commerce, Administrativo" onkeydown="if(event.key==='Enter') fnSalvarCC('')"></label>
+    <label class="sf" style="flex:0 0 210px"><span>CNPJ (opcional)</span><input id="fnCCNovoCnpj" list="dlFnCnpj" placeholder="00.000.000/0000-00" onchange="fnCnpjSugNome(this)"></label>
     <button class="btn" onclick="fnSalvarCC('')">+ Criar centro de custo</button></div></div>
-  <div class="tw sl-tab"><table><thead><tr><th>Centro de custo</th><th class="n">Lançamentos</th><th class="n">A receber/recebido</th><th class="n">A pagar/pago</th><th></th></tr></thead><tbody>
+  <div class="tw sl-tab"><table><thead><tr><th>Centro de custo</th><th style="width:200px">CNPJ <span class="muted small" style="text-transform:none">(boletos)</span></th><th class="n">Lançamentos</th><th class="n">A receber/recebido</th><th class="n">A pagar/pago</th><th></th></tr></thead><tbody>
   ${C.map(n=>{ const L=uso(n); const sm=t=>L.filter(l=>l.TIPO===t).reduce((s,l)=>s+(+l.VALOR||0)*fnCCPeso(l,n),0);
-    return `<tr><td><input class="lgi" value="${esc(n)}" data-antigo="${esc(n)}" onchange="fnSalvarCC(this)" onkeydown="if(event.key==='Enter') this.blur()"></td><td class="n muted">${L.length}</td><td class="n">${fR(sm('RECEBER'))}</td><td class="n">${fR(sm('PAGAR'))}</td>
-    <td class="c" style="white-space:nowrap"><button class="ib" onclick="fnSalvarCC(this)">Salvar</button><button class="ib" title="Juntar este centro de custo em outro" onclick="fnModalAgrupar(this.closest('tr').querySelector('input').dataset.antigo,true)">⇢ Agrupar</button><button class="ib del" onclick="fnExcluirCC(this)">✕</button></td></tr>`; }).join('')||'<tr><td colspan="5" class="muted">Nenhum centro de custo cadastrado.</td></tr>'}
-  </tbody></table></div>`;
+    return `<tr><td><input class="lgi" value="${esc(n)}" data-antigo="${esc(n)}" onchange="fnSalvarCC(this)" onkeydown="if(event.key==='Enter') this.blur()"></td><td><input class="lgi cc-cnpj" list="dlFnCnpj" value="${esc((fnCentroInfo(n)||{}).CNPJ||'')}" placeholder="—" onchange="fnSalvarCnpjCC(this,'${esc(n).replace(/'/g,"\\'")}')" onkeydown="if(event.key==='Enter') this.blur()"></td><td class="n muted">${L.length}</td><td class="n">${fR(sm('RECEBER'))}</td><td class="n">${fR(sm('PAGAR'))}</td>
+    <td class="c" style="white-space:nowrap"><button class="ib" onclick="fnSalvarCC(this)">Salvar</button><button class="ib" title="Juntar este centro de custo em outro" onclick="fnModalAgrupar(this.closest('tr').querySelector('input').dataset.antigo,true)">⇢ Agrupar</button><button class="ib del" onclick="fnExcluirCC(this)">✕</button></td></tr>`; }).join('')||'<tr><td colspan="6" class="muted">Nenhum centro de custo cadastrado.</td></tr>'}
+  </tbody></table></div><datalist id="dlFnCnpj">${((S.dados&&S.dados.filiais)||[]).map(f=>`<option value="${esc(f.CNPJ)}">${esc(f.NOME_LOJA||f.RAZAO_SOCIAL||'')}</option>`).join('')}</datalist>
+  <p class="small muted">O CNPJ serve para o boleto: ao anexar um boleto em Agendar pagamento, o sistema vê o CNPJ do <b>pagador</b> e preenche o centro de custo sozinho.</p>`;
 }
 async function fnSalvarCC(bt){ let nome,antigo='';
   if(bt){ const tr=bt.closest('tr'); if(tr.dataset.salvando) return; const i=tr.querySelector('input'); nome=i.value.trim(); antigo=i.dataset.antigo; if(!nome){ i.value=antigo; toast('O nome não pode ficar vazio'); return; } if(nome===antigo) return; tr.dataset.salvando='1'; tr.style.opacity='.5'; } else nome=document.getElementById('fnCCNovo').value.trim();
   if(!nome){ toast('Informe o nome'); return; }
-  try{ await api('finSalvarCentro',{nome,antigo}); toast('Centro de custo salvo'); await fnRecarregar(); fnAtualizar(); const e=document.getElementById('fnCCNovo'); if(e&&!bt) e.focus(); }catch(e){ toast('Erro ao salvar: '+e.message,7000); fnAtualizar(); } }
+  const cnpj=bt?undefined:(document.getElementById('fnCCNovoCnpj')||{}).value;
+  try{ await api('finSalvarCentro',cnpj!==undefined?{nome,antigo,cnpj:fnFmtCnpj(cnpj)}:{nome,antigo}); toast('Centro de custo salvo'); await fnRecarregar(); fnAtualizar(); const e=document.getElementById('fnCCNovo'); if(e&&!bt) e.focus(); }catch(e){ toast('Erro ao salvar: '+e.message,7000); fnAtualizar(); } }
 async function fnExcluirCC(bt){ const n=bt.closest('tr').querySelector('input').dataset.antigo; const u=fin().lanc.filter(l=>fnCCPeso(l,n)).length; if(u){ if(confirm(`O centro de custo "${n}" tem ${u} lançamento(s) e não pode ser apagado direto.\n\nQuer agrupá-lo em outro centro de custo?`)) fnModalAgrupar(n,true); return; } if(!confirm('Excluir o centro de custo '+n+'?')) return;
   try{ await api('finExcluirCentro',{nome:n}); await fnRecarregar(); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
 
@@ -2265,7 +2306,7 @@ async function fnDesfazer(id){
 
 /* agrupar categorias / centros de custo: o 1º é apagado e os lançamentos passam para o 2º */
 function fnModalAgrupar(origem,cc){
-  FN.agCC=!!cc; const C=cc?fnCentros():fin().categorias.map(c=>c.NOME).sort((a,b)=>a.localeCompare(b,'pt-BR')); const opt=sel=>C.map(n=>`<option ${n===sel?'selected':''}>${esc(n)}</option>`).join('');
+  FN.agCC=!!cc; const C=cc?fnCentros():fin().categorias.map(c=>c.NOME).sort((a,b)=>a.localeCompare(b,'pt-BR')); const opt=sel=>C.map(n=>`<option value="${esc(n)}" ${n===sel?'selected':''}>${esc(n)}</option>`).join('');
   const nm=cc?'centro de custo':'categoria';
   modal(`<div class="mh"><h3>Agrupar ${cc?'centros de custo':'categorias'}</h3><button class="btn ghost" onclick="fecharModal()">✕</button></div>
   <p class="small muted" style="margin-top:0">O primeiro ${nm} será <b>apagado</b> e todos os lançamentos dele passam para o segundo.${cc?' Se um lançamento já tiver os dois centros, os % são somados.':''}</p>
@@ -2338,6 +2379,81 @@ async function fnExcluirSel(){
   const ids=fnSelIds(); if(!ids.length) return; const tot=ids.map(fnLanc).filter(Boolean).reduce((s,l)=>s+(+l.VALOR||0),0);
   if(!confirm(`EXCLUIR ${ids.length} lançamento(s) · ${fR(tot)}?\n\nDá para desfazer em Configurações → Histórico de ações.`)) return;
   try{ const r=await api('finExcluirLote',{ids}); ids.forEach(i=>FN.sel.delete(i)); toast(`${r.excluidos} lançamento(s) excluído(s)`,5000); await fnRecarregar(); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,7000); }
+}
+
+/* ---------- CNPJ dos centros de custo ---------- */
+const soDig=t=>String(t||'').replace(/\D/g,'');
+function fnFmtCnpj(t){ const d=soDig(t); return d.length===14?d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,'$1.$2.$3/$4-$5'):String(t||'').trim(); }
+function fnCentroInfo(n){ return fin().centros.find(c=>up(String(c.NOME).trim())===up(String(n).trim())); }
+function fnCnpjSugNome(inp){ inp.value=fnFmtCnpj(inp.value); const f=((S.dados&&S.dados.filiais)||[]).find(x=>soDig(x.CNPJ)===soDig(inp.value)); const n=document.getElementById('fnCCNovo'); if(f&&n&&!n.value.trim()) n.value=f.NOME_LOJA||''; }
+async function fnSalvarCnpjCC(inp,nome){ inp.value=fnFmtCnpj(inp.value); const d=soDig(inp.value);
+  if(d&&d.length!==14){ toast('CNPJ precisa ter 14 números'); return; }
+  const outro=fin().centros.find(c=>soDig(c.CNPJ)===d&&d&&up(c.NOME)!==up(nome)); if(outro&&!confirm(`Esse CNPJ já está no centro de custo "${outro.NOME}". Usar nos dois?`)) return;
+  inp.style.opacity='.5'; try{ await api('finSalvarCentro',{nome,antigo:nome,cnpj:inp.value}); toast('CNPJ salvo'); await fnRecarregar(); fnAtualizar(); }catch(e){ inp.style.opacity=''; toast('Erro: '+e.message,6000); } }
+// centro de custo de um CNPJ pagador: 1º o CNPJ cadastrado no centro, 2º a filial com esse CNPJ cujo nome bate com um centro
+function fnCentroDoCnpj(cnpj){ const d=soDig(cnpj); if(d.length!==14) return '';
+  const c=fin().centros.find(x=>soDig(x.CNPJ)===d); if(c) return c.NOME;
+  const f=((S.dados&&S.dados.filiais)||[]).find(x=>soDig(x.CNPJ)===d); if(!f) return '';
+  const nm=semAcento(f.NOME_LOJA||''); const cc=fnCentros().find(n=>semAcento(n)===nm)||fnCentros().find(n=>nm&&(semAcento(n).includes(nm)||nm.includes(semAcento(n)))); return cc||''; }
+
+/* ---------- leitura de boleto (PDF) ---------- */
+// cada página com linha digitável vira um boleto: {linha, valor, venc, benef, benefCnpj, pagadorCnpj, doc, parcela}
+async function fnLerBoleto(f){
+  if(!/\.pdf$/i.test(f.name)&&f.type!=='application/pdf') throw new Error('envie o boleto em PDF');
+  if(!window.pdfjsLib) throw new Error('leitor de PDF não carregou (verifique a internet)');
+  const doc=await pdfjsLib.getDocument({data:new Uint8Array(await f.arrayBuffer())}).promise; const out=[]; const vistos=new Set();
+  const nossos=new Set([...fin().centros.map(c=>soDig(c.CNPJ)),...((S.dados&&S.dados.filiais)||[]).map(x=>soDig(x.CNPJ))].filter(Boolean));
+  for(let p=1;p<=doc.numPages;p++){
+    const pg=await doc.getPage(p); const tc=await pg.getTextContent();
+    const it=tc.items.filter(i=>String(i.str).trim()).map(i=>({s:String(i.str).trim(),x:i.transform[4],y:i.transform[5]}));
+    // agrupa em linhas pela altura
+    const linhas=[]; it.slice().sort((a,b)=>b.y-a.y||a.x-b.x).forEach(i=>{ const l=linhas.find(l=>Math.abs(l.y-i.y)<2.5); if(l) l.it.push(i); else linhas.push({y:i.y,it:[i]}); });
+    linhas.forEach(l=>{ l.it.sort((a,b)=>a.x-b.x); l.t=l.it.map(i=>i.s).join(' '); });
+    const txt=linhas.map(l=>l.t).join('\n');
+    // linha digitável (bancário 47 dígitos)
+    let m=txt.replace(/\n/g,' ').match(/(\d{5})[.\s]?(\d{5})\s+(\d{5})[.\s]?(\d{6})\s+(\d{5})[.\s]?(\d{6})\s+(\d)\s+(\d{14})/);
+    let linha='', valor=0, venc='';
+    if(m){ linha=m.slice(1).join(''); const fator=+linha.slice(33,37); valor=+linha.slice(37)/100; venc=fnVencFator(fator); }
+    // datas e valor pelos rótulos (confere / completa)
+    const datas=[...txt.matchAll(/\b(\d{2}\/\d{2}\/\d{4})\b/g)].map(x=>x[1]);
+    const lv=linhas.find(l=>/vencimento/i.test(l.t)&&/\d{2}\/\d{2}\/\d{4}/.test(l.t)) || (()=>{ const lab=it.find(i=>/^vencimento$/i.test(i.s)); if(!lab) return null; return linhas.filter(l=>/\d{2}\/\d{2}\/\d{4}/.test(l.t)).sort((a,b)=>Math.abs(a.y-lab.y)-Math.abs(b.y-lab.y))[0]; })();
+    const dRot=lv&&(lv.t.match(/\d{2}\/\d{2}\/\d{4}/)||[])[0];
+    if(!venc||(dRot&&datas.includes(dRot)&&dRot!==venc&&!datas.includes(venc))) venc=dRot||venc;
+    if(!valor){ const labV=it.find(i=>/valor do documento/i.test(i.s)); if(labV){ const c=it.filter(i=>/^\d{1,3}(\.\d{3})*,\d{2}$/.test(i.s)).sort((a,b)=>(Math.abs(a.y-labV.y)+Math.abs(a.x-labV.x)/4)-(Math.abs(b.y-labV.y)+Math.abs(b.x-labV.x)/4))[0]; if(c) valor=numBR(c.s); } }
+    if(!linha&&!valor) continue;
+    if(linha&&vistos.has(linha)) continue; if(linha) vistos.add(linha);
+    // CNPJs: o nosso (pagador) e o do beneficiário
+    const cnpjs=[...new Set([...txt.matchAll(/\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}/g)].map(x=>x[0]))];
+    const pag=cnpjs.find(c=>nossos.has(soDig(c)))||'';
+    const benC=cnpjs.find(c=>soDig(c)!==soDig(pag)&&!nossos.has(soDig(c)))||'';
+    // nome do beneficiário: linha onde está o CNPJ dele, ou a linha logo abaixo do rótulo "Beneficiário"
+    const limpa=t=>String(t||'').replace(/\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}/g,'').replace(/CNPJ(\/CPF)?\s*:?/ig,'').replace(/^.*benefici[aá]rio( final)?\s*:?/i,'').replace(/\s[-–]\s*$/,'').replace(/\s+/g,' ').trim();
+    let benef='';
+    const lb=benC&&linhas.find(l=>soDig(l.t).includes(soDig(benC))); if(lb){ benef=limpa(lb.t); }
+    if(!benef||benef.length<3){ const lab=it.find(i=>/^benefici[aá]rio\s*:?$/i.test(i.s)); if(lab){ const abaixo=linhas.filter(l=>l.y<lab.y&&lab.y-l.y<20).sort((a,b)=>b.y-a.y)[0]; if(abaixo) benef=limpa(abaixo.t); } }
+    if(!benef){ const lab=linhas.find(l=>/benefici[aá]rio\s*:/i.test(l.t)&&!/pagador/i.test(l.t)); if(lab) benef=limpa(lab.t); }
+    const dm=txt.match(/\b(?:NT|NF|NFE|NF-E)\s*[:.\-]?\s*([0-9A-Z]{3,})\s*(\d{1,2}\/\d{1,2})?/i);
+    out.push({pagina:p,linha,valor:Math.round(valor*100)/100,venc,benef,benefCnpj:benC,pagadorCnpj:pag,doc:dm?dm[1]:'',parcela:dm&&dm[2]?dm[2]:''});
+  }
+  if(!out.length) throw new Error('não encontrei a linha digitável nem o valor do boleto neste PDF');
+  const fnNF=(f.name.match(/NF[_\s\-]?([0-9A-Z]+)/i)||[])[1]||''; out.forEach(b=>{ if(!b.doc) b.doc=fnNF; });
+  return out.sort((a,b)=>(isoBR(a.venc)||'').localeCompare(isoBR(b.venc)||''));
+}
+// fator de vencimento FEBRABAN (reinicia em 1000 em 22/02/2025): escolhe a data mais perto de hoje
+function fnVencFator(f){ if(!f) return ''; const d1=new Date(1997,9,7+f), d2=new Date(2025,1,22+(f-1000)), h=new Date();
+  const d=Math.abs(d2-h)<Math.abs(d1-h)?d2:d1; return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear(); }
+// acha um nome já usado no sistema que seja o mesmo fornecedor (abreviado, sem acento, maiúsc./minúsc.)
+const FN_STOP=new Set(['LTDA','ME','EPP','EIRELI','SA','S','A','DE','DA','DO','DAS','DOS','E','EM','COMERCIO','IMPORTACAO','EXPORTACAO','INDUSTRIA','DISTRIBUIDORA','COM','IND','IMP','EXP','CIA','SOCIEDADE','EMPRESARIAL','UNIPESSOAL']);
+const fnTok=t=>semAcento(t).replace(/[^A-Z0-9 ]/g,' ').split(/\s+/).filter(w=>w&&!FN_STOP.has(w));
+function fnNomeParecido(nome){
+  const B=fnTok(nome); if(!B.length) return ''; const bj=B.join(' ');
+  const cand=[...new Set([...fnNomes('PAGAR'),...fnNomes(),...((S.dados&&S.dados.logistica)||[]).map(r=>String(r.FORNECEDOR||'').trim()).filter(Boolean)])];
+  let best='',sc=0;
+  cand.forEach(c=>{ const A=fnTok(c); if(!A.length) return; const aj=A.join(' '); let p=0;
+    if(aj===bj) p=100; else if(bj.startsWith(aj+' ')||aj.startsWith(bj+' ')) p=80+Math.min(A.length,B.length);
+    else if(A[0]===B[0]&&A.every(w=>B.includes(w))) p=60+A.length; else if(A[0]===B[0]&&B.every(w=>A.includes(w))) p=55+B.length;
+    if(p>sc||(p===sc&&p&&fnNomes('PAGAR').includes(c)&&!fnNomes('PAGAR').includes(best))){ sc=p; best=c; } });
+  return sc>=55?best:'';
 }
 
 iniciar();
