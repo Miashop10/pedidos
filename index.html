@@ -161,6 +161,22 @@ tr.fn-sel td{background:var(--acc-soft)!important}
 .fnd-cbm{font-family:ui-monospace,Consolas,monospace;font-size:11.5px}
 .fnd-cb{display:flex;gap:8px}.fnd-cb input{flex:1;font-family:ui-monospace,Consolas,monospace;letter-spacing:.3px}
 .fn-soconc{color:var(--mut)!important}
+.cs-top{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.cs-top input{flex:0 1 260px;height:32px}.cs-top select{height:32px;padding:2px 8px;font-size:13px}
+.cs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(460px,1fr));gap:10px;align-items:start}
+.cs-box{padding:6px 8px 8px;margin:0}
+.cs-box .fn-cath{margin:0 0 4px}.cs-box .fn-cath b{font-size:14px}
+.cs-t{width:100%;border-collapse:collapse}
+.cs-t td{padding:1px 2px;border-bottom:1px solid var(--line)}
+.cs-t tr:last-child td{border-bottom:0}
+.cs-t .cs-n{width:100%;height:26px;font-size:13px;border:1px solid transparent;background:transparent;padding:2px 6px;border-radius:5px}
+.cs-t .cs-n:hover,.cs-t .cs-n:focus{border-color:var(--line);background:var(--card)}
+.cs-t .cs-s{height:26px;font-size:12px;padding:1px 4px;border-color:transparent;background:transparent;color:var(--mut)}
+.cs-t .cs-s:hover,.cs-t .cs-s:focus{border-color:var(--line);background:var(--card);color:var(--ink)}
+.cs-t td:nth-child(2){width:86px}.cs-t td:nth-child(3){width:150px}.cs-t td:nth-child(4){width:56px}
+.cs-t .ib{padding:2px 5px}
+.fila-b{cursor:pointer;background:#fdecea;color:#b3261e;font-weight:800;font-size:12px;border-radius:20px;padding:4px 10px;margin-right:8px}
+.fila-b.ok{background:var(--acc-soft);color:var(--acc-ink)}
 .fnd-drop{display:block;border:2px dashed var(--line);border-radius:10px;padding:9px 12px;margin:0 0 10px;font-size:13px;cursor:pointer;background:var(--card);text-align:center}
 .fnd-drop:hover,.fnd-drop.on{border-color:var(--acc);background:var(--acc-soft)}
 .fnd-drop.lendo{opacity:.7;pointer-events:none}
@@ -426,7 +442,7 @@ td.desc{white-space:normal;min-width:220px;max-width:340px}
       <button data-v="financeiro">Financeiro</button>
     </nav>
     <div class="sp"></div>
-    <div class="who"><button class="btn sec sm hide" id="btConfig" onclick="irPara('config')" title="Configurações: usuários e agrupamento de filiais">⚙<span class="bc-txt"> Configurações</span></button><span id="whoNome"></span><span id="whoSync"></span>
+    <div class="who"><button class="btn sec sm hide" id="btConfig" onclick="irPara('config')" title="Configurações: usuários e agrupamento de filiais">⚙<span class="bc-txt"> Configurações</span></button><span id="filaBadge" class="fila-b hide" onclick="irPara('financeiro');fnIr('config','nuvem')" title="Há informações que ainda não chegaram na nuvem — clique para enviar"></span><span id="whoNome"></span><span id="whoSync"></span>
       <button class="btn ghost" title="Atualizar" onclick="carregar()">↻</button>
       <button class="btn ghost" onclick="sair()">Sair</button></div>
   </div>
@@ -723,7 +739,7 @@ function loading(on){ document.getElementById('loading').classList.toggle('hide'
 /* =================== API =================== */
 function api(acao, dados){
   loading(true);
-  const fim = r => { loading(false); if(r && r.ok && r.fin && S.dados){ if(r.finParcial&&S.dados.fin){ Object.assign(S.dados.fin,r.fin); if(r.finUpsert){ Object.keys(r.finUpsert).forEach(k=>{ const L=S.dados.fin[k]=S.dados.fin[k]||[]; r.finUpsert[k].forEach(x=>{ const i=L.findIndex(y=>String(y.ID)===String(x.ID)); if(i>=0) L[i]=x; else L.push(x); }); }); } if(r.finHist){ (S.dados.fin.historico=S.dados.fin.historico||[]).push(r.finHist); } } else S.dados.fin=r.fin; S.finFresco=true; } if(r&&r.tempos&&window.console) console.info('[api]',acao,r.tempos); if(r && r.ok){ S.master=!!r.master; S.abas=r.abas||[]; const b=document.getElementById('btConfig'); if(b) b.classList.toggle('hide',!S.master); aplicarAbas(); } if(!r || !r.ok){ if(r && r.erro==='SENHA_INVALIDA'){ sair(); throw new Error('Senha inválida'); } throw new Error(r&&r.erro||'Falha na comunicação'); } return r.dados; };
+  const fim = r => { loading(false); if(r && r.ok && r.fin && S.dados){ if(r.finParcial&&S.dados.fin){ Object.assign(S.dados.fin,r.fin); if(r.finUpsert){ Object.keys(r.finUpsert).forEach(k=>{ const L=S.dados.fin[k]=S.dados.fin[k]||[]; r.finUpsert[k].forEach(x=>{ const i=L.findIndex(y=>String(y.ID)===String(x.ID)); if(i>=0) L[i]=x; else L.push(x); }); }); } if(r.finHist){ (S.dados.fin.historico=S.dados.fin.historico||[]).push(r.finHist); } } else S.dados.fin=r.fin; S.finFresco=true; } if(r&&r.tempos&&window.console) console.info('[api]',acao,r.tempos); if(r && r.ok){ S.master=!!r.master; S.abas=r.abas||[]; const b=document.getElementById('btConfig'); if(b) b.classList.toggle('hide',!S.master); aplicarAbas(); } if(!r || !r.ok){ if(r && r.erro==='SENHA_INVALIDA'){ sair(); throw new Error('Senha inválida'); } const er=new Error(r&&r.erro||'Falha na comunicação'); er.servidor=!!(r&&r.erro); throw er; } return r.dados; };
   if (emAppsScript()) return new Promise((res,rej)=>google.script.run.withSuccessHandler(r=>{try{res(fim(r));}catch(e){rej(e);}}).withFailureHandler(e=>{loading(false);rej(e);}).api(acao,S.senha,dados||{},S.usuario));
   return fetch(S.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({acao,senha:S.senha,usuario:S.usuario,dados:dados||{}})})
     .then(r=>r.json()).then(fim).catch(e=>{loading(false);throw e;});
@@ -755,6 +771,7 @@ function abrirApp(){
   document.getElementById('whoNome').textContent=S.usuario;
   document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>irPara(b.dataset.v));
   carregar();
+  setTimeout(()=>{ try{ filaIniciar(); }catch(e){} },3000);
 }
 // mostra no menu só as abas liberadas para o usuário (master vê todas)
 function aplicarAbas(){
@@ -1702,7 +1719,7 @@ const FIN_SUBS = {
   receb:[['agendar','Agendar recebimento'],['importar','Importar lançamentos']],
   pagar:[['agendar','Agendar pagamento'],['importar','Importar lançamentos']],
   rel:[['areceber','Contas a receber'],['apagar','Contas a pagar'],['recebidas','Contas recebidas'],['pagas','Contas pagas'],['dre','DRE Miashop'],['drep','DRE particular']],
-  config:[['cats','Categorias'],['centros','Centros de custo'],['hist','Histórico de ações']]
+  config:[['cats','Categorias'],['centros','Centros de custo'],['hist','Histórico de ações'],['nuvem','Envio para a nuvem']]
 };
 async function fnRecarregar(){ if(S.finFresco){ S.finFresco=false; return; } await carregar(true); }
 const fin = () => { const f=(S.dados&&S.dados.fin) || {contas:[],lanc:[],extrato:[],importacoes:[],categorias:[]}; f.centros=f.centros||[]; return f; };
@@ -1737,6 +1754,8 @@ function fnCorpo(){
   const sec=FN.sec, sub=FN.sub[sec];
   if(sec==='contas') return sub==='conc'?fnConciliacao(): sub==='contas'?fnContas(): fnHistorico();
   if(sec==='receb'||sec==='pagar') return sub==='importar'?fnImportarTela(): fnAgendar(sec==='receb'?'RECEBER':'PAGAR');
+  if(sec==='config'&&sub==='nuvem') return fnNuvemTela();
+  if(sec==='config'&&sub!=='hist'&&!S.master) return fnCadastroSoLeitura(sub);
   if(sec==='config') return sub==='centros'?fnCentrosTela():sub==='hist'?fnHistTela():fnCategoriasTela();
   if(sub==='dre') return fnDRE(false);
   if(sub==='drep') return fnDRE(true);
@@ -2034,13 +2053,14 @@ async function fnSalvarLancDr(){
   if(cc.length&&Math.abs(soma-100)>=0.01){ toast(`Centros de custo somam ${fN(soma,2)}% — precisa dar 100%`,5000); return; }
   if(new Set(cc.map(c=>up(c.nome))).size<cc.length){ toast('Centro de custo repetido'); return; }
   d.centroCusto=fnCCTexto(cc);
+  { const f=fnCadastroFaltando(d.categoria,d.centroCusto); if(f){ toast(f,7000); return; } }
   const bt=document.getElementById('fmSalvar'); bt.disabled=true;
   const B=(FN.dr.boletos||[]); const todos=B.length>1&&(document.getElementById('fmBolTodos')||{}).checked;
   if(todos){
       const lista=B.map((b,i)=>Object.assign({},d,{linha:i+1,vencimento:b.venc,valor:b.valor,descricao:d.descricao||'',codBarras:b.linha||''}));
       const tmps=lista.map((x,i)=>'tmp'+Date.now()+'-'+i); const arq=FN.dr.bolArq||'boleto.pdf';
       fnFecharLanc();
-      fnBg('finImportarLanc',{arquivoNome:arq,lista},{local:()=>{ lista.forEach((x,i)=>fin().lanc.push({ID:tmps[i],TIPO:x.tipo,STATUS:'ABERTO',VENCIMENTO:x.vencimento,NOME:x.nome,DESCRICAO:x.descricao,NOTA_FISCAL:x.notaFiscal,CATEGORIA:x.categoria,CENTRO_CUSTO:x.centroCusto,FORMA_PAGAMENTO:x.formaPagamento,OBS:x.obs,COD_BARRAS:x.codBarras,VALOR:x.valor})); },
+      fnBg('finImportarLanc',{arquivoNome:arq,lista},{rotulo:`${lista.length} parcela(s) do boleto: ${d.nome}`,local:()=>{ lista.forEach((x,i)=>fin().lanc.push({ID:tmps[i],TIPO:x.tipo,STATUS:'ABERTO',VENCIMENTO:x.vencimento,NOME:x.nome,DESCRICAO:x.descricao,NOTA_FISCAL:x.notaFiscal,CATEGORIA:x.categoria,CENTRO_CUSTO:x.centroCusto,FORMA_PAGAMENTO:x.formaPagamento,OBS:x.obs,COD_BARRAS:x.codBarras,VALOR:x.valor})); },
         ok:r=>toast(`✓ ${r.importados} parcela(s) gravada(s)`,4000)});
       toast(`${lista.length} parcela(s) agendada(s) — gravando no Google`,4000); return; }
   if(B.length===1&&!d.codBarras&&B[0].linha) d.codBarras=B[0].linha;
@@ -2049,7 +2069,7 @@ async function fnSalvarLancDr(){
     const reg={TIPO:tipo,VENCIMENTO:d.vencimento,NOME:d.nome,DESCRICAO:d.descricao,NOTA_FISCAL:d.notaFiscal,CATEGORIA:d.categoria,CENTRO_CUSTO:d.centroCusto,FORMA_PAGAMENTO:d.formaPagamento,OBS:d.obs,COD_BARRAS:d.codBarras,VALOR:d.valor};
     const cont=!id&&FN.continuar; if(cont) fnAbrirLanc(null,tipo); else fnFecharLanc();
     const tmp='tmp'+Date.now()+Math.random().toString(36).slice(2,6);
-    fnBg('finSalvarLanc',d,{local:()=>{ if(id) Object.assign(fnLanc(id)||{},reg); else fin().lanc.push(Object.assign({ID:tmp,STATUS:'ABERTO',CRIADO_EM:''},reg)); },
+    fnBg('finSalvarLanc',d,{rotulo:`${id?'Editar':'Agendar'} ${tipo==='RECEBER'?'recebimento':'pagamento'}: ${d.nome} · ${fR(d.valor)} · venc. ${d.vencimento}`,local:()=>{ if(id) Object.assign(fnLanc(id)||{},reg); else fin().lanc.push(Object.assign({ID:tmp,STATUS:'ABERTO',CRIADO_EM:''},reg)); },
       ok:()=>{ const F=fin(); F.lanc=F.lanc.filter(x=>x.ID!==tmp); if(aliases.length) api('finSalvarAliasCC',{lista:aliases}).catch(()=>{}); },
       erro:()=>{ const F=fin(); F.lanc=F.lanc.filter(x=>x.ID!==tmp); }});
     toast(id?'Lançamento salvo':(tipo==='RECEBER'?'Recebimento':'Pagamento')+' agendado ✓'); return;
@@ -2065,7 +2085,7 @@ async function fnSalvarLancDr(){
 }
 function fnModalLanc(id,tipo,pre,exId){ fnAbrirLanc(id,tipo,pre,exId); }
 async function fnExcluirLanc(id){ const l=fnLanc(id); if(!confirm(`Excluir ${l.NOME} · ${fR(+l.VALOR)}?${l.STATUS==='QUITADO'?'\n\nSe estiver conciliado, a linha do extrato volta a ficar pendente.':''}`)) return;
-  fnBg('finExcluirLanc',{id},{local:()=>{ const F=fin(); F.lanc=F.lanc.filter(x=>x.ID!==id); }}); toast('Lançamento excluído'); }
+  fnBg('finExcluirLanc',{id},{rotulo:`Excluir lançamento: ${l.NOME} · ${fR(+l.VALOR)}`,local:()=>{ const F=fin(); F.lanc=F.lanc.filter(x=>x.ID!==id); }}); toast('Lançamento excluído'); }
 function fnSoConciliacao(l){ return l&&l.TIPO==='PAGAR'&&!/CART/i.test(String(l.FORMA_PAGAMENTO||'')); }
 function fnModalBaixa(id){ const l=fnLanc(id); const C=fin().contas; if(fnSoConciliacao(l)){ toast('Conta corrente: o pagamento só é baixado pela Conciliação bancária',6000); return; }
   modal(`<div class="mh"><h3>${l.TIPO==='RECEBER'?'Receber':'Pagar'} · ${esc(l.NOME)}</h3><button class="btn ghost" onclick="fecharModal()">✕</button></div>
@@ -2139,6 +2159,7 @@ function fnColaMontar(){
     if(quit){ d.quitado=true; d.dataPagamento=fnColaData(g(r,'pag'))||d.vencimento; }
     const erros=[]; if(!/^\d{2}\/\d{2}\/\d{4}$/.test(d.vencimento)) erros.push('sem data'); if(!d.nome) erros.push('sem nome'); if(!d.valor) erros.push('sem valor');
     { const cc=fnCCParse(d.centroCusto); const sm=cc.reduce((x,c)=>x+c.pct,0); if(cc.length&&Math.abs(sm-100)>=0.01) erros.push('centros de custo somam '+fN(sm,2)+'%'); }
+    { const f=fnCadastroFaltando(d.categoria,d.centroCusto); if(f) erros.push(f.split('.')[0]+' (só o master cria)'); }
     return {d,erros}; });
 }
 function fnColaPrevia(){
@@ -2275,31 +2296,30 @@ function fnTabelaDRE(meses,part){
 const FIN_GRUPOS=[['OPERACIONAL','Operacional'],['FOLHA','Folha de pagamento'],['PRODUTOS','Produtos'],['MONTAGEM','Despesas montagem'],['PARTICULAR','DRE particular']];
 function fnOptGrupo(c){ const g=fnGrupoCat(c); return FIN_GRUPOS.filter(([k])=>!((k==='MONTAGEM'||k==='PRODUTOS'||k==='FOLHA')&&c.TIPO==='RECEITA')).map(([k,n])=>`<option value="${k}" ${k===g?'selected':''}>${n}</option>`).join(''); }
 function fnCategoriasTela(){
-  const vis=new Set(); const C=fin().categorias.filter(c=>{ const k=up(c.NOME); if(!k||vis.has(k)) return false; vis.add(k); return true; }).sort((a,b)=>(a.TIPO+a.NOME).localeCompare(b.TIPO+b.NOME,'pt-BR'));
-  const linha=c=>`<tr class="fn-cfg"><td><input class="lgi" value="${esc(c.NOME)}" data-antigo="${esc(c.NOME)}" data-c="nome" onchange="fnSalvarCat(this)" onkeydown="if(event.key==='Enter') this.blur()"></td><td><select data-c="tipo" onchange="fnSalvarCat(this)"><option value="RECEITA" ${c.TIPO==='RECEITA'?'selected':''}>Receita</option><option value="DESPESA" ${c.TIPO!=='RECEITA'?'selected':''}>Despesa</option></select></td><td><select data-c="grupo" onchange="fnSalvarCat(this)">${fnOptGrupo(c)}</select></td>
-    <td class="c" style="white-space:nowrap"><button class="ib" onclick="fnSalvarCat(this)">Salvar</button><button class="ib" title="Juntar esta categoria em outra" onclick="fnModalAgrupar(this.closest('tr').querySelector('[data-c=nome]').dataset.antigo)">⇢ Agrupar</button><button class="ib del" onclick="fnExcluirCat(this)">✕</button></td></tr>`;
-  return `<div class="row" style="margin-bottom:10px"><span class="sp"></span><button class="btn sec" onclick="fnModalAgrupar('')">⇢ Agrupar categorias</button></div>
-  <div class="card" style="padding:12px;margin-bottom:12px"><b>Nova categoria</b>
-    <div class="row" style="align-items:flex-end;margin-top:8px" id="fnCatNova"><label class="sf" style="flex:2 1 220px"><span>Nome</span><input data-c="nome" data-antigo="" placeholder="Ex.: Marketing"></label>
-    <label class="sf" style="flex:0 0 140px"><span>Tipo</span><select data-c="tipo"><option value="DESPESA">Despesa</option><option value="RECEITA">Receita</option></select></label>
-    <label class="sf" style="flex:0 0 190px"><span>Grupo</span><select data-c="grupo">${FIN_GRUPOS.map(([k,n])=>`<option value="${k}">${n}</option>`).join('')}</select></label>
-    <button class="btn" onclick="fnSalvarCat(this)">+ Criar categoria</button></div></div>
-  <p class="small muted">Para editar, clique no nome, apague e digite o novo — salva sozinho ao sair do campo ou apertar Enter (tipo e grupo salvam ao trocar). Grupo: <b>Operacional</b> entra em A (receitas) ou B (despesas) do DRE; <b>Folha de pagamento</b> entra em C; <b>Produtos</b> entra em D; <b>Despesas montagem</b> entra em E; <b>DRE particular</b> sai do DRE da Miashop e vai só para o DRE particular.</p>
-  ${[['A · Receitas operacionais','Entram em A do DRE da Miashop',c=>fnGrupoCat(c)==='OPERACIONAL'&&c.TIPO==='RECEITA','ok'],
-     ['B · Despesas operacionais','Entram em B do DRE da Miashop',c=>fnGrupoCat(c)==='OPERACIONAL'&&c.TIPO!=='RECEITA','bad'],
-     ['C · Folha de pagamento','Entram em C do DRE da Miashop',c=>fnGrupoCat(c)==='FOLHA','folha'],
-     ['D · Produtos','Entram em D do DRE da Miashop',c=>fnGrupoCat(c)==='PRODUTOS','prod'],
-     ['E · Despesas montagem','Entram em E do DRE da Miashop',c=>fnGrupoCat(c)==='MONTAGEM','warn'],
-     ['DRE particular','Não entram no DRE da Miashop — só no DRE particular',c=>fnGrupoCat(c)==='PARTICULAR','acc']].map(([t,sub,fl,cor])=>{ const L=C.filter(fl);
-    return `<div class="fn-catbox fc-${cor}"><div class="fn-cath"><b>${t}</b><span class="muted small">${sub}</span><span class="sp"></span><span class="tag t-mut">${L.length}</span></div>
-    <div class="tw sl-tab"><table><thead><tr><th>Categoria</th><th style="width:130px">Tipo</th><th style="width:200px">Grupo</th><th style="width:190px"></th></tr></thead><tbody>${L.map(linha).join('')||'<tr><td colspan="4" class="muted">Nenhuma categoria neste grupo.</td></tr>'}</tbody></table></div></div>`; }).join('')}`;
+  const vis=new Set(); const C=fin().categorias.filter(c=>{ const k=up(c.NOME); if(!k||vis.has(k)) return false; vis.add(k); return true; }).sort((a,b)=>a.NOME.localeCompare(b.NOME,'pt-BR'));
+  const linha=c=>`<tr class="fn-cfg"><td><input class="cs-n" value="${esc(c.NOME)}" data-antigo="${esc(c.NOME)}" data-c="nome" onchange="fnSalvarCat(this)" onkeydown="if(event.key==='Enter') this.blur()"></td><td><select class="cs-s" data-c="tipo" onchange="fnSalvarCat(this)"><option value="RECEITA" ${c.TIPO==='RECEITA'?'selected':''}>Receita</option><option value="DESPESA" ${c.TIPO!=='RECEITA'?'selected':''}>Despesa</option></select></td><td><select class="cs-s" data-c="grupo" onchange="fnSalvarCat(this)">${fnOptGrupo(c)}</select></td>
+    <td class="c" style="white-space:nowrap"><button class="ib" title="Agrupar: juntar esta categoria em outra" onclick="fnModalAgrupar(this.closest('tr').querySelector('[data-c=nome]').dataset.antigo)">⇢</button><button class="ib del" title="Excluir" onclick="fnExcluirCat(this)">✕</button></td></tr>`;
+  return `<div class="cs-top" id="fnCatNova"><input data-c="nome" data-antigo="" placeholder="+ Nova categoria" onkeydown="if(event.key==='Enter') fnSalvarCat(this)">
+    <select data-c="tipo"><option value="DESPESA">Despesa</option><option value="RECEITA">Receita</option></select>
+    <select data-c="grupo">${FIN_GRUPOS.map(([k,n])=>`<option value="${k}">${n}</option>`).join('')}</select>
+    <button class="btn sm" onclick="fnSalvarCat(this)">Criar</button><span class="sp"></span><button class="btn ghost sm" onclick="fnModalAgrupar('')">⇢ Agrupar categorias</button></div>
+  <p class="small muted" style="margin:4px 0 10px">Edite direto na linha (salva ao sair do campo). Grupo define a linha do DRE: Operacional → A/B · Folha → C · Produtos → D · Montagem → E · DRE particular → só no DRE particular.</p>
+  <div class="cs-grid">
+  ${[['A · Receitas operacionais',c=>fnGrupoCat(c)==='OPERACIONAL'&&c.TIPO==='RECEITA','ok'],
+     ['B · Despesas operacionais',c=>fnGrupoCat(c)==='OPERACIONAL'&&c.TIPO!=='RECEITA','bad'],
+     ['C · Folha de pagamento',c=>fnGrupoCat(c)==='FOLHA','folha'],
+     ['D · Produtos',c=>fnGrupoCat(c)==='PRODUTOS','prod'],
+     ['E · Despesas montagem',c=>fnGrupoCat(c)==='MONTAGEM','warn'],
+     ['DRE particular',c=>fnGrupoCat(c)==='PARTICULAR','acc']].map(([t,fl,cor])=>{ const L=C.filter(fl);
+    return `<div class="fn-catbox cs-box fc-${cor}"><div class="fn-cath"><b>${t}</b><span class="sp"></span><span class="muted small">${L.length}</span></div>
+    <table class="cs-t"><tbody>${L.map(linha).join('')||'<tr><td colspan="4" class="muted small">Nenhuma categoria.</td></tr>'}</tbody></table></div>`; }).join('')}</div>`;
 }
 async function fnSalvarCat(bt){ const tr=bt.closest('#fnCatNova')||bt.closest('tr'); if(tr.dataset.salvando) return; const g=c=>tr.querySelector(`[data-c=${c}]`); const ni=g('nome'); const nome=ni.value.trim(), antigo=ni.dataset.antigo||'';
   if(!nome){ if(antigo){ ni.value=antigo; toast('O nome não pode ficar vazio'); } else toast('Informe o nome'); return; }
   if(!antigo&&fin().categorias.some(c=>up(c.NOME)===up(nome))){ toast('Essa categoria já existe'); return; }
   if(antigo&&up(antigo)!==up(nome)&&fin().categorias.some(c=>up(c.NOME)===up(nome))&&!confirm(`Já existe a categoria "${nome}". Juntar "${antigo}" com ela?`)){ ni.value=antigo; return; }
   const tipo=g('tipo').value, grupo=g('grupo').value; if(antigo&&nome===antigo){ const o=fin().categorias.find(x=>x.NOME===antigo); if(o&&o.TIPO===tipo&&(o.GRUPO||'OPERACIONAL')===grupo) return; }
-  fnBg('finSalvarCategoria',{nome,antigo:antigo||nome,tipo,grupo},{local:()=>{ const F=fin(); const o=antigo&&F.categorias.find(x=>x.NOME===antigo);
+  fnBg('finSalvarCategoria',{nome,antigo:antigo||nome,tipo,grupo},{rotulo:`Categoria: ${antigo&&antigo!==nome?antigo+' → ':''}${nome}`,local:()=>{ const F=fin(); const o=antigo&&F.categorias.find(x=>x.NOME===antigo);
       if(o){ if(up(antigo)!==up(nome)) F.lanc.forEach(l=>{ if(up(l.CATEGORIA)===up(antigo)) l.CATEGORIA=nome; }); const dup=F.categorias.find(x=>x!==o&&up(x.NOME)===up(nome)); if(dup) F.categorias=F.categorias.filter(x=>x!==o); else Object.assign(o,{NOME:nome,TIPO:tipo,GRUPO:grupo}); }
       else F.categorias.push({NOME:nome,TIPO:tipo,GRUPO:grupo}); }});
   toast(antigo&&antigo!==nome?`Categoria renomeada: ${antigo} → ${nome}`:'Categoria salva'); }
@@ -2372,7 +2392,7 @@ function fnAgruparInfo(){
 async function fnAgrupar(){
   const o=document.getElementById('agOrig').value, d=document.getElementById('agDest').value, cc=FN.agCC; if(!confirm(`Agrupar "${o}" em "${d}"?\n\n"${o}" será apagado(a). (Dá para desfazer em Histórico de ações.)`)) return;
   fecharModal(); let n=0;
-  fnBg(cc?'finAgruparCentro':'finAgruparCategoria',{origem:o,destino:d},{
+  fnBg(cc?'finAgruparCentro':'finAgruparCategoria',{origem:o,destino:d},{rotulo:`Agrupar ${cc?'centro de custo':'categoria'}: ${o} → ${d}`,
     local:()=>{ const F=fin();
       if(cc){ F.lanc.forEach(l=>{ const a=fnCCParse(l.CENTRO_CUSTO); if(!a.some(x=>up(x.nome)===up(o))) return; n++; const m={}; a.forEach(x=>{ const nm=up(x.nome)===up(o)?d:x.nome; const k=up(nm); if(m[k]) m[k].pct+=x.pct; else m[k]={nome:nm,pct:x.pct}; }); l.CENTRO_CUSTO=fnCCTexto(Object.values(m)); });
         F.centros=F.centros.filter(c=>up(c.NOME)!==up(o)); }
@@ -2416,6 +2436,7 @@ async function fnSalvarLote(){
   if(on('nome')){ if(!v('nome')){ toast('Informe o nome'); return; } c.nome=v('nome'); }
   if(on('desc')) c.descricao=v('desc'); if(on('fp')) c.formaPagamento=v('fp'); if(on('obs')) c.obs=v('obs');
   if(!Object.keys(c).length){ toast('Marque pelo menos um campo para alterar'); return; }
+  { const f=fnCadastroFaltando(c.categoria,c.centroCusto); if(f){ toast(f,7000); return; } }
   if(!confirm(`Alterar ${ids.length} lançamento(s)?`)) return;
   const bt=document.getElementById('loteBt'); bt.disabled=true; bt.textContent='Aplicando…';
   try{ const r=await api('finEditarLote',{ids,campos:c}); fecharModal(); FN.dr=null; toast(`${r.alterados} lançamento(s) alterado(s) ✓`,5000); await fnRecarregar(); fnAtualizar(); }
@@ -2506,12 +2527,16 @@ function fnNomeParecido(nome){
 function fnPendAtualizar(){ const e=document.getElementById('fnPend'); if(e){ e.classList.toggle('hide',!S.finPend); e.textContent=`⟳ salvando${S.finPend>1?' '+S.finPend:''}…`; } }
 window.addEventListener('beforeunload',e=>{ if(S.finPend){ e.preventDefault(); e.returnValue='Ainda salvando no Financeiro'; } });
 function fnRedesenharSeguro(){ const a=document.activeElement; if(a&&a.closest&&a.closest('#fnCorpo')&&/INPUT|SELECT|TEXTAREA/.test(a.tagName)) return; if(S.view==='financeiro') fnAtualizar(); }
-function fnBg(acao,dados,{local,ok,erro}={}){
+// erro passageiro (sem internet, Google ocupado): fica na fila para reenviar; erro de regra (ex.: categoria não existe): avisa e desfaz na tela
+const filaPassageiro=e=>!e.servidor||/trava|lock|tempo|timeout|too many|Service|Exceeded|ocupad|limite|tente novamente|Falha na comunica/i.test(e.message||'');
+function fnBg(acao,dados,{local,ok,erro,rotulo}={}){
   if(local) try{ local(); }catch(e){}
   if(S.view==='financeiro') fnAtualizar();
-  S.finPend=(S.finPend||0)+1; fnPendAtualizar();
-  return api(acao,dados).then(r=>{ S.finFresco=false; if(ok) ok(r); fnRedesenharSeguro(); return r; })
-    .catch(async e=>{ toast('⚠ Não salvou: '+e.message+' — recarregando os dados',8000); if(erro) erro(e); try{ await carregar(true); fnRedesenharSeguro(); }catch(x){} })
+  const item=filaAdd(acao,dados,rotulo); S.finPend=(S.finPend||0)+1; fnPendAtualizar();
+  return api(acao,Object.assign({},dados,{_cli:item.cli})).then(r=>{ filaTirar(item.cli); S.finFresco=false; if(ok) ok(r); fnRedesenharSeguro(); return r; })
+    .catch(async e=>{
+      if(filaPassageiro(e)){ filaErro(item.cli,e.message); toast('⚠ Não chegou na nuvem ('+e.message+'). Ficou guardado neste computador e será reenviado — veja Configurações → Envio para a nuvem',9000); }
+      else { filaTirar(item.cli); toast('⚠ Não salvou: '+e.message+' — recarregando os dados',8000); if(erro) erro(e); try{ await carregar(true); fnRedesenharSeguro(); }catch(x){} } })
     .finally(()=>{ S.finPend--; fnPendAtualizar(); });
 }
 
@@ -2520,6 +2545,55 @@ function fnFmtCB(t){ const d=soDig(t); if(d.length===47) return d.replace(/^(\d{
 async function fnCopiarCB(t){ const d=soDig(t); if(!d){ toast('Sem código de barras'); return; }
   try{ await navigator.clipboard.writeText(d); }catch(e){ const x=document.createElement('textarea'); x.value=d; document.body.appendChild(x); x.select(); document.execCommand('copy'); x.remove(); }
   toast('Código de barras copiado ✓ ('+d.length+' números)',3000); }
+
+/* ---------- categorias e centros de custo: só o master cria / edita / exclui ---------- */
+function fnCadastroSoLeitura(sub){
+  const aviso=`<div class="card" style="padding:10px 14px;margin-bottom:12px">🔒 Somente o usuário <b>master</b> pode criar, editar, agrupar ou excluir ${sub==='centros'?'centros de custo':'categorias'}. Abaixo a lista para consulta.</div>`;
+  if(sub==='centros') return aviso+`<div class="tw sl-tab"><table><thead><tr><th>Centro de custo</th><th>CNPJ</th></tr></thead><tbody>${fnCentros().map(n=>`<tr><td>${esc(n)}</td><td>${esc((fnCentroInfo(n)||{}).CNPJ||'—')}</td></tr>`).join('')}</tbody></table></div>`;
+  const G=Object.fromEntries(FIN_GRUPOS); const v=new Set();
+  const C=fin().categorias.filter(c=>{ const k=up(c.NOME); if(v.has(k)) return false; v.add(k); return true; }).sort((a,b)=>(a.TIPO+a.NOME).localeCompare(b.TIPO+b.NOME,'pt-BR'));
+  return aviso+`<div class="tw sl-tab"><table><thead><tr><th>Categoria</th><th>Tipo</th><th>Grupo</th></tr></thead><tbody>${C.map(c=>`<tr><td>${esc(c.NOME)}</td><td>${c.TIPO==='RECEITA'?'Receita':'Despesa'}</td><td>${esc(G[fnGrupoCat(c)]||'Operacional')}</td></tr>`).join('')}</tbody></table></div>`;
+}
+// usuário comum só pode usar categoria / centro de custo já cadastrados
+function fnCadastroFaltando(cat,cc){ if(S.master) return '';
+  if(cat&&!fin().categorias.some(c=>up(c.NOME)===up(cat))) return `A categoria "${cat}" não existe. Só o usuário master pode criar categorias — escolha uma da lista.`;
+  const f=fnCCParse(cc).find(x=>!fnCentros().some(n=>up(n)===up(x.nome))); if(f) return `O centro de custo "${f.nome}" não existe. Só o usuário master pode criar centros de custo — escolha um da lista.`;
+  return ''; }
+
+/* ---------- fila de envio para a nuvem (guardada neste computador até o Google confirmar) ---------- */
+function filaLer(){ try{ return JSON.parse(LS.get('mc_fila_'+(S.usuario||''))||'[]'); }catch(e){ return []; } }
+function filaGravar(F){ LS.set('mc_fila_'+(S.usuario||''),JSON.stringify(F)); filaBadge(); }
+function filaAdd(acao,dados,rotulo){ const F=filaLer(); const it={cli:Date.now().toString(36)+Math.random().toString(36).slice(2,8),acao,dados,rotulo:rotulo||acao,em:new Date().toLocaleString('pt-BR'),tent:0,erro:'',env:true}; F.push(it); filaGravar(F); return it; }
+function filaTirar(cli){ filaGravar(filaLer().filter(x=>x.cli!==cli)); }
+function filaErro(cli,msg){ const F=filaLer(); const x=F.find(y=>y.cli===cli); if(x){ x.erro=msg; x.tent=(x.tent||0)+1; x.env=false; x.ult=new Date().toLocaleString('pt-BR'); } filaGravar(F); }
+function filaBadge(){ const b=document.getElementById('filaBadge'); if(!b) return; const F=filaLer().filter(x=>!x.env); b.classList.toggle('hide',!F.length); b.textContent=`⚠ ${F.length} não enviado(s) para a nuvem`; }
+let FILA_ENVIANDO=false;
+async function filaEnviar(manual){
+  if(FILA_ENVIANDO) return; const F=filaLer().filter(x=>!x.env); if(!F.length){ if(manual) toast('Nada pendente — tudo já está na nuvem ✓',4000); return; }
+  FILA_ENVIANDO=true; let ok=0, falhou=0;
+  for(const it of F){ // na ordem em que foram feitos
+    try{ await api(it.acao,Object.assign({},it.dados,{_cli:it.cli})); filaTirar(it.cli); ok++; }
+    catch(e){ if(filaPassageiro(e)){ filaErro(it.cli,e.message); falhou++; break; } else { const G=filaLer(); const x=G.find(y=>y.cli===it.cli); if(x){ x.erro='Recusado: '+e.message; x.recusado=true; x.env=false; } filaGravar(G); falhou++; } }
+  }
+  FILA_ENVIANDO=false;
+  if(ok){ try{ await carregar(true); }catch(e){} }
+  if(manual||ok) toast(ok&&!falhou?`✓ ${ok} envio(s) gravado(s) na nuvem`:`${ok} enviado(s) · ${falhou} com problema — veja a lista`,6000);
+  if(S.view==='financeiro') fnRedesenharSeguro();
+}
+function filaIniciar(){ // ao abrir: o que ficou "enviando" de uma sessão anterior volta para pendente
+  const F=filaLer(); F.forEach(x=>{ if(x.env){ x.env=false; x.erro=x.erro||'Sessão anterior fechada antes da confirmação'; } }); filaGravar(F);
+  filaEnviar(false); setInterval(()=>filaEnviar(false),60000); window.addEventListener('online',()=>filaEnviar(false)); }
+function fnNuvemTela(){
+  const F=filaLer();
+  return `<div class="card" style="padding:14px;margin-bottom:12px"><div class="row" style="align-items:center"><div><b style="font-size:16px">☁ Envio para a nuvem</b>
+    <div class="small muted" style="margin-top:4px">Tudo o que você salva no Financeiro fica guardado neste computador até o Google confirmar que gravou na planilha. Se algo falhar (internet, Google ocupado), fica aqui e é reenviado sozinho a cada minuto — ou na hora pelo botão. Envios repetidos não duplicam lançamentos.</div></div>
+    <span class="sp"></span><button class="btn" onclick="filaEnviar(true).then(()=>fnAtualizar())">☁ Enviar tudo para a nuvem agora</button>
+    <button class="btn ghost sm" onclick="carregar(true).then(()=>{ toast('Dados recarregados da nuvem ✓'); fnAtualizar(); })">↻ Recarregar dados da nuvem</button></div></div>
+  ${F.length?`<div class="tw sl-tab"><table><thead><tr><th>Feito em</th><th>O quê</th><th class="n">Tentativas</th><th>Situação</th><th></th></tr></thead><tbody>
+    ${F.map(x=>`<tr><td>${esc(x.em)}</td><td style="white-space:normal">${esc(x.rotulo)}</td><td class="n">${x.tent||0}</td><td style="white-space:normal">${x.env?'<span class="tag t-acc">enviando…</span>':x.recusado?`<span class="tag t-bad">${esc(x.erro)}</span>`:`<span class="tag t-warn">pendente</span> <span class="muted small">${esc(x.erro||'')}</span>`}</td>
+      <td class="c"><button class="ib del" title="Descartar este envio (não será gravado)" onclick="if(confirm('Descartar este envio? Ele NÃO será gravado na nuvem.')){ filaTirar('${esc(x.cli)}'); fnAtualizar(); }">Descartar</button></td></tr>`).join('')}</tbody></table></div>`
+  :'<div class="card muted" style="padding:14px">✓ Tudo já está na nuvem. Nenhum envio pendente neste computador.</div>'}`;
+}
 
 iniciar();
 </script>
