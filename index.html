@@ -206,15 +206,30 @@ tr.fn-venc td:first-child{box-shadow:inset 3px 0 var(--bad)}
 .fn-sug:hover .fn-sug-k,.fn-sug:hover .fn-sug-ok{color:#fff}
 .fn-sug-ok{font-weight:800;color:var(--ok)}
 .fn-acts{white-space:nowrap}
-.dre tr.dre-g td,.dre tr.dre-g td:first-child{font-weight:800;background:var(--soft)}
-.dre tr.dre-res td:first-child{background:var(--acc-soft)}
-.dre tr.dre-res2 td,.dre tr.dre-res2 td:first-child{font-weight:800;background:var(--soft);border-top:1px solid var(--line)}
 .dre .dre-tg{cursor:pointer;user-select:none;white-space:nowrap}.dre .dre-tg:hover{color:var(--acc)}.dre-ar{display:inline-block;width:14px;color:var(--acc)}
-.dre tr.dre-sub td,.dre tr.dre-sub td:first-child{font-weight:800;background:#fdecea;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
-.dre tr.dre-esp td,.dre tr.dre-esp td:first-child{height:22px;padding:0;background:transparent;border:0}
-.dre .dre-lk{cursor:pointer;border-bottom:1px dotted currentColor}.dre .dre-lk:hover{color:var(--acc)!important;border-bottom-style:solid}
-.dre tr.dre-cat td:first-child{padding-left:22px;color:var(--mut)}
-.dre tr.dre-res td{font-weight:800;background:var(--acc-soft);border-top:2px solid var(--acc)}
+.dre-wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;margin-bottom:22px}
+.dre-t{border-collapse:collapse;width:100%;font-size:15px;font-variant-numeric:tabular-nums}
+.dre-t th{background:#e9ecef;color:#3a3f45;font-weight:800;font-size:14px;padding:14px 14px;white-space:nowrap;border-bottom:1px solid var(--line)}
+.dre-t th:first-child{text-align:left;min-width:330px}
+.dre-t td{padding:14px 14px;white-space:nowrap;border-bottom:1px solid #eceef1;color:#2b2f33;min-width:92px}
+.dre-t td.n,.dre-t th.n{text-align:right}
+.dre-t tbody td:nth-child(even),.dre-t thead th:nth-child(even){background-color:rgba(0,0,0,.035)}
+.dre-t th.dre-mes{background:#c9d2e3}
+.dre-t td:first-child,.dre-t th:first-child{position:sticky;left:0;z-index:1;background:var(--card)}
+.dre-t thead th:first-child{background:#e9ecef}
+.dre-t tr.dre-g td{background-color:#f3f4f6;font-weight:800;font-size:15px}
+.dre-t tr.dre-g td:first-child{background:#f3f4f6;text-transform:uppercase}
+.dre-t tr.dre-cat td:first-child{padding-left:34px;color:#2b2f33}
+.dre-t tr.dre-cat:hover td{background-color:#e8eefb}
+.dre-t tr.dre-res td,.dre-t tr.dre-res td:first-child{background:#dfe6f3;font-weight:800;border-top:2px solid #b8c4dc}
+.dre-t tr.dre-res2 td,.dre-t tr.dre-res2 td:first-child{background:#eef1f7;font-weight:800}
+.dre-t tr.dre-sub td,.dre-t tr.dre-sub td:first-child{background:#fbeaea;font-weight:800}
+.dre-t tr.dre-esp td{height:26px;padding:0;background:transparent!important;border:0}
+.dre-t .bad{color:#c62828}.dre-t .ok{color:inherit}
+.dre-t .dre-0{color:#5f656c}
+.dre-letra{color:#9aa0a6;font-weight:600;font-size:13px;text-transform:none}
+.dre-seta{font-weight:800;margin-right:4px}
+.dre .dre-lk{cursor:pointer}.dre .dre-lk:hover{text-decoration:underline}.dre .dre-lk:hover{color:var(--acc)!important;border-bottom-style:solid}
 .btn.sm{height:30px}
 .sl-tab th{padding:6px 8px;font-size:11.5px}
 .sl-tab td{padding:3px 8px;font-size:13.5px;line-height:1.35}
@@ -2119,6 +2134,8 @@ function fnDREAbrir(key,g,nome,m){
     <td class="c"><button class="ib" title="Editar" onclick="fecharModal();fnAbrirLanc('${esc(l.ID)}')">✎</button></td></tr>`).join('')}</tbody>
   <tfoot><tr><td colspan="${nome?5:6}">TOTAL</td><td class="n">${fR(tot)}</td><td></td></tr></tfoot></table></div>`);
 }
+function fnDREnum(x){ const t=fN(Math.abs(Math.round(x)),0); return x<0?'('+t+')':t; }
+const m0=meses=>meses[0].slice(0,4);
 function fnTabelaDRE(meses,realizado,part){
   const catInfo={}; fin().categorias.forEach(c=>catInfo[up(c.NOME)]=c);
   const grupos={A:{},B:{},C:{},D:{},E:{}}; const itens=[]; const key=(realizado?'r':'a')+(part?'p':''); FN.dreItens=FN.dreItens||{}; FN.dreItens[key]={itens,realizado,part};
@@ -2131,12 +2148,13 @@ function fnTabelaDRE(meses,realizado,part){
   const soma=g=>{ const t={}; Object.values(grupos[g]).forEach(o=>meses.forEach(m=>t[m]=(t[m]||0)+(o[m]||0))); return t; };
   const A=soma('A'),B=soma('B'),C=soma('C'),D=soma('D'),E=soma('E'); const F={},G={}; meses.forEach(m=>{ G[m]=(A[m]||0)-(B[m]||0)-(C[m]||0)-(D[m]||0); F[m]=G[m]-(E[m]||0); });
   const tot=o=>meses.reduce((s,m)=>s+(o[m]||0),0);
-  const cel=(v,neg,g,n,m)=>{ v=v||0; return v?`<span class="${neg?'bad':''} dre-lk" onclick="fnDREAbrir('${key}','${g}','${n?esc(n).replace(/'/g,"\\'"):''}','${m||''}')" title="Ver lançamentos">${fN(neg?-v:v,2)}</span>`:'<span class="muted">—</span>'; };
+  const cel=(v,neg,g,n,m)=>{ v=v||0; const x=neg?-v:v; return Math.round(x)?`<span class="${x<0?'bad':''} dre-lk" onclick="fnDREAbrir('${key}','${g}','${n?esc(n).replace(/'/g,"\\'"):''}','${m||''}')" title="Ver lançamentos · ${fR(x)}">${fnDREnum(x)}</span>`:'<span class="dre-0">0</span>'; };
   FN.dreAb=FN.dreAb||{}; const ab=g=>!!FN.dreAb[key+g];
-  const linhaGrupo=(rot,o,neg,g)=>`<tr class="dre-g"><td class="dre-tg" onclick="fnDREToggle(this,'${key}','${g}')" title="Mostrar/ocultar categorias"><span class="dre-ar">${ab(g)?'▾':'▸'}</span> ${rot} <span class="muted small" style="font-weight:600">(${Object.keys(grupos[g]).length})</span></td>${meses.map(m=>`<td class="n">${cel(o[m],neg,g,'',m)}</td>`).join('')}<td class="n">${cel(tot(o),neg,g,'','')}</td></tr>`;
-  const linhasCat=(g,neg)=>Object.keys(grupos[g]).sort((a,b)=>a.localeCompare(b,'pt-BR')).map(n=>`<tr class="dre-cat" data-g="${g}" style="${ab(g)?'':'display:none'}"><td>${esc(n)}</td>${meses.map(m=>`<td class="n">${cel(grupos[g][n][m],neg,g,n,m)}</td>`).join('')}<td class="n">${cel(tot(grupos[g][n]),neg,g,n,'')}</td></tr>`).join('');
-  const res=(rot,o,cls)=>`<tr class="${cls}"><td>${rot}</td>${meses.map(m=>`<td class="n"><span class="${(o[m]||0)<0?'bad':'ok'}">${fN(o[m]||0,2)}</span></td>`).join('')}<td class="n"><span class="${tot(o)<0?'bad':'ok'}">${fN(tot(o),2)}</span></td></tr>`;
-  const cab=`<div class="tw sl-tab rr-mat dre"><table><thead><tr><th class="muted small" style="text-align:left">valores em R$</th>${meses.map(m=>`<th class="n">${rrMesNome(m)}</th>`).join('')}<th class="n">Total</th></tr></thead><tbody>`;
+  const linhaGrupo=(rot,o,neg,g)=>`<tr class="dre-g"><td class="dre-tg" onclick="fnDREToggle(this,'${key}','${g}')" title="Mostrar/ocultar categorias"><span class="dre-ar">${ab(g)?'▾':'▸'}</span> ${rot} <span class="dre-letra">(${Object.keys(grupos[g]).length})</span></td>${meses.map(m=>`<td class="n">${cel(o[m],neg,g,'',m)}</td>`).join('')}<td class="n">${cel(tot(o),neg,g,'','')}</td></tr>`;
+  const linhasCat=(g,neg)=>Object.keys(grupos[g]).sort((a,b)=>a.localeCompare(b,'pt-BR')).map(n=>`<tr class="dre-cat" data-g="${g}" style="${ab(g)?'':'display:none'}"><td><span class="${g==='A'?'ok':'bad'} dre-seta">${g==='A'?'↑':'↓'}</span> ${esc(n)}</td>${meses.map(m=>`<td class="n">${cel(grupos[g][n][m],neg,g,n,m)}</td>`).join('')}<td class="n">${cel(tot(grupos[g][n]),neg,g,n,'')}</td></tr>`).join('');
+  const res=(rot,o,cls)=>`<tr class="${cls}"><td>${rot}</td>${meses.map(m=>`<td class="n"><span class="${(o[m]||0)<0?'bad':'ok'}" title="${fR(o[m]||0)}">${fnDREnum(o[m]||0)}</span></td>`).join('')}<td class="n"><span class="${tot(o)<0?'bad':'ok'}" title="${fR(tot(o))}">${fnDREnum(tot(o))}</span></td></tr>`;
+  const MN=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']; const mAt=hojeISO().slice(0,7);
+  const cab=`<div class="dre-wrap dre"><table class="dre-t"><thead><tr><th>RESULTADO <span class="dre-letra">em R$</span></th>${meses.map(m=>`<th class="n${m===mAt?' dre-mes':''}">${MN[+m.slice(5,7)-1]}</th>`).join('')}<th class="n">${m0(meses)}</th></tr></thead><tbody>`;
   if(part){ const Bp={}; meses.forEach(m=>Bp[m]=(B[m]||0)+(C[m]||0)+(D[m]||0)+(E[m]||0)); [...Object.entries(grupos.C),...Object.entries(grupos.D),...Object.entries(grupos.E)].forEach(([n,o])=>{ const t=grupos.B[n]||(grupos.B[n]={}); meses.forEach(m=>{ if(o[m]) t[m]=(t[m]||0)+o[m]; }); });
     const R={}; meses.forEach(m=>R[m]=(A[m]||0)-(Bp[m]||0));
     return cab+`${linhaGrupo('A · RECEITAS',A,false,'A')}${linhasCat('A')}${linhaGrupo('B · DESPESAS',Bp,true,'B')}${linhasCat('B',true)}${res('RESULTADO (A − B)',R,'dre-res')}</tbody></table></div>`; }
