@@ -183,7 +183,7 @@ tr.fn-sel td{background:var(--acc-soft)!important}
 .dc-kpis{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px}.dc-k{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 14px;min-width:190px}.dc-k span{display:block;font-size:12px;color:var(--mut)}.dc-k b{font-size:20px}.dc-k.bad b{color:var(--bad)}.dc-k.ok b{color:var(--ok)}
 .dc-cols{display:grid;grid-template-columns:1fr;gap:12px;align-items:start}
 @media (min-width:2000px){.dc-cols{grid-template-columns:1fr 1fr}}
-.dc-card{padding:12px}.dc-card h3{margin:0 0 8px;font-size:15px}
+.dc-card{padding:12px}.dc-rh{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:8px}.dc-rh h3{margin:0}.dc-k-in{padding:4px 12px;min-width:0}.dc-k-in b{font-size:17px}.dc-card h3{margin:0 0 8px;font-size:15px}
 .dc-sem,.dc-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}.dc-sem span{font-size:11px;font-weight:700;color:var(--mut);text-align:center;text-transform:uppercase}
 .dc-d{min-height:58px;border:1px solid var(--line);border-radius:8px;padding:4px 6px;background:var(--card);font-size:12px;overflow:hidden}
 .dc-vz{border:0;background:transparent}.dc-fds{background:var(--soft)}
@@ -2511,14 +2511,21 @@ async function fnSalvarLote(){
   if(!Object.keys(c).length){ toast('Marque pelo menos um campo para alterar'); return; }
   { const f=fnCadastroFaltando(c.categoria,c.centroCusto); if(f){ toast(f,7000); return; } }
   if(!confirm(`Alterar ${ids.length} lançamento(s)?`)) return;
-  const bt=document.getElementById('loteBt'); bt.disabled=true; bt.textContent='Aplicando…';
-  try{ const r=await api('finEditarLote',{ids,campos:c}); fecharModal(); FN.dr=null; toast(`${r.alterados} lançamento(s) alterado(s) ✓`,5000); await fnRecarregar(); fnAtualizar(); }
-  catch(e){ bt.disabled=false; bt.textContent='Aplicar'; toast('Erro: '+e.message,7000); }
+  const mapa={categoria:'CATEGORIA',centroCusto:'CENTRO_CUSTO',vencimento:'VENCIMENTO',nome:'NOME',descricao:'DESCRICAO',formaPagamento:'FORMA_PAGAMENTO',obs:'OBS'}; const set=new Set(ids);
+  fecharModal(); FN.dr=null;
+  fnBg('finEditarLote',{ids,campos:c},{rotulo:`Editar ${ids.length} lançamento(s): ${Object.keys(c).join(', ')}`,
+    local:()=>{ fin().lanc.forEach(l=>{ if(set.has(l.ID)) Object.keys(c).forEach(k=>{ l[mapa[k]]=k==='formaPagamento'?(/CART/i.test(c[k])?'CARTÃO DE CRÉDITO':'CONTA CORRENTE'):c[k]; }); }); },
+    ok:r=>toast(`✓ ${r.alterados} lançamento(s) alterado(s) na nuvem`,4000)});
+  toast(`${ids.length} lançamento(s) alterado(s) — gravando no Google`,4000);
 }
 async function fnExcluirSel(){
   const ids=fnSelIds(); if(!ids.length) return; const tot=ids.map(fnLanc).filter(Boolean).reduce((s,l)=>s+(+l.VALOR||0),0);
   if(!confirm(`EXCLUIR ${ids.length} lançamento(s) · ${fR(tot)}?\n\nDá para desfazer em Configurações → Histórico de ações.`)) return;
-  try{ const r=await api('finExcluirLote',{ids}); ids.forEach(i=>FN.sel.delete(i)); toast(`${r.excluidos} lançamento(s) excluído(s)`,5000); await fnRecarregar(); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,7000); }
+  ids.forEach(i=>FN.sel.delete(i)); const set=new Set(ids);
+  fnBg('finExcluirLote',{ids},{rotulo:`Excluir ${ids.length} lançamento(s) · ${fR(tot)}`,
+    local:()=>{ const F=fin(); F.lanc=F.lanc.filter(l=>!set.has(l.ID)); F.extrato.forEach(e=>{ if(set.has(e.LANC_ID)) e.LANC_ID=''; }); },
+    ok:r=>toast(`✓ ${r.excluidos} lançamento(s) excluído(s) na nuvem`,4000)});
+  toast(`${ids.length} lançamento(s) excluído(s) — gravando no Google`,4000);
 }
 
 /* ---------- CNPJ dos centros de custo ---------- */
@@ -2689,9 +2696,11 @@ function fnDashboard(){
   const pagar={}, receb={};
   fin().lanc.forEach(l=>{
     if(l.TIPO==='PAGAR'&&l.STATUS!=='QUITADO'){ const v=isoBR(l.VENCIMENTO); if(!v) return; const u=fnDiaUtil(v); if(u.slice(0,7)!==mes) return; (pagar[u]=pagar[u]||[]).push(l); }
-    if(l.TIPO==='RECEBER'&&l.STATUS==='QUITADO'){ const d=isoBR(l.DATA_PAGAMENTO); if(!d||d.slice(0,7)!==mes) return; (receb[d]=receb[d]||[]).push(l); } });
+    if(l.TIPO==='RECEBER'&&l.STATUS==='QUITADO'){ const d=isoBR(l.DATA_PAGAMENTO); if(!d||d.slice(0,7)!==mes) return; if(FN.dashCC&&!fnCCPeso(l,FN.dashCC)) return; (receb[d]=receb[d]||[]).push(l); } });
   FN.dashDias={pagar,receb};
-  const soma=L=>(L||[]).reduce((s,l)=>s+(+(l.STATUS==='QUITADO'?l.VALOR_PAGO:l.VALOR)||0),0);
+  // recebido filtrado por centro de custo conta só a parte (%) daquele centro
+  const val=l=>(+(l.STATUS==='QUITADO'?l.VALOR_PAGO:l.VALOR)||0)*(l.TIPO==='RECEBER'&&FN.dashCC?fnCCPeso(l,FN.dashCC):1);
+  const soma=L=>(L||[]).reduce((s,l)=>s+val(l),0); FN.dashVal=val;
   const totP=Object.values(pagar).reduce((s,L)=>s+soma(L),0), totPres=Object.entries(pagar).filter(([d])=>d>=hoje).reduce((s,[,L])=>s+soma(L),0), totPvenc=Object.entries(pagar).filter(([d])=>d<hoje).reduce((s,[,L])=>s+soma(L),0);
   const totR=Object.values(receb).reduce((s,L)=>s+soma(L),0);
   const cal=(tipo,dados)=>{ const prim=new Date(A,M-1,1), ult=new Date(A,M,0).getDate(); const ini=prim.getDay(); const F=fnFeriados(A);
@@ -2702,16 +2711,18 @@ function fnDashboard(){
       h+=`<div class="${cls}" ${v?`onclick="fnDashDia('${tipo}','${iso}')" title="Ver ${L.length} lançamento(s)"`:''}><div class="dc-n">${d}${fer?` <span class="dc-fer" title="${esc(fer)}">${esc(fer)}</span>`:''}</div>${v?`<div class="dc-v">${fR(v)}</div><div class="dc-q">${L.length} ${tipo==='pagar'?(L.length>1?'contas':'conta'):(L.length>1?'recebimentos':'recebimento')}</div>`:''}</div>`; }
     return h+'</div>'; };
   return `<div class="dc-top"><button class="btn ghost sm" onclick="FN.mesDash='${nav(-1)}';fnAtualizar()">◀</button><b class="dc-mes">${nomeMes}</b><button class="btn ghost sm" onclick="FN.mesDash='${nav(1)}';fnAtualizar()">▶</button>${mes!==hoje.slice(0,7)?`<button class="btn ghost sm" onclick="FN.mesDash='';fnAtualizar()">mês atual</button>`:''}</div>
-  <div class="dc-kpis"><div class="dc-k bad"><span>A pagar no mês</span><b>${fR(totP)}</b></div><div class="dc-k"><span>A pagar de hoje até o fim do mês</span><b>${fR(totPres)}</b></div>${totPvenc?`<div class="dc-k bad"><span>Vencido e não pago</span><b>${fR(totPvenc)}</b></div>`:''}<div class="dc-k ok"><span>Recebido no mês</span><b>${fR(totR)}</b></div></div>
+  <div class="dc-kpis"><div class="dc-k bad"><span>A pagar no mês</span><b>${fR(totP)}</b></div><div class="dc-k"><span>A pagar de hoje até o fim do mês</span><b>${fR(totPres)}</b></div>${totPvenc?`<div class="dc-k bad"><span>Vencido e não pago</span><b>${fR(totPvenc)}</b></div>`:''}<div class="dc-k ok"><span>Recebido no mês${FN.dashCC?' · '+esc(FN.dashCC):''}</span><b>${fR(totR)}</b></div></div>
   <div class="dc-cols"><div class="card dc-card"><h3>📅 Calendário a pagar <span class="muted small">— contas em aberto; sábado, domingo e feriado caem no próximo dia útil</span></h3>${cal('pagar',pagar)}</div>
-  <div class="card dc-card"><h3>💰 Calendário recebido <span class="muted small">— valores recebidos em cada dia</span></h3>${cal('receb',receb)}</div></div>`;
+  <div class="card dc-card"><div class="dc-rh"><h3>💰 Calendário recebido <span class="muted small">— valores recebidos em cada dia</span></h3><span class="sp"></span>
+    <select onchange="FN.dashCC=this.value;fnAtualizar()" style="max-width:260px"><option value="">Todos os centros de custo (soma)</option>${fnCentros().map(c=>`<option value="${esc(c)}" ${up(c)===up(FN.dashCC||'')?'selected':''}>${esc(c)}</option>`).join('')}</select>
+    <div class="dc-k ok dc-k-in"><span>Total recebido no mês${FN.dashCC?' · '+esc(FN.dashCC):''}</span><b>${fR(totR)}</b></div></div>${cal('receb',receb)}</div></div>`;
 }
 function fnDashDia(tipo,iso){ const L=(FN.dashDias[tipo]||{})[iso]||[]; const dt=new Date(iso+'T12:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'});
-  const tot=L.reduce((s,l)=>s+(+(tipo==='pagar'?l.VALOR:l.VALOR_PAGO)||0),0);
+  const vv=l=>tipo==='pagar'?(+l.VALOR||0):(FN.dashVal?FN.dashVal(l):(+l.VALOR_PAGO||0)); const tot=L.reduce((s,l)=>s+vv(l),0);
   modal(`<div class="mh"><h3>${tipo==='pagar'?'A pagar':'Recebido'} · ${esc(dt)}</h3><button class="btn ghost" onclick="fecharModal()">✕</button></div>
   <p class="small muted" style="margin-top:0">${L.length} lançamento(s) · total <b>${fR(tot)}</b></p>
   <div class="tw sl-tab" style="max-height:60vh"><table><thead><tr><th>${tipo==='pagar'?'Vencimento':'Recebido em'}</th><th>Nome</th><th>Descrição</th><th>Categoria</th><th class="n">Valor</th><th></th></tr></thead><tbody>
-  ${L.map(l=>`<tr><td>${esc(tipo==='pagar'?l.VENCIMENTO:l.DATA_PAGAMENTO)}${tipo==='pagar'&&isoBR(l.VENCIMENTO)!==iso?' <span class="tag t-mut" title="Vence em fim de semana/feriado">→ dia útil</span>':''}</td><td><b>${esc(l.NOME)}</b></td><td>${esc(l.DESCRICAO)}</td><td>${esc(l.CATEGORIA)}</td><td class="n"><b>${fR(+(tipo==='pagar'?l.VALOR:l.VALOR_PAGO)||0)}</b></td>
+  ${L.map(l=>`<tr><td>${esc(tipo==='pagar'?l.VENCIMENTO:l.DATA_PAGAMENTO)}${tipo==='pagar'&&isoBR(l.VENCIMENTO)!==iso?' <span class="tag t-mut" title="Vence em fim de semana/feriado">→ dia útil</span>':''}</td><td><b>${esc(l.NOME)}</b></td><td>${esc(l.DESCRICAO)}</td><td>${esc(l.CATEGORIA)}</td><td class="n"><b>${fR(vv(l))}</b>${tipo!=='pagar'&&FN.dashCC&&fnCCPeso(l,FN.dashCC)<0.9999?`<div class="muted small">${fN(fnCCPeso(l,FN.dashCC)*100,0)}% de ${fR(+l.VALOR_PAGO||0)}</div>`:''}</td>
     <td class="c">${l.COD_BARRAS?`<button class="ib" title="Copiar código de barras" onclick="fnCopiarCB('${esc(l.COD_BARRAS)}')">📋</button>`:''}<button class="ib" onclick="fecharModal();fnAbrirLanc('${esc(l.ID)}')">✎</button></td></tr>`).join('')}</tbody></table></div>`); }
 
 /* ---------- Histórico de boletos lançados (pagamentos com código de barras) ---------- */
