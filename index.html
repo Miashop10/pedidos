@@ -73,7 +73,7 @@ tr.cfg-abas td{padding:0 8px 10px!important}
 @keyframes pisca{0%,40%{box-shadow:0 0 0 6px rgba(241,134,52,.55)}100%{box-shadow:0 0 0 3px var(--acc-soft)}}
 .sf{display:flex;flex-direction:column;gap:2px;font-size:11.5px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.03em;min-width:0}
 .sf input,.sf select{height:32px;padding:4px 8px;font-size:14px;text-transform:none;letter-spacing:0;font-weight:400;width:100%}
-.w-forn{flex:2 1 170px}.w-fil{flex:1.4 1 130px}.w-dt{flex:0 0 128px}.w-nf{flex:0 0 84px}.w-val{flex:1 1 104px}.w-calc{flex:0 0 86px}.w-ok{flex:0 0 auto;align-items:center}
+.w-forn{flex:2 1 170px}.w-fil{flex:1.4 1 130px}.w-dt{flex:0 0 128px}.w-nf{flex:0 0 118px}.w-val{flex:1 1 104px}.w-calc{flex:0 0 86px}.w-ok{flex:0 0 auto;align-items:center}
 .w-obs{flex:1.2 1 140px}
 td.lg-obs{min-width:150px;padding-top:1px;padding-bottom:1px}
 #tbLog td{padding-top:1px;padding-bottom:1px}
@@ -83,7 +83,7 @@ td.lg-obs{min-width:150px;padding-top:1px;padding-bottom:1px}
 .lgi:focus{border-color:var(--acc);background:var(--card);box-shadow:0 0 0 2px var(--acc-soft);outline:none}
 .lgi[type=date]{padding:2px 4px;min-width:118px}
 .lgi[type=date]::-webkit-calendar-picker-indicator{opacity:.35}
-#tbLog td.w-f{min-width:175px}#tbLog td.w-l{min-width:110px}#tbLog td.w-n{min-width:74px}#tbLog td.w-v{min-width:96px}#tbLog td.w-c{min-width:74px}
+#tbLog td.w-f{min-width:175px}#tbLog td.w-l{min-width:110px}#tbLog td.w-n{min-width:120px}#tbLog td.w-n .lgi{min-width:116px}#tbLog td.w-v{min-width:96px}#tbLog td.w-c{min-width:74px}
 td.lg-obs input{width:100%;height:24px;padding:2px 6px;font-size:13px;border-color:transparent;background:transparent}
 td.lg-obs input:hover,td.lg-obs input:focus{border-color:var(--line);background:var(--card)}
 .w-act{flex:0 0 auto;flex-direction:row;gap:6px;align-items:center}.w-act .btn{height:32px;padding:0 14px}
@@ -808,7 +808,7 @@ function loading(on){ document.getElementById('loading').classList.toggle('hide'
 /* =================== API =================== */
 function api(acao, dados){
   loading(true);
-  const fim = r => { loading(false); if(r&&r.dados) r.dados=descompactar(r.dados); if(r && r.ok && r.fin && S.dados){ if(r.finParcial&&S.dados.fin){ Object.assign(S.dados.fin,r.fin); if(r.finUpsert){ Object.keys(r.finUpsert).forEach(k=>{ const L=S.dados.fin[k]=S.dados.fin[k]||[]; r.finUpsert[k].forEach(x=>{ const i=L.findIndex(y=>String(y.ID)===String(x.ID)); if(i>=0) L[i]=x; else L.push(x); }); }); } if(r.finRemover){ Object.keys(r.finRemover).forEach(k=>{ const rm=new Set((r.finRemover[k]||[]).map(String)); if(rm.size&&S.dados.fin[k]) S.dados.fin[k]=S.dados.fin[k].filter(y=>!rm.has(String(y.ID))); }); } if(r.finHist){ (S.dados.fin.historico=S.dados.fin.historico||[]).push(r.finHist); } } else S.dados.fin=r.fin; S.finFresco=true; } if(r&&r.tempos&&window.console) console.info('[api]',acao,r.tempos); if(r && r.ok){ S.master=!!r.master; S.abas=r.abas||[]; const b=document.getElementById('btConfig'); if(b) b.classList.toggle('hide',!S.master); aplicarAbas(); } if(!r || !r.ok){ if(r && r.erro==='SENHA_INVALIDA'){ sair(); throw new Error('Senha inválida'); } const er=new Error(r&&r.erro||'Falha na comunicação'); er.servidor=!!(r&&r.erro); throw er; } return r.dados; };
+  const fim = r => { loading(false); if(r&&r.dados) r.dados=descompactar(r.dados); if(r && r.ok && r.fin && S.dados){ if(r.finParcial&&S.dados.fin){ Object.assign(S.dados.fin,r.fin); if(r.finUpsert){ Object.keys(r.finUpsert).forEach(k=>{ const L=S.dados.fin[k]=S.dados.fin[k]||[]; r.finUpsert[k].forEach(x=>{ const i=L.findIndex(y=>String(y.ID)===String(x.ID)); if(i>=0) L[i]=x; else L.push(x); }); }); } if(r.finRemover){ Object.keys(r.finRemover).forEach(k=>{ const rm=new Set((r.finRemover[k]||[]).map(String)); if(rm.size&&S.dados.fin[k]) S.dados.fin[k]=S.dados.fin[k].filter(y=>!rm.has(String(y.ID))); }); } if(r.finHist){ (S.dados.fin.historico=S.dados.fin.historico||[]).push(r.finHist); } } else S.dados.fin=r.fin; S.finFresco=true; } if(r&&r.ok&&r.finVer){ S.finGen=(S.finGen||0)+1; if(S.finVer&&S.finVer===r.finVerAntes){ S.finVer=r.finVer; } else if(!r.finParcial&&r.fin&&!r.finParcial){ S.finVer=r.finVer; S.finVerT=Date.now(); } else { S.finVer=null; } finGuardar(); } if(r&&r.tempos&&window.console) console.info('[api]',acao,r.tempos); if(r && r.ok){ S.master=!!r.master; S.abas=r.abas||[]; const b=document.getElementById('btConfig'); if(b) b.classList.toggle('hide',!S.master); aplicarAbas(); } if(!r || !r.ok){ if(r && r.erro==='SENHA_INVALIDA'){ sair(); throw new Error('Senha inválida'); } const er=new Error(r&&r.erro||'Falha na comunicação'); er.servidor=!!(r&&r.erro); throw er; } return r.dados; };
   if (emAppsScript()) return new Promise((res,rej)=>google.script.run.withSuccessHandler(r=>{try{res(fim(r));}catch(e){rej(e);}}).withFailureHandler(e=>{loading(false);rej(e);}).api(acao,S.senha,dados||{},S.usuario));
   return fetch(S.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({acao,senha:S.senha,usuario:S.usuario,dados:dados||{}})})
     .then(r=>r.json()).then(fim).catch(e=>{loading(false);throw e;});
@@ -838,7 +838,7 @@ async function entrar(){
     if(d&&S.master&&!d.masterTrocada) setTimeout(()=>toast('🔒 Por segurança, troque a senha master em ⚙ Configurações → Trocar senha master',12000),1500); if(!API_URL) LS.set('mc_url',S.url); document.getElementById('telaLogin').classList.add('hide'); abrirApp(); }
   catch(e){ err.textContent = e.message==='Senha inválida' ? 'Usuário ou senha incorretos.' : ('Não conectou: '+e.message); }
 }
-function sair(){ if(S.senha&&String(S.senha).startsWith('tk:')){ const s=S.senha; try{ (emAppsScript()?Promise.resolve():fetch(S.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({acao:'sair',senha:s,usuario:S.usuario,dados:{}})})).catch(()=>{}); }catch(e){} } LS.del('mc_senha'); LS.del('mc_tok'); LS.del('mc_abas'); S.senha=''; S.abas=undefined; S.dados=null; S.finFresco=false; document.body.classList.remove('abas-ok'); document.getElementById('telaApp').classList.add('hide'); document.getElementById('telaLogin').classList.remove('hide'); document.getElementById('lgUrlBox').classList.toggle('hide', emAppsScript() || !!API_URL); }
+function sair(){ try{ IDB.del(finChave()); }catch(e){} if(S.senha&&String(S.senha).startsWith('tk:')){ const s=S.senha; try{ (emAppsScript()?Promise.resolve():fetch(S.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({acao:'sair',senha:s,usuario:S.usuario,dados:{}})})).catch(()=>{}); }catch(e){} } LS.del('mc_senha'); LS.del('mc_tok'); LS.del('mc_abas'); S.senha=''; S.abas=undefined; S.dados=null; S.finFresco=false; document.body.classList.remove('abas-ok'); document.getElementById('telaApp').classList.add('hide'); document.getElementById('telaLogin').classList.remove('hide'); document.getElementById('lgUrlBox').classList.toggle('hide', emAppsScript() || !!API_URL); }
 function abrirApp(){
   try{ const c=JSON.parse(LS.get('mc_abas')||'null'); if(c&&S.abas===undefined){ S.master=!!c.m; S.abas=c.a||[]; aplicarAbas(); } }catch(e){}
   document.getElementById('telaApp').classList.remove('hide');
@@ -857,14 +857,31 @@ function irPara(v){ if(v!=='config' && !(S.master||(S.abas||[]).includes(v))) re
 
 function descompactar(o){ if(Array.isArray(o)) return o.map(descompactar); if(o&&typeof o==='object'){ if(o.__c&&o.__r){ const c=o.__c; return o.__r.map(r=>{ const x={}; c.forEach((k,i)=>x[k]=r[i]); return x; }); } const r={}; for(const k in o) r[k]=descompactar(o[k]); return r; } return o; }
 // abre o sistema com as abas leves primeiro; o financeiro (maior) chega em paralelo, sem segurar as outras abas
+// cópia do financeiro guardada neste computador (IndexedDB): o financeiro abre na hora com ela e é conferido com a nuvem em seguida
+const IDB={ db:null, abrir(){ if(this.db) return this.db; this.db=new Promise((ok,err)=>{ try{ const r=indexedDB.open('miashop',1); r.onupgradeneeded=()=>r.result.createObjectStore('kv'); r.onsuccess=()=>ok(r.result); r.onerror=()=>err(r.error); }catch(e){ err(e); } }); return this.db; },
+  async get(k){ try{ const db=await this.abrir(); return await new Promise(ok=>{ const q=db.transaction('kv').objectStore('kv').get(k); q.onsuccess=()=>ok(q.result||null); q.onerror=()=>ok(null); }); }catch(e){ return null; } },
+  async set(k,v){ try{ const db=await this.abrir(); await new Promise(ok=>{ const t=db.transaction('kv','readwrite'); t.objectStore('kv').put(v,k); t.oncomplete=ok; t.onerror=ok; }); }catch(e){} },
+  async del(k){ try{ const db=await this.abrir(); await new Promise(ok=>{ const t=db.transaction('kv','readwrite'); t.objectStore('kv').delete(k); t.oncomplete=ok; t.onerror=ok; }); }catch(e){} } };
+const finChave=()=>'fin|'+(S.url||'')+'|'+up(S.usuario||'');
+let _finSalvarT; function finGuardar(){ clearTimeout(_finSalvarT); _finSalvarT=setTimeout(()=>{ if(S.dados&&S.dados.fin&&S.finVer) IDB.set(finChave(),{ver:S.finVer,t:S.finVerT||Date.now(),fin:S.dados.fin}); else IDB.del(finChave()); },1500); }
+// abre o sistema com as abas leves primeiro; o financeiro (maior) chega em paralelo, sem segurar as outras abas
 async function carregar(silencioso){
   const temFin=()=>S.master||(S.abas||[]).includes('financeiro');
-  const pFin=(S.abas||S.master)&&temFin()?api('finCarregar').catch(e=>{ if(!silencioso) toast('Erro ao carregar o financeiro: '+e.message,5000); return null; }):null;
+  const pode=(S.abas||S.master)&&temFin();
+  const pCache=pode&&!(S.dados&&S.dados.fin)?IDB.get(finChave()):Promise.resolve(null);
+  const pedirFin=async c=>{ const g=S.finGen||0; const r=await api('finCarregar',c?{ver:c.ver,idade:Date.now()-(c.t||0)}:{});
+    if((S.finGen||0)!==g&&!r.mesma) return pedirFin(null); return r; }; // houve gravação enquanto carregava: pede de novo para não voltar dado velho
+  const pFin=pode?pCache.then(c=>pedirFin(c&&c.fin?c:(S.dados&&S.dados.fin&&S.finVer?{ver:S.finVer,t:S.finVerT}:null))).catch(e=>{ if(!silencioso) toast('Erro ao carregar o financeiro: '+e.message,5000); return null; }):null;
   try{ const d=await api('getDados'); const finAnt=S.dados&&S.dados.fin; S.dados=d; if(finAnt) S.dados.fin=finAnt; S.dados.compras=(d.importadoras||[]).map(n=>({IMPORTADORA:n}));
-    document.getElementById('whoSync').textContent='atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); render(); }
+    if(!S.dados.fin){ const c=await pCache; if(c&&c.fin){ S.dados.fin=c.fin; S.finVer=c.ver; S.finVerT=c.t; S.finDaCopia=true; } }
+    document.getElementById('whoSync').textContent=S.finDaCopia?'conferindo o financeiro…':'atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); render(); }
   catch(e){ if(!silencioso) toast('Erro ao carregar: '+e.message,5000); }
-  let f=pFin?await pFin:null; if(!pFin&&temFin()) f=await api('finCarregar').catch(()=>null);
-  if(f&&S.dados){ S.dados.fin=f; S.finFresco=false; if(S.view==='financeiro') render(); carregarRateiosNF(); }
+  let f=pFin?await pFin:null; if(!pFin&&temFin()) f=await api('finCarregar',{}).catch(()=>null);
+  if(f&&S.dados){
+    if(f.mesma&&S.dados.fin){ S.finVer=f.ver; S.finVerT=Date.now(); }
+    else if(f.fin){ S.dados.fin=f.fin; S.finVer=f.ver; S.finVerT=Date.now(); S.finFresco=false; if(S.view==='financeiro') render(); }
+    if(S.finDaCopia) document.getElementById('whoSync').textContent='atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    S.finDaCopia=false; finGuardar(); carregarRateiosNF(); if(S.view==='financeiro'&&typeof fnPendAtualizar==='function') fnPendAtualizar(); }
 }
 // distribuições por NF (Logística e Distribuição Notas) para o lançamento do boleto: vêm depois, sem segurar a abertura do financeiro
 function carregarRateiosNF(){ if(S._rnfP) return S._rnfP; S._rnfP=api('finRateiosNF').then(r=>{ S.rateiosNF=r||[]; return S.rateiosNF; }).catch(()=>S.rateiosNF||[]).finally(()=>{ S._rnfP=null; }); return S._rnfP; }
@@ -2195,7 +2212,7 @@ function fnDrParcelas(){ const D=FN.dr, el=document.getElementById('fmParc'); if
 function fnDrParcTot(){ const B=(FN.dr||{}).boletos||[]; const t=B.reduce((s,b)=>s+(+b.valor||0),0); const e=document.getElementById('fmParcTot'); if(e) e.textContent='('+fR(t)+')';
   if(B.length>1&&(document.getElementById('fmBolTodos')||{}).checked) ['fmTotTop','fmTotBot'].forEach(i=>{ const x=document.getElementById(i); if(x) x.innerHTML=fR(t)+' <small style="font-size:55%">('+B.length+'x)</small>'; }); }
 async function fnDrBoleto(f){
-  const box=document.getElementById('fmBolDrop'); const txt=box.innerHTML; box.classList.add('lendo'); const foto=/^image\//.test(f.type)||/\.(jpe?g|png|webp)$/i.test(f.name); box.innerHTML=foto?'📷 Lendo a foto '+esc(f.name)+'… (pode levar alguns segundos)':'Lendo '+esc(f.name)+'…';
+  const box=document.getElementById('fmBolDrop'); const txt=box.innerHTML; box.classList.add('lendo'); const foto=/^image\//.test(f.type)||/\.(jpe?g|png|webp)$/i.test(f.name); box.innerHTML=foto?'📷 Lendo a foto '+esc(f.name)+'… (pode levar alguns segundos)':'Lendo '+esc(f.name)+'…'; FN.bolProg=m=>{ box.innerHTML=esc(m)+' <span class="muted">(foto: alguns segundos por página)</span>'; };
   try{
     const B=await fnLerBoleto(f); const b=B[0]; FN.dr.boletos=B; FN.dr.bolArq=f.name;
     const set=(i,v)=>{ const e=document.getElementById(i); if(e&&v!=null&&v!=='') e.value=v; };
@@ -2226,7 +2243,7 @@ async function fnDrBoleto(f){
     if(n>1){ const corpo=document.querySelector('#fnDrawer .fnd-b'); if(corpo&&!corpo.dataset.parcLig){ corpo.dataset.parcLig='1'; corpo.addEventListener('input',e=>{ if(!e.target.closest('#fmParc')) fnDrSync(e.target); }); corpo.addEventListener('change',e=>{ if(!e.target.closest('#fmParc')) fnDrSync(e.target); }); } fnDrParcelas(); }
     toast(b.aviso?'⚠ '+b.aviso:n>1?`${n} boletos lidos — confira e clique em Agendar`:foto?'Foto do boleto lida — confira os dados e clique em Agendar':'Boleto lido — confira e clique em Agendar',b.aviso?9000:6000);
   }catch(e){ toast(f.name+': '+e.message,7000); }
-  box.classList.remove('lendo'); box.innerHTML=txt;
+  FN.bolProg=null; box.classList.remove('lendo'); box.innerHTML=txt;
 }
 async function fnSalvarLancDr(){
   const {id,tipo,exId}=FN.dr; const g=i=>document.getElementById(i).value.trim();
@@ -2661,7 +2678,7 @@ function fnCentroDoCnpj(cnpj){ const d=soDig(cnpj); if(d.length!==14) return '';
 function fnCNPJValido(c){ const d=soDig(c); if(d.length!==14||/^(\d)\1+$/.test(d)) return false; const dv=n=>{ let s=0,p=n.length-7; for(let i=0;i<n.length;i++){ s+=(+n[i])*p--; if(p<2) p=9; } const r=s%11; return r<2?0:11-r; }; return dv(d.slice(0,12))===+d[12]&&dv(d.slice(0,13))===+d[13]; }
 function fnMod10(n){ let s=0,m=2; for(let i=n.length-1;i>=0;i--){ let v=(+n[i])*m; if(v>9) v=Math.floor(v/10)+(v%10); s+=v; m=m===2?1:2; } return (10-(s%10))%10; }
 function fnMod11CB(n){ let s=0,m=2; for(let i=n.length-1;i>=0;i--){ s+=(+n[i])*m; m=m===9?2:m+1; } const r=11-(s%11); return (r===0||r===10||r===11)?1:r; }
-function fnLinhaValida(l){ return /^\d{47}$/.test(l)&&fnMod10(l.slice(0,9))===+l[9]&&fnMod10(l.slice(10,20))===+l[20]&&fnMod10(l.slice(21,31))===+l[31]&&fnMod11CB(l.slice(0,4)+l.slice(32,47)+l.slice(4,9)+l.slice(10,20)+l.slice(21,31))===+l[32]; }
+function fnLinhaValida(l){ return /^\d{47}$/.test(l)&&fnMod10(l.slice(0,9))===+l[9]&&fnMod10(l.slice(10,20))===+l[20]&&fnMod10(l.slice(21,31))===+l[31]&&fnMod11CB(l.slice(0,4)+l.slice(33,47)+l.slice(4,9)+l.slice(10,20)+l.slice(21,31))===+l[32]; }
 // código de barras (44 dígitos) → linha digitável (47)
 function fnCBparaLinha(c){ if(!/^\d{44}$/.test(c)) return ''; const a=c.slice(0,4)+c.slice(19,24), b=c.slice(24,34), d=c.slice(34,44); return a+fnMod10(a)+b+fnMod10(b)+d+fnMod10(d)+c[4]+c.slice(5,19); }
 function fnLinhaDoTexto(txt){
@@ -2696,11 +2713,15 @@ function fnBoletoPagina(it,linhas,txt,nossos,p){
     const lb=benC&&linhas.find(l=>soDig(l.t).includes(soDig(benC))); if(lb){ benef=limpa(lb.t); }
     if(!benef||benef.length<3){ const lab=it.find(i=>/^benefici[aá]rio\s*:?$/i.test(i.s)); if(lab){ const abaixo=linhas.filter(l=>l.y<lab.y&&lab.y-l.y<20).sort((a,b)=>b.y-a.y)[0]; if(abaixo) benef=limpa(abaixo.t); } }
     if(!benef){ const lab=linhas.find(l=>/benefici[aá]rio\s*:/i.test(l.t)&&!/pagador/i.test(l.t)); if(lab) benef=limpa(lab.t); }
+    benef=benef.replace(/(\s+[\d.\/\-]{4,})+\s*$/,'').trim(); // tira códigos no fim (agência / código do beneficiário)
+    if(soDig(benef).length>=10||/\d{5}[.\s]\d{5}/.test(benef)) benef=''; // pegou a linha do código de barras, não o nome
     const dm=txt.match(/\b(?:NT|NF|NFE|NF-E)\s*[:.\-]?\s*([0-9A-Z]{3,})\s*(\d{1,2}\/\d{1,2})?/i);
     // sem "NF" escrito: usa o campo "Nº do Documento" (ex.: 417/1 → NF 417, parcela 1)
     let docN='', parN=''; if(!dm){ const cands=[]; linhas.forEach((l,i)=>{ if(!/d[oa]\s*documento/i.test(l.t)||/valor\s*d[oa]\s*documento/i.test(l.t)&&!/data\s*d[oa]\s*documento/i.test(l.t)) return; const prox=linhas[i+1]; if(!prox) return;
-        prox.t.replace(/\b\d{2}\/\d{2}\/\d{4}\b/g,' ').split(/\s+/).forEach(w=>{ const mm=w.match(/^(\d{2,9})(?:\/(\d{1,3}))?$/); if(mm) cands.push(mm); }); });
-      const c=cands.find(x=>x[2])||cands[0]; if(c){ docN=c[1]; parN=c[2]||''; } }
+        prox.t.replace(/\b\d{2}\/\d{2}\/\d{4}\b/g,' ').split(/\s+/).forEach(w=>{ const mm=w.match(/^(\d{2,9})(?:[\/-](\d{1,3}))?$/); if(mm) cands.push(mm); }); });
+      const c=cands.find(x=>x[2])||cands[0]; if(!c){ // rótulo ilegível: no boleto padrão a linha é "data do documento · nº do documento · espécie (DM, DS…)"
+        const z=txt.match(/\b\d{2}\/\d{2}\/\d{4}\s+(\d{2,9})(?:[\/-](\d{1,3}))?\s+(?:DMI?|DSI?|NP|RC|DV|ND|FAT|OU|BDP|ME)\b/i); if(z){ docN=z[1].replace(/^0+(?=\d)/,''); parN=z[2]?String(+z[2]):''; } }
+      if(c){ docN=c[1].replace(/^0+(?=\d)/,''); parN=c[2]?String(+c[2]):''; } }
     return {pagina:p,linha,valor:Math.round(valor*100)/100,venc,benef,benefCnpj:benC,pagadorCnpj:pag,doc:dm?dm[1]:docN,parcela:dm&&dm[2]?dm[2]:parN};
 }
 /* ---------- boleto por FOTO (JPG/PNG): lê o texto com OCR e o código de barras, tudo no próprio navegador ---------- */
@@ -2740,15 +2761,44 @@ async function fnLerBoletoFoto(f){
   const fnNF=(f.name.match(/NF[_\s\-]?([0-9A-Z]+)/i)||[])[1]||''; if(!b.doc) b.doc=fnNF;
   return [b];
 }
+// páginas-foto de um PDF: renderiza cada uma e lê com OCR. Só vira boleto a página com linha digitável válida
+// (nota fiscal, pedido e outras fotos do mesmo arquivo são ignoradas). Página com cara de boleto sem linha legível: tenta girar.
+async function fnBoletosDeFotos(doc,paginas){
+  await fnScript(FN_OCR.tess); if(!window.Tesseract) throw new Error('o leitor de fotos não carregou (verifique a internet)');
+  const w=await Tesseract.createWorker('por',1,FN_OCR.opts); const out=[];
+  const pareceBoleto=t=>/ficha\s*de\s*compensa|nosso\s*n[uú]mero|local\s*de\s*pagamento|autentica[cç][aã]o\s*mec|recibo\s*do\s*pagador|benefici[aá]rio/i.test(t);
+  try{
+    for(let k=0;k<paginas.length;k++){ const p=paginas[k]; if(FN.bolProg) FN.bolProg(`📷 Lendo a foto da página ${p} de ${doc.numPages}…`);
+      const pg=await doc.getPage(p); const v1=pg.getViewport({scale:1});
+      const render=async lado=>{ const vp=pg.getViewport({scale:Math.min(4,lado/Math.max(v1.width,v1.height))}); const c=document.createElement('canvas'); c.width=Math.round(vp.width); c.height=Math.round(vp.height);
+        const cx=c.getContext('2d'); cx.fillStyle='#fff'; cx.fillRect(0,0,c.width,c.height); await pg.render({canvasContext:cx,viewport:vp}).promise; return c; };
+      const ler=async cv=>{ const data=(await w.recognize(cv)).data; return {data,r:fnOcrParaBoleto(data,cv.height)}; };
+      // 1ª leitura rápida (imagem menor): separa boleto de nota fiscal / pedido / página em branco
+      let c=await render(1800), x=await ler(c), b=x.r&&fnLinhaValida(x.r.linha)?x.r:null;
+      const txt0=x.data.text||'', conf=+x.data.confidence||0;
+      if(!b&&(pareceBoleto(txt0)||conf<45)&&txt0.replace(/\s/g,'').length>15){
+        c=await render(3000); // boleto (ou foto torta): lê de novo com mais detalhe e, se preciso, girando
+        for(const g of [0,90,270,180]){ const y=await ler(fnGirar(c,g)); if(y.r&&fnLinhaValida(y.r.linha)){ b=y.r; break; } if(g===0&&pareceBoleto(y.data.text||'')&&(+y.data.confidence||0)>=45) break; }
+      }
+      if(!b&&!pareceBoleto(txt0)&&conf>=45){ continue; } // nota fiscal, pedido etc.: ignora
+      if(b&&(!b.benefCnpj||!b.doc)&&c.width<2500){ const y=await ler(await render(3000)); if(y.r&&fnLinhaValida(y.r.linha)) b=Object.assign({},b,Object.fromEntries(Object.entries(y.r).filter(([k,v])=>v))); } // achou o boleto: lê de novo com mais detalhe para nome / NF
+      if(!b){ const lcb=fnCBparaLinha(await fnLerCBFoto(c)); if(lcb){ b={pagina:p,linha:lcb,valor:+lcb.slice(37)/100,venc:fnVencFator(+lcb.slice(33,37)),benef:'',benefCnpj:'',pagadorCnpj:'',doc:'',parcela:''}; } }
+      if(b){ b.pagina=p; out.push(b); }
+    }
+  } finally{ try{ await w.terminate(); }catch(e){} }
+  return out;
+}
 async function fnLerBoleto(f){
   if(/^image\//.test(f.type)||/\.(jpe?g|png|webp)$/i.test(f.name)) return fnLerBoletoFoto(f);
   if(!/\.pdf$/i.test(f.name)&&f.type!=='application/pdf') throw new Error('envie o boleto em PDF ou foto (JPG/PNG)');
   if(!window.pdfjsLib) throw new Error('leitor de PDF não carregou (verifique a internet)');
   const doc=await pdfjsLib.getDocument({data:new Uint8Array(await f.arrayBuffer())}).promise; const out=[]; const vistos=new Set();
   const nossos=new Set([...fin().centros.map(c=>soDig(c.CNPJ)),...((S.dados&&S.dados.filiais)||[]).map(x=>soDig(x.CNPJ))].filter(Boolean));
+  const fotos=[];
   for(let p=1;p<=doc.numPages;p++){
     const pg=await doc.getPage(p); const tc=await pg.getTextContent();
     const it=tc.items.filter(i=>String(i.str).trim()).map(i=>({s:String(i.str).trim(),x:i.transform[4],y:i.transform[5]}));
+    if(it.length<15){ fotos.push(p); continue; } // página escaneada / foto (sem texto): vai para o OCR depois
     // agrupa em linhas pela altura
     const linhas=[]; it.slice().sort((a,b)=>b.y-a.y||a.x-b.x).forEach(i=>{ const l=linhas.find(l=>Math.abs(l.y-i.y)<2.5); if(l) l.it.push(i); else linhas.push({y:i.y,it:[i]}); });
     linhas.forEach(l=>{ l.it.sort((a,b)=>a.x-b.x); l.t=l.it.map(i=>i.s).join(' '); });
@@ -2756,7 +2806,10 @@ async function fnLerBoleto(f){
     const b=fnBoletoPagina(it,linhas,txt,nossos,p); if(!b) continue;
     if(b.linha&&vistos.has(b.linha)) continue; if(b.linha) vistos.add(b.linha); out.push(b);
   }
-  if(!out.length) throw new Error('não encontrei a linha digitável nem o valor do boleto neste PDF');
+  // páginas que são foto (PDF do CamScanner etc.): lê com OCR e fica só com as que são boleto (linha digitável válida)
+  if(fotos.length){ const vistosF=new Set(out.map(b=>b.linha)); (await fnBoletosDeFotos(doc,fotos)).forEach(b=>{ if(!vistosF.has(b.linha)){ vistosF.add(b.linha); out.push(b); } }); }
+  { const base=out.find(b=>b.benef&&b.benefCnpj); if(base) out.forEach(b=>{ if(!b.benef||(b.benefCnpj&&b.benefCnpj===base.benefCnpj&&!b.benef)) { b.benef=base.benef; b.benefCnpj=b.benefCnpj||base.benefCnpj; } if(!b.pagadorCnpj) b.pagadorCnpj=base.pagadorCnpj; if(!b.doc&&base.doc) b.doc=base.doc; }); }
+  if(!out.length) throw new Error(fotos.length?'não encontrei boleto nas fotos deste PDF — confira se a linha com os números do código de barras está nítida':'não encontrei a linha digitável nem o valor do boleto neste PDF');
   const fnNF=(f.name.match(/NF[_\s\-]?([0-9A-Z]+)/i)||[])[1]||''; out.forEach(b=>{ if(!b.doc) b.doc=fnNF; });
   return out.sort((a,b)=>(isoBR(a.venc)||'').localeCompare(isoBR(b.venc)||''));
 }
