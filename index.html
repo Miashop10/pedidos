@@ -198,6 +198,20 @@ body:not(.abas-ok) #nav button,body:not(.abas-ok) #btConfig{visibility:hidden}
 .fn-chk{width:24px;height:24px;border:2px solid #b9bec7;border-radius:6px;background:#fff;cursor:pointer;font-weight:900;font-size:15px;line-height:1;color:#fff;padding:0}.fn-chk:hover{border-color:#2e7d32}.fn-chk.on{background:#2e7d32;border-color:#2e7d32}
 tr.fn-bok td{background:#eef7ef}
 .dc-atr{padding:12px;margin-bottom:12px;border-left:5px solid var(--bad)}.dc-atr.ok{border-left-color:var(--ok);color:var(--ok)}.dc-atr h3{margin:0;font-size:15px}
+.dn-steps{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:760px){.dn-steps{grid-template-columns:1fr}}
+.dn-card{padding:16px}.dn-card h3{margin:0;display:flex;align-items:center;gap:8px;font-size:15px}
+.dn-num{background:var(--acc);color:#fff;width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex:0 0 24px}
+.dn-drop{display:block;border:2px dashed var(--line);border-radius:8px;padding:20px 12px;text-align:center;cursor:pointer;background:var(--soft);font-size:14px}
+.dn-drop:hover,.dn-drop.on{border-color:var(--acc)}.dn-drop.has{border-color:var(--acc);color:var(--acc);font-weight:700;background:#fff7ef}
+.dn-run{width:100%;margin-top:14px;padding:13px;font-size:16px;justify-content:center}
+.dn-res{margin-top:22px}.dn-tot{background:var(--acc);color:#fff;border-radius:10px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}.dn-tot>b{font-size:24px}
+.dn-warn{background:#fdf6ec;border:1px solid #d97812;border-radius:8px;padding:10px 14px;margin-top:12px;font-size:13px;color:#7a5a1e}
+.dn-bar{display:inline-block;height:8px;border-radius:4px;background:var(--acc);vertical-align:middle}.dn-pct{color:var(--acc)}
+.dn-hist{margin-top:30px;border-top:2px solid var(--line);padding-top:18px}.dn-hl{display:flex;flex-direction:column;gap:8px}
+.dn-hi{background:#fff;border:1px solid var(--line);border-radius:9px;padding:12px 14px;display:flex;align-items:center;gap:12px}.dn-hi:hover,.dn-hi.on{border-color:var(--acc)}
+.dn-hinfo{flex:1;min-width:0;cursor:pointer}.dn-nf{color:var(--acc);font-size:13px;font-weight:700}.dn-hfil{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dn-hfiles{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;align-items:center}.dn-hf{font-size:12px;font-weight:700;color:var(--acc);background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:3px 8px;text-decoration:none}.dn-hf.off{color:var(--mut);opacity:.7}
+.dn-open{color:var(--acc);font-weight:700}.dn-hval{font-weight:800;color:var(--acc);white-space:nowrap}
 .fnd-drop{display:block;border:2px dashed var(--line);border-radius:10px;padding:9px 12px;margin:0 0 10px;font-size:13px;cursor:pointer;background:var(--card);text-align:center}
 .fnd-drop:hover,.fnd-drop.on{border-color:var(--acc);background:var(--acc-soft)}
 .fnd-drop.lendo{opacity:.7;pointer-events:none}
@@ -462,6 +476,7 @@ td.desc{white-space:normal;min-width:220px;max-width:340px}
       <button data-v="relreceb">Relatórios de Recebimento</button>
       <button data-v="financeiro">Financeiro</button>
       <button data-v="aplicacoes">Aplicações</button>
+      <button data-v="distnotas">Distribuição Notas</button>
     </nav>
     <div class="sp"></div>
     <div class="who"><button class="btn sec sm hide" id="btConfig" onclick="irPara('config')" title="Configurações: usuários e agrupamento de filiais">⚙<span class="bc-txt"> Configurações</span></button><span id="filaBadge" class="fila-b hide" onclick="irPara('financeiro');fnIr('config','nuvem')" title="Há informações que ainda não chegaram na nuvem — clique para enviar"></span><span id="whoNome"></span><span id="whoSync"></span>
@@ -857,7 +872,7 @@ function render(){
   const v=S.view; const m=document.getElementById('main');
   if(v==='semacesso'){ m.innerHTML='<div class="card muted" style="margin-top:20px">Seu usuário ainda não tem acesso a nenhuma aba. Peça ao administrador para liberar em Configurações.</div>'; return; }
   document.body.classList.toggle('fin-mode', v==='financeiro'); const hd=document.querySelector('header'); if(hd) document.documentElement.style.setProperty('--hh',hd.offsetHeight+'px');
-  m.innerHTML = v==='aplicacoes'?vAplicacoes(): v==='financeiro'?vFinanceiro(): v==='logistica'?vLogistica(): v==='relreceb'?vRelReceb(): v==='faturar'?vFaturar(): v==='config'?vConfig(): vPedidos();
+  m.innerHTML = v==='distnotas'?vDistNotas(): v==='aplicacoes'?vAplicacoes(): v==='financeiro'?vFinanceiro(): v==='logistica'?vLogistica(): v==='relreceb'?vRelReceb(): v==='faturar'?vFaturar(): v==='config'?vConfig(): vPedidos();
   if(v==='pedidos') ligarPedidos(); if(v==='logistica') ligarLogistica(); if(v==='financeiro') ligarFinanceiro();
   ajustarTabelas();
 }
@@ -1212,7 +1227,7 @@ function vLogistica(){
   </div>
   <div class="sl-filtros">
     <input type="search" class="w-q" style="flex:1 1 auto;max-width:520px" value="${esc(F.q)}" placeholder="Buscar fornecedor, filial, NF, data, cálculo, obs, valor…" oninput="LG.f.q=this.value;LG.lim=0;clearTimeout(window._lq);window._lq=setTimeout(lgAtualizar,200)">
-    <select onchange="LG.f.bol=this.value;LG.lim=0;lgAtualizar()"><option value="">Boletos: todos</option><option value="pend" ${F.bol==='pend'?'selected':''}>Só SEM OK</option><option value="ok" ${F.bol==='ok'?'selected':''}>Só com OK</option></select>
+    <select onchange="LG.f.bol=this.value;LG.lim=0;lgAtualizar()" title="Filtrar pelo OK dos boletos" style="font-weight:600"><option value="">Boletos: todos</option><option value="recpend" ${F.bol==='recpend'?'selected':''}>NF recebida · boleto SEM OK</option><option value="pend" ${F.bol==='pend'?'selected':''}>Só SEM OK</option><option value="ok" ${F.bol==='ok'?'selected':''}>Só com OK</option></select>
     <span class="sp"></span><button class="btn sec sm" onclick="lgExportar()">Excel</button><button class="btn sec sm" onclick="exportarPDF(lgExportar,'Controle de Logística')">PDF</button>
   </div>
   <div class="tw sl-tab"><table id="tbLog">${lgTabela()}</table></div>
@@ -1236,7 +1251,7 @@ function lgFiltrados(){
   let L=(S.dados.logistica||[]).filter(r=>{
     if(F.forn && up(r.FORNECEDOR)!==up(F.forn)) return false; if(F.fil && up(r.FILIAL)!==up(F.fil)) return false;
     if(F.rec && r.RECEBIDO!==F.rec) return false; if(F.calc && r.CALCULO!==F.calc) return false;
-    if(F.bol==='ok' && !lgQuitado(r)) return false; if(F.bol==='pend' && lgQuitado(r)) return false;
+    if(F.bol==='ok' && !lgQuitado(r)) return false; if(F.bol==='pend' && lgQuitado(r)) return false; if(F.bol==='recpend' && (r.RECEBIDO!=='SIM' || lgQuitado(r))) return false;
     const d=isoBR(r.DATA_CHEGADA); if(F.de && (!d||d<F.de)) return false; if(F.ate && (!d||d>F.ate)) return false;
     if(q){ const alvo=semAcento([r.FORNECEDOR,r.FILIAL,r.NOTA_FISCAL,r.DATA_CHEGADA,r.DATA_LANCAMENTO,r.CALCULO,r.USUARIO,r.OBS,fN(+r.VALOR_NF,2),fN(+r.VALOR_CALCULADO,2)].join(' ')); if(!q.split(/\s+/).every(t=>alvo.includes(t))) return false; }
     return true; });
@@ -1689,7 +1704,7 @@ function faExportar(){
 
 /* =================== CONFIGURAÇÕES (somente master) =================== */
 const CFG = { usuarios:null };
-const ABAS_NOMES = [['pedidos','Pedidos'],['faturar','Pedidos a faturar'],['logistica','Controle de Logística'],['relreceb','Relatórios de Recebimento'],['financeiro','Financeiro'],['aplicacoes','Aplicações']];
+const ABAS_NOMES = [['pedidos','Pedidos'],['faturar','Pedidos a faturar'],['logistica','Controle de Logística'],['relreceb','Relatórios de Recebimento'],['financeiro','Financeiro'],['aplicacoes','Aplicações'],['distnotas','Distribuição Notas']];
 function vConfig(){
   if(!S.master) return '<div class="card muted">Somente o usuário master acessa as Configurações.</div>';
   if(CFG.usuarios===null){ cfgCarregarUsuarios(); }
@@ -2943,6 +2958,165 @@ function apEditar(id){ const a=apl().find(x=>x.ID===id); if(!a) return; AP.edit=
 async function apExcluir(id){ const a=apl().find(x=>x.ID===id); if(!a||!confirm(`Excluir a aplicação ${a.NOME} · ${fR(+a.VALOR)} (${a.DATA})?`)) return;
   try{ await api('aplExcluir',{id}); S.dados.aplicacoes=apl().filter(x=>x.ID!==id); toast('Aplicação excluída'); render(); }catch(e){ toast('Erro: '+e.message,6000); } }
 function apExcel(){ const ws=XLSX.utils.json_to_sheet(apFiltrados().map(a=>({'Data':a.DATA,'Aplicação':a.NOME,'Valor':+a.VALOR||0,'Observação':a.OBS||''}))); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Aplicações'); XLSX.writeFile(wb,'aplicacoes.xlsx'); }
+
+/* =================== DISTRIBUIÇÃO NOTAS (rateio da nota fiscal por filial) ===================
+   Planilha de custos (código + custo unitário) × planilha de distribuição (quanto de cada código vai para cada filial)
+   → valor e % transferido para cada filial. Cada cálculo fica gravado no Google (histórico) e vale para o Financeiro:
+   no lançamento do boleto com a mesma NF, os centros de custo saem dessa distribuição. */
+const DN = { custo:null, dist:null, res:null, forn:'', nf:'', q:'', aberto:null, salvando:false };
+const dnLista = () => (S.dados && S.dados.distNotas) || [];
+
+// ---------- números BR/US e códigos ----------
+function dnNum(v){
+  if(v==null) return NaN; if(typeof v==='number') return v;
+  let s=String(v).trim().replace(/[R$\s]/g,''); if(s==='') return NaN;
+  if(s.includes(',')&&s.includes('.')) s=s.replace(/\./g,'').replace(',','.'); else if(s.includes(',')) s=s.replace(',','.');
+  const n=parseFloat(s); return isNaN(n)?NaN:n;
+}
+// remove sufixo de traço + número (ex.: 2502-1 → 2502): mesmo produto
+const dnKey = s => String(s==null?'':s).trim().toUpperCase().replace(/-\d+$/,'');
+
+// ---------- leitura ----------
+function dnLerPlanilha(file){ return new Promise((res,rej)=>{ const r=new FileReader();
+  r.onload=e=>{ try{ const wb=XLSX.read(e.target.result,{type:'array'}); const ws=wb.Sheets[wb.SheetNames[0]];
+    res(XLSX.utils.sheet_to_json(ws,{header:1,defval:''}).filter(row=>row.some(c=>String(c).trim()!==''))); }catch(err){ rej(err); } };
+  r.onerror=rej; r.readAsArrayBuffer(file); }); }
+function dnB64(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result).split(',')[1]); r.onerror=rej; r.readAsDataURL(file); }); }
+
+// ---------- colunas ----------
+function dnLinhaCab(rows){ for(let i=0;i<Math.min(3,rows.length);i++){ if(rows[i].filter(c=>String(c).trim()!==''&&isNaN(dnNum(c))).length>=1) return i; } return 0; }
+function dnCol(h,kw){ for(let i=0;i<h.length;i++){ const t=dnKey(semAcento(h[i])); if(kw.some(k=>t.includes(k))) return i; } return -1; }
+function dnCustos(rows){
+  const hr=dnLinhaCab(rows), h=rows[hr]; let cc=dnCol(h,['COD','SKU','REF','PRODUTO','ITEM']), cv=dnCol(h,['CUSTO','UNIT','PRECO','VALOR']);
+  if(cc<0) cc=0; if(cv<0) cv=h.length>1?1:0;
+  const m={}; for(let i=hr+1;i<rows.length;i++){ const k=dnKey(rows[i][cc]), v=dnNum(rows[i][cv]); if(k&&!isNaN(v)) m[k]=v; } return m;
+}
+function dnDistrib(rows){
+  const hr=dnLinhaCab(rows), h=rows[hr].map(x=>String(x).trim());
+  const cc=Math.max(0,dnCol(h,['COD','SKU','REF','PRODUTO','ITEM'])), cf=dnCol(h,['FILIAL','LOJA','UNIDADE','DESTINO']), cq=dnCol(h,['QTD','QUANT','QTDE','QUANTIDADE']);
+  const out=[];
+  if(cf>=0&&cq>=0){ // formato em linhas: código, filial, quantidade
+    for(let i=hr+1;i<rows.length;i++){ const k=dnKey(rows[i][cc]), f=String(rows[i][cf]).trim(), q=dnNum(rows[i][cq]); if(k&&f&&!isNaN(q)&&q!==0) out.push({cod:k,filial:f,qtd:q}); }
+  } else { // formato em colunas: código + uma coluna por filial
+    const fc=[]; h.forEach((nm,j)=>{ if(j!==cc&&nm&&dnKey(nm)!=='') fc.push({idx:j,nome:nm}); });
+    for(let i=hr+1;i<rows.length;i++){ const k=dnKey(rows[i][cc]); if(!k) continue; fc.forEach(c=>{ const q=dnNum(rows[i][c.idx]); if(!isNaN(q)&&q!==0) out.push({cod:k,filial:c.nome,qtd:q}); }); }
+  }
+  return out;
+}
+function dnCalcular(cm,dist){
+  const fil={}, detail=[], sem=new Set(); let total=0;
+  dist.forEach(d=>{ const c=cm[d.cod]; if(c==null) sem.add(d.cod); const v=(c||0)*d.qtd; total+=v;
+    const f=fil[d.filial]||(fil[d.filial]={valor:0,itens:0}); f.valor+=v; f.itens+=d.qtd; detail.push({cod:d.cod,filial:d.filial,qtd:d.qtd,custo:c??null,valor:v}); });
+  const linhas=Object.entries(fil).map(([n,v])=>({filial:n,valor:v.valor,itens:v.itens,pct:total>0?v.valor/total*100:0})).sort((a,b)=>b.valor-a.valor);
+  return {total,linhas,detail,semCusto:[...sem]};
+}
+
+// ---------- tela ----------
+function vDistNotas(){
+  if(!S.dados) return '<p class="muted">Carregando…</p>';
+  const drop=(k,n,tit,dica,fmt)=>{ const st=DN[k]; return `<div class="card dn-card"><h3><span class="dn-num">${n}</span> ${tit}</h3><p class="small muted" style="margin:2px 0 10px">${dica}</p>
+    <label class="dn-drop${st?' has':''}" ondragover="event.preventDefault();this.classList.add('on')" ondragleave="this.classList.remove('on')" ondrop="event.preventDefault();this.classList.remove('on');if(event.dataTransfer.files[0]) dnArquivo('${k}',event.dataTransfer.files[0])">
+      <input type="file" accept=".xlsx,.xls,.csv" class="hide" onchange="if(this.files[0]) dnArquivo('${k}',this.files[0]); this.value=''">${st?'✔ '+esc(st.nome):'📄 Clique ou solte o arquivo aqui'}</label>
+    <div class="small ${st&&st.erro?'bad':'ok'}" style="min-height:18px;margin-top:6px">${st?(st.erro?'Erro: '+esc(st.erro):`✔ ${Math.max(0,st.rows.length-1)} linha(s) lida(s).`):''}</div>
+    <p class="small muted" style="margin:0">${fmt}</p></div>`; };
+  const pronto=DN.custo&&DN.dist&&!DN.custo.erro&&!DN.dist.erro;
+  return `<div class="slim">
+  <div class="sl-head"><h2>Distribuição Notas</h2><span class="muted small">Importe o custo dos produtos e a distribuição por filial — o sistema calcula valor e % transferido para cada loja.</span><span class="sp"></span></div>
+  <div class="dn-steps">
+    ${drop('custo',1,'Planilha de custos','Código do produto e custo unitário (Excel ou CSV).','Colunas esperadas: <code>código</code> e <code>custo unitário</code>. A ordem e o nome não precisam ser exatos — o sistema detecta.')}
+    ${drop('dist',2,'Planilha de distribuição','Quanto de cada código vai para cada filial (Excel ou CSV).','Aceita 2 formatos: <b>colunas por filial</b> (código, Filial A, Filial B…) ou <b>linhas</b> (código, filial, quantidade).')}
+  </div>
+  <div class="card dn-card" style="margin-top:14px"><h3><span class="dn-num">3</span> Dados da nota</h3>
+    <div class="row" style="gap:14px;margin-top:8px"><label class="sf" style="flex:2 1 300px"><span>Fornecedor</span><input id="dnForn" list="dlDnForn" value="${esc(DN.forn)}" placeholder="Nome do fornecedor" oninput="DN.forn=this.value"><datalist id="dlDnForn">${dnFornecedores().map(n=>`<option value="${esc(n)}">`).join('')}</datalist></label>
+      <label class="sf" style="flex:1 1 160px"><span>Nota fiscal nº</span><input id="dnNF" value="${esc(DN.nf)}" placeholder="Ex.: 123456" oninput="DN.nf=this.value"></label></div></div>
+  <button class="btn dn-run" ${pronto&&!DN.salvando?'':'disabled'} onclick="dnRodar()">${DN.salvando?'Processando…':'Calcular rateio'}</button>
+  <div id="dnRes">${dnResultado()}</div>
+  <div class="dn-hist">${dnHistorico()}</div></div>`;
+}
+function dnFornecedores(){ const v=new Set(), o=[]; [...dnLista().map(x=>x.FORNECEDOR),...((S.dados.logNomes||[]).filter(n=>n.TIPO==='FORNECEDOR').map(n=>n.NOME))].forEach(n=>{ n=String(n||'').trim(); const k=up(n); if(n&&!v.has(k)){ v.add(k); o.push(n); } }); return o.sort((a,b)=>a.localeCompare(b,'pt-BR')); }
+function dnAtualizar(){ const m=document.getElementById('main'); if(m&&S.view==='distnotas'){ const y=window.scrollY; m.innerHTML=vDistNotas(); window.scrollTo(0,y); } }
+async function dnArquivo(k,file){
+  if(/^image\//.test(file.type)){ toast('Foto não é aceita aqui — use a planilha em Excel ou CSV',6000); return; }
+  try{ const rows=await dnLerPlanilha(file); DN[k]={nome:file.name,rows,file}; }
+  catch(e){ DN[k]={nome:file.name,rows:[],erro:e.message||'não consegui ler o arquivo'}; }
+  dnAtualizar();
+}
+async function dnRodar(){
+  try{
+    const cm=dnCustos(DN.custo.rows); if(!Object.keys(cm).length) throw new Error('Nenhum custo válido encontrado na planilha 1.');
+    const d=dnDistrib(DN.dist.rows); if(!d.length) throw new Error('Nenhuma distribuição válida encontrada na planilha 2.');
+    DN.res=dnCalcular(cm,d); DN.res.fornecedor=DN.forn.trim(); DN.res.nota=DN.nf.trim(); DN.aberto=null;
+  }catch(e){ toast('Erro: '+e.message,7000); return; }
+  DN.salvando=true; dnAtualizar(); const el=document.getElementById('dnRes'); if(el) el.scrollIntoView({behavior:'smooth'});
+  // grava no Google (com as duas planilhas originais no Drive)
+  const R=DN.res, cf=DN.custo.file, df=DN.dist.file; const lim=8*1024*1024;
+  try{
+    const dados={fornecedor:R.fornecedor,nota:R.nota,total:R.total,linhas:R.linhas,detail:R.detail,semCusto:R.semCusto,
+      arqCustoNome:cf.name,arqCustoMime:cf.type,arqCusto:cf.size<=lim?await dnB64(cf):'',arqDistNome:df.name,arqDistMime:df.type,arqDist:df.size<=lim?await dnB64(df):''};
+    const r=await api('distSalvar',dados); (S.dados.distNotas=S.dados.distNotas||[]).push(r.reg); DN.aberto=r.reg.ID;
+    // o Financeiro passa a usar essa distribuição no lançamento do boleto com a mesma NF
+    const F=S.dados.fin; if(F&&R.nota){ F.rateiosNF=(F.rateiosNF||[]).concat(R.linhas.map(l=>({NF:R.nota,FORNECEDOR:R.fornecedor,FILIAL:l.filial,CODIGO:l.filial,VALOR:l.valor,LANC_ID:r.reg.ID}))); }
+    toast('Rateio calculado e salvo no histórico ✓',3500);
+  }catch(e){ toast('Rateio calculado, mas não foi salvo no histórico: '+e.message,8000); }
+  DN.salvando=false; dnAtualizar();
+}
+function dnResultado(){
+  const R=DN.res; if(!R) return '';
+  const max=Math.max(...R.linhas.map(l=>l.pct),1);
+  return `<div class="dn-res">
+  <div class="dn-tot"><span>Valor total da nota (produtos distribuídos)${R.fornecedor||R.nota?` · <b>${esc(R.fornecedor||'')}${R.nota?' · NF '+esc(R.nota):''}</b>`:''}</span><b>${fR(R.total)}</b></div>
+  ${R.semCusto.length?`<div class="dn-warn"><b>Atenção:</b> ${R.semCusto.length} código(s) da distribuição não têm custo na planilha 1 e foram contados como R$ 0,00: <code>${esc(R.semCusto.slice(0,20).join(', '))}${R.semCusto.length>20?'…':''}</code></div>`:''}
+  <div class="tw sl-tab" style="margin-top:12px"><table><thead><tr><th>Filial</th><th class="n">Itens</th><th class="n">Valor transferido</th><th class="n">% da nota</th><th style="width:30%">Participação</th></tr></thead><tbody>
+  ${R.linhas.map(l=>`<tr><td><b>${esc(l.filial)}</b></td><td class="n">${fN(l.itens)}</td><td class="n">${fR(l.valor)}</td><td class="n"><b class="dn-pct">${fN(l.pct,2)}%</b></td><td><span class="dn-bar" style="width:${Math.round(l.pct/max*100)}%"></span></td></tr>`).join('')}
+  </tbody><tfoot><tr><td>TOTAL · ${R.linhas.length} filial(is)</td><td class="n">${fN(R.linhas.reduce((s,l)=>s+l.itens,0))}</td><td class="n">${fR(R.total)}</td><td class="n">100,00%</td><td></td></tr></tfoot></table></div>
+  <div class="row" style="gap:8px;margin-top:12px"><button class="btn sec sm" onclick="dnExcel()">⬇ Exportar Excel</button><button class="btn sec sm" onclick="dnCsv()">⬇ Exportar CSV</button><button class="btn sec sm" onclick="exportarPDF(dnExcel,'Rateio de Nota Fiscal por Filial')">🖨 Exportar PDF</button></div>
+  <details style="margin-top:12px"><summary class="small" style="cursor:pointer;font-weight:700">Ver detalhamento por produto (${R.detail.length})</summary>
+  <div class="tw sl-tab" style="max-height:340px;margin-top:8px"><table><thead><tr><th>Código</th><th>Filial</th><th class="n">Qtd</th><th class="n">Custo un.</th><th class="n">Valor</th></tr></thead><tbody>
+  ${R.detail.slice(0,3000).map(d=>`<tr><td>${esc(d.cod)}</td><td>${esc(d.filial)}</td><td class="n">${fN(d.qtd)}</td><td class="n">${d.custo==null?'<span class="bad">—</span>':fR(d.custo)}</td><td class="n">${fR(d.valor)}</td></tr>`).join('')}
+  </tbody></table></div></details></div>`;
+}
+function dnExcel(){ const R=DN.res; if(!R) return; const wb=XLSX.utils.book_new(); const res=[];
+  if(R.fornecedor) res.push(['Fornecedor',R.fornecedor]); if(R.nota) res.push(['Nota fiscal nº',R.nota]); if(R.fornecedor||R.nota) res.push([]);
+  res.push(['Filial','Itens','Valor transferido','% da nota']); R.linhas.forEach(l=>res.push([l.filial,l.itens,+l.valor.toFixed(2),+l.pct.toFixed(2)])); res.push(['TOTAL','',+R.total.toFixed(2),100]);
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(res),'Resumo');
+  const det=[['Código','Filial','Qtd','Custo unit.','Valor']]; R.detail.forEach(d=>det.push([d.cod,d.filial,d.qtd,d.custo,+d.valor.toFixed(2)]));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(det),'Detalhe');
+  XLSX.writeFile(wb,'rateio_filiais'+(R.nota?'_NF'+R.nota.replace(/[^\w-]/g,''):'')+'.xlsx'); }
+function dnCsv(){ const R=DN.res; if(!R) return; const c=v=>v.toFixed(2).replace('.',','); let s='';
+  if(R.fornecedor) s+=`Fornecedor;${R.fornecedor}\n`; if(R.nota) s+=`Nota fiscal nº;${R.nota}\n`; if(R.fornecedor||R.nota) s+='\n';
+  s+='Filial;Itens;Valor transferido;% da nota\n'; R.linhas.forEach(l=>s+=`${l.filial};${l.itens};${c(l.valor)};${c(l.pct)}\n`); s+=`TOTAL;;${c(R.total)};100,00\n`;
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['﻿'+s],{type:'text/csv;charset=utf-8'})); a.download='rateio_filiais.csv'; a.click(); }
+
+// ---------- histórico (gravado no Google) ----------
+function dnHistorico(){
+  const L=dnLista().slice().sort((a,b)=>String(b.ID).localeCompare(String(a.ID))); const q=semAcento(DN.q).trim();
+  const F=q?L.filter(it=>semAcento([it.FORNECEDOR,it.NOTA_FISCAL].join(' ')).includes(q)):L;
+  const linhas=it=>{ try{ return JSON.parse(it.LINHAS||'[]'); }catch(e){ return []; } };
+  return `<div class="row" style="align-items:center;margin-bottom:10px"><h3 style="margin:0">📋 Histórico de distribuições</h3><span class="sp"></span>${S.master&&L.length?'<button class="btn ghost sm" onclick="dnLimpar()">Limpar tudo</button>':''}</div>
+  ${L.length?`<input type="search" class="w-q" style="width:100%;max-width:none;margin-bottom:10px" value="${esc(DN.q)}" placeholder="🔍 Buscar por fornecedor ou nº da NF…" oninput="DN.q=this.value;clearTimeout(window._dq);window._dq=setTimeout(()=>{const h=document.querySelector('.dn-hist');if(h){h.innerHTML=dnHistorico();const i=h.querySelector('input');i.focus();i.setSelectionRange(i.value.length,i.value.length);}},200)">`:''}
+  <div class="dn-hl">${F.slice(0,300).map(it=>{ const ls=linhas(it);
+    return `<div class="dn-hi${DN.aberto===it.ID?' on':''}"><div class="dn-hinfo" onclick="dnAbrir('${esc(it.ID)}')">
+      <div><b>${it.FORNECEDOR?esc(it.FORNECEDOR):'<span class="muted">Sem fornecedor</span>'}</b>${it.NOTA_FISCAL?` <span class="dn-nf">NF ${esc(it.NOTA_FISCAL)}</span>`:''}</div>
+      <div class="small muted">${esc(String(it.CRIADO_EM||'').slice(0,16))} · ${ls.length} filial(is)${it.USUARIO?' · '+esc(it.USUARIO):''}</div>
+      <div class="small muted dn-hfil">${esc(ls.map(l=>l[0]).join(', '))}</div>
+      <div class="dn-hfiles">${it.ARQ_CUSTO_URL?`<a class="dn-hf" href="${esc(it.ARQ_CUSTO_URL)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">⬇ Custos</a>`:(it.ARQ_CUSTO_NOME?'<span class="dn-hf off">📎 Custos (indisponível)</span>':'')}${it.ARQ_DIST_URL?`<a class="dn-hf" href="${esc(it.ARQ_DIST_URL)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">⬇ Distribuição</a>`:(it.ARQ_DIST_NOME?'<span class="dn-hf off">📎 Distribuição (indisponível)</span>':'')}<span class="small dn-open">↗ clique para reabrir</span></div></div>
+      <div class="dn-hval">${fR(+it.TOTAL||0)}</div><button class="ib" title="Excluir" onclick="dnExcluir('${esc(it.ID)}')">🗑️</button></div>`; }).join('')||`<p class="muted small">${L.length?'Nenhum resultado para a busca.':'Nenhuma distribuição salva ainda. Ao calcular um rateio, ele é salvo aqui automaticamente.'}</p>`}</div>`;
+}
+async function dnAbrir(id){
+  const it=dnLista().find(x=>x.ID===id); if(!it) return; let ls=[]; try{ ls=JSON.parse(it.LINHAS||'[]'); }catch(e){}
+  DN.forn=it.FORNECEDOR||''; DN.nf=it.NOTA_FISCAL||''; DN.aberto=id;
+  DN.res={fornecedor:DN.forn,nota:DN.nf,total:+it.TOTAL||0,linhas:ls.map(l=>({filial:l[0],itens:+l[1]||0,valor:+l[2]||0,pct:+l[3]||0})),detail:[],semCusto:String(it.SEM_CUSTO||'').split(',').map(x=>x.trim()).filter(Boolean)};
+  dnAtualizar(); const el=document.getElementById('dnRes'); if(el) el.scrollIntoView({behavior:'smooth'});
+  try{ const r=await api('distDetalhe',{id}); if(DN.aberto===id&&DN.res){ DN.res.detail=(r.detail||[]).map(d=>({cod:d[0],filial:d[1],qtd:+d[2]||0,custo:d[3]==null?null:+d[3],valor:+d[4]||0})); const y=window.scrollY; const box=document.getElementById('dnRes'); if(box){ box.innerHTML=dnResultado(); window.scrollTo(0,y); } } }
+  catch(e){ toast('Não consegui carregar o detalhamento: '+e.message,6000); }
+}
+async function dnExcluir(id){ if(!confirm('Excluir esta distribuição do histórico?')) return;
+  const ant=S.dados.distNotas; S.dados.distNotas=ant.filter(x=>x.ID!==id); if(DN.aberto===id){ DN.aberto=null; DN.res=null; } dnAtualizar();
+  try{ await api('distExcluir',{id}); const F=S.dados.fin; if(F&&F.rateiosNF) F.rateiosNF=F.rateiosNF.filter(r=>r.LANC_ID!==id); toast('Distribuição excluída',2500); }
+  catch(e){ S.dados.distNotas=ant; dnAtualizar(); toast('Erro ao excluir: '+e.message,6000); } }
+async function dnLimpar(){ const ids=dnLista().map(x=>x.ID); if(!ids.length||!confirm(`Limpar TODO o histórico de distribuições (${ids.length})? Esta ação não pode ser desfeita.`)) return;
+  try{ await api('distExcluir',{ids}); S.dados.distNotas=[]; DN.res=null; DN.aberto=null; const F=S.dados.fin; if(F&&F.rateiosNF) F.rateiosNF=F.rateiosNF.filter(r=>!ids.includes(r.LANC_ID)); dnAtualizar(); toast('Histórico limpo',2500); }
+  catch(e){ toast('Erro: '+e.message,6000); } }
 
 iniciar();
 </script>
