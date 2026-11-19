@@ -763,7 +763,10 @@ const S = { senha:'', usuario:'', url:'', dados:null, view:'pedidos', sort:{}, f
 /* ---------- Exportar PDF: reaproveita a mesma lista do "Exportar Excel" e monta uma tabela em PDF ---------- */
 function pdfTabelas(titulo,folhas,nomeArq,opt){ // folhas: [{nome, linhas:[[...]] (1ª = cabeçalho)}]
   const { jsPDF } = window.jspdf; const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'}); let y=14; opt=opt||{};
-  doc.setFontSize(14); doc.setFont(undefined,'bold'); doc.text(titulo,10,y); doc.setFontSize(8); doc.setFont(undefined,'normal'); doc.setTextColor(120); doc.text('MIASHOP · gerado em '+new Date().toLocaleString('pt-BR'),287,y,{align:'right'}); doc.setTextColor(0); y+=4;
+  // logo da Miashop no topo de todo relatório
+  let lw=0; try{ const pr=doc.getImageProperties(LOGO_MIASHOP); const lh=8; lw=lh*pr.width/pr.height; doc.addImage(LOGO_MIASHOP,'PNG',10,8,lw,lh); }catch(e){ lw=0; }
+  y=lw?14.5:14; const tx=lw?10+lw+5:10; if(lw){ doc.setDrawColor(241,134,52); doc.setLineWidth(0.5); doc.line(tx-2.5,8.5,tx-2.5,15.5); }
+  doc.setFontSize(14); doc.setFont(undefined,'bold'); doc.text(titulo,tx,y); doc.setFontSize(8); doc.setFont(undefined,'normal'); doc.setTextColor(120); doc.text('MIASHOP · gerado em '+new Date().toLocaleString('pt-BR'),287,y,{align:'right'}); doc.setTextColor(0); y+=lw?6:4;
   const fmt=v=>typeof v==='number'?fN(v,Math.abs(v%1)>1e-9||Math.abs(v)>=1000?2:0):String(v==null?'':v);
   folhas.forEach((f,i)=>{ let L=f.linhas.filter(r=>r&&r.length); if(!L.length) return;
     if(!opt.estilo){ // tira colunas sem nenhum valor e soma as colunas de valor no fim
@@ -805,7 +808,7 @@ function loading(on){ document.getElementById('loading').classList.toggle('hide'
 /* =================== API =================== */
 function api(acao, dados){
   loading(true);
-  const fim = r => { loading(false); if(r&&r.dados) r.dados=descompactar(r.dados); if(r && r.ok && r.fin && S.dados){ if(r.finParcial&&S.dados.fin){ Object.assign(S.dados.fin,r.fin); if(r.finUpsert){ Object.keys(r.finUpsert).forEach(k=>{ const L=S.dados.fin[k]=S.dados.fin[k]||[]; r.finUpsert[k].forEach(x=>{ const i=L.findIndex(y=>String(y.ID)===String(x.ID)); if(i>=0) L[i]=x; else L.push(x); }); }); } if(r.finHist){ (S.dados.fin.historico=S.dados.fin.historico||[]).push(r.finHist); } } else S.dados.fin=r.fin; S.finFresco=true; } if(r&&r.tempos&&window.console) console.info('[api]',acao,r.tempos); if(r && r.ok){ S.master=!!r.master; S.abas=r.abas||[]; const b=document.getElementById('btConfig'); if(b) b.classList.toggle('hide',!S.master); aplicarAbas(); } if(!r || !r.ok){ if(r && r.erro==='SENHA_INVALIDA'){ sair(); throw new Error('Senha inválida'); } const er=new Error(r&&r.erro||'Falha na comunicação'); er.servidor=!!(r&&r.erro); throw er; } return r.dados; };
+  const fim = r => { loading(false); if(r&&r.dados) r.dados=descompactar(r.dados); if(r && r.ok && r.fin && S.dados){ if(r.finParcial&&S.dados.fin){ Object.assign(S.dados.fin,r.fin); if(r.finUpsert){ Object.keys(r.finUpsert).forEach(k=>{ const L=S.dados.fin[k]=S.dados.fin[k]||[]; r.finUpsert[k].forEach(x=>{ const i=L.findIndex(y=>String(y.ID)===String(x.ID)); if(i>=0) L[i]=x; else L.push(x); }); }); } if(r.finRemover){ Object.keys(r.finRemover).forEach(k=>{ const rm=new Set((r.finRemover[k]||[]).map(String)); if(rm.size&&S.dados.fin[k]) S.dados.fin[k]=S.dados.fin[k].filter(y=>!rm.has(String(y.ID))); }); } if(r.finHist){ (S.dados.fin.historico=S.dados.fin.historico||[]).push(r.finHist); } } else S.dados.fin=r.fin; S.finFresco=true; } if(r&&r.tempos&&window.console) console.info('[api]',acao,r.tempos); if(r && r.ok){ S.master=!!r.master; S.abas=r.abas||[]; const b=document.getElementById('btConfig'); if(b) b.classList.toggle('hide',!S.master); aplicarAbas(); } if(!r || !r.ok){ if(r && r.erro==='SENHA_INVALIDA'){ sair(); throw new Error('Senha inválida'); } const er=new Error(r&&r.erro||'Falha na comunicação'); er.servidor=!!(r&&r.erro); throw er; } return r.dados; };
   if (emAppsScript()) return new Promise((res,rej)=>google.script.run.withSuccessHandler(r=>{try{res(fim(r));}catch(e){rej(e);}}).withFailureHandler(e=>{loading(false);rej(e);}).api(acao,S.senha,dados||{},S.usuario));
   return fetch(S.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({acao,senha:S.senha,usuario:S.usuario,dados:dados||{}})})
     .then(r=>r.json()).then(fim).catch(e=>{loading(false);throw e;});
@@ -861,8 +864,10 @@ async function carregar(silencioso){
     document.getElementById('whoSync').textContent='atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); render(); }
   catch(e){ if(!silencioso) toast('Erro ao carregar: '+e.message,5000); }
   let f=pFin?await pFin:null; if(!pFin&&temFin()) f=await api('finCarregar').catch(()=>null);
-  if(f&&S.dados){ S.dados.fin=f; S.finFresco=false; if(S.view==='financeiro') render(); }
+  if(f&&S.dados){ S.dados.fin=f; S.finFresco=false; if(S.view==='financeiro') render(); carregarRateiosNF(); }
 }
+// distribuições por NF (Logística e Distribuição Notas) para o lançamento do boleto: vêm depois, sem segurar a abertura do financeiro
+function carregarRateiosNF(){ if(S._rnfP) return S._rnfP; S._rnfP=api('finRateiosNF').then(r=>{ S.rateiosNF=r||[]; return S.rateiosNF; }).catch(()=>S.rateiosNF||[]).finally(()=>{ S._rnfP=null; }); return S._rnfP; }
 
 let P = []; // (abas de produtos removidas)
 
@@ -2074,7 +2079,7 @@ function fnAbrirLanc(id,tipo,pre,exId){
     <div class="fnd-h"><h3>${titulo}</h3><button class="btn ghost" onclick="fnFecharLanc()" title="Fechar (Esc)">✕</button></div>
     <div class="fnd-b">
       ${!rec&&!id?`<label class="fnd-drop fnd-bol" id="fmBolDrop" ondragover="event.preventDefault();this.classList.add('on')" ondragleave="this.classList.remove('on')" ondrop="event.preventDefault();this.classList.remove('on');if(event.dataTransfer.files[0]) fnDrBoleto(event.dataTransfer.files[0])">
-        <input type="file" accept=".pdf" class="hide" onchange="if(this.files[0]) fnDrBoleto(this.files[0]); this.value=''">🧾 <b>Arraste aqui o boleto (PDF)</b> <span class="muted">ou clique para escolher — preenche nome, vencimento, valor, categoria e centro de custo</span></label>
+        <input type="file" accept=".pdf,image/jpeg,image/png,image/webp" class="hide" onchange="if(this.files[0]) fnDrBoleto(this.files[0]); this.value=''">🧾 <b>Arraste aqui o boleto (PDF ou foto)</b> <span class="muted">ou clique para escolher — preenche nome, vencimento, valor, categoria e centro de custo</span></label>
       <div id="fmBolInfo"></div>`:''}
       <div class="fnd-r1">${f('Vencimento',`<input type="date" id="fmVenc" value="${isoBR(l.VENCIMENTO)||''}">`,'flex:0 0 170px')}
         ${f('Forma de pagamento',`<div class="fnd-fp">${['CONTA CORRENTE','CARTÃO DE CRÉDITO'].map(o=>`<label><input type="radio" name="fmFP" value="${o}" ${(/CART/i.test(l.FORMA_PAGAMENTO||'')?'CARTÃO DE CRÉDITO':'CONTA CORRENTE')===o?'checked':''}><span>${o==='CONTA CORRENTE'?'🏦':'💳'} ${o}</span></label>`).join('')}</div>`,'flex:0 0 auto')}<span class="sp"></span>
@@ -2135,8 +2140,8 @@ function fnCCDoCodigo(cod){ const C=fnCentros(), c=semAcento(cod).trim(); if(!c)
   return C.find(n=>semAcento(n)===c) || (fil&&C.find(n=>semAcento(n)===semAcento(fil))) || (c.length>=3&&C.find(n=>semAcento(n).startsWith(c))) || fil || ''; }
 // NF digitada no lançamento → se essa NF teve distribuição do CD no Controle de Logística, usa os mesmos % por filial
 const fnNFk = n => soDig(n).replace(/^0+/,'');
-function fnDrNFDist(nf,silencioso){
-  const k=fnNFk(nf); if(!k||!FN.dr) return; const R=(fin().rateiosNF||[]).filter(r=>fnNFk(r.NF)===k); if(!R.length) return;
+async function fnDrNFDist(nf,silencioso){
+  const k=fnNFk(nf); if(!k||!FN.dr) return; if(!S.rateiosNF) await carregarRateiosNF(); if(!FN.dr) return; const R=(S.rateiosNF||[]).filter(r=>fnNFk(r.NF)===k); if(!R.length) return;
   // mesma NF em mais de um fornecedor: fica com o do nome digitado
   const por={}; R.forEach(r=>{ (por[r.LANC_ID]=por[r.LANC_ID]||[]).push(r); }); let grupos=Object.values(por);
   if(grupos.length>1){ const nm=semAcento((document.getElementById('fmNome')||{}).value||'').trim(); const g=nm&&grupos.filter(G=>{ const f=semAcento(G[0].FORNECEDOR).trim(); return f&&(f.includes(nm.split(' ')[0])||nm.includes(f.split(' ')[0])); }); if(g&&g.length) grupos=g; }
@@ -2190,7 +2195,7 @@ function fnDrParcelas(){ const D=FN.dr, el=document.getElementById('fmParc'); if
 function fnDrParcTot(){ const B=(FN.dr||{}).boletos||[]; const t=B.reduce((s,b)=>s+(+b.valor||0),0); const e=document.getElementById('fmParcTot'); if(e) e.textContent='('+fR(t)+')';
   if(B.length>1&&(document.getElementById('fmBolTodos')||{}).checked) ['fmTotTop','fmTotBot'].forEach(i=>{ const x=document.getElementById(i); if(x) x.innerHTML=fR(t)+' <small style="font-size:55%">('+B.length+'x)</small>'; }); }
 async function fnDrBoleto(f){
-  const box=document.getElementById('fmBolDrop'); const txt=box.innerHTML; box.classList.add('lendo'); box.innerHTML='Lendo '+esc(f.name)+'…';
+  const box=document.getElementById('fmBolDrop'); const txt=box.innerHTML; box.classList.add('lendo'); const foto=/^image\//.test(f.type)||/\.(jpe?g|png|webp)$/i.test(f.name); box.innerHTML=foto?'📷 Lendo a foto '+esc(f.name)+'… (pode levar alguns segundos)':'Lendo '+esc(f.name)+'…';
   try{
     const B=await fnLerBoleto(f); const b=B[0]; FN.dr.boletos=B; FN.dr.bolArq=f.name;
     const set=(i,v)=>{ const e=document.getElementById(i); if(e&&v!=null&&v!=='') e.value=v; };
@@ -2219,7 +2224,7 @@ async function fnDrBoleto(f){
     B.forEach((x,i)=>{ x.parcela=x.parcela||((i+1)+'/'+n); });
     FN.dr.nfAnt=b.doc||''; FN.dr.vencAnt=b.venc; FN.dr.valorAnt=b.valor;
     if(n>1){ const corpo=document.querySelector('#fnDrawer .fnd-b'); if(corpo&&!corpo.dataset.parcLig){ corpo.dataset.parcLig='1'; corpo.addEventListener('input',e=>{ if(!e.target.closest('#fmParc')) fnDrSync(e.target); }); corpo.addEventListener('change',e=>{ if(!e.target.closest('#fmParc')) fnDrSync(e.target); }); } fnDrParcelas(); }
-    toast(n>1?`${n} boletos lidos — confira e clique em Agendar`:'Boleto lido — confira e clique em Agendar',5000);
+    toast(b.aviso?'⚠ '+b.aviso:n>1?`${n} boletos lidos — confira e clique em Agendar`:foto?'Foto do boleto lida — confira os dados e clique em Agendar':'Boleto lido — confira e clique em Agendar',b.aviso?9000:6000);
   }catch(e){ toast(f.name+': '+e.message,7000); }
   box.classList.remove('lendo'); box.innerHTML=txt;
 }
@@ -2652,8 +2657,92 @@ function fnCentroDoCnpj(cnpj){ const d=soDig(cnpj); if(d.length!==14) return '';
 
 /* ---------- leitura de boleto (PDF) ---------- */
 // cada página com linha digitável vira um boleto: {linha, valor, venc, benef, benefCnpj, pagadorCnpj, doc, parcela}
+/* ---------- linha digitável: acha no texto e confere pelos dígitos verificadores (tolera erros de leitura da foto) ---------- */
+function fnCNPJValido(c){ const d=soDig(c); if(d.length!==14||/^(\d)\1+$/.test(d)) return false; const dv=n=>{ let s=0,p=n.length-7; for(let i=0;i<n.length;i++){ s+=(+n[i])*p--; if(p<2) p=9; } const r=s%11; return r<2?0:11-r; }; return dv(d.slice(0,12))===+d[12]&&dv(d.slice(0,13))===+d[13]; }
+function fnMod10(n){ let s=0,m=2; for(let i=n.length-1;i>=0;i--){ let v=(+n[i])*m; if(v>9) v=Math.floor(v/10)+(v%10); s+=v; m=m===2?1:2; } return (10-(s%10))%10; }
+function fnMod11CB(n){ let s=0,m=2; for(let i=n.length-1;i>=0;i--){ s+=(+n[i])*m; m=m===9?2:m+1; } const r=11-(s%11); return (r===0||r===10||r===11)?1:r; }
+function fnLinhaValida(l){ return /^\d{47}$/.test(l)&&fnMod10(l.slice(0,9))===+l[9]&&fnMod10(l.slice(10,20))===+l[20]&&fnMod10(l.slice(21,31))===+l[31]&&fnMod11CB(l.slice(0,4)+l.slice(32,47)+l.slice(4,9)+l.slice(10,20)+l.slice(21,31))===+l[32]; }
+// código de barras (44 dígitos) → linha digitável (47)
+function fnCBparaLinha(c){ if(!/^\d{44}$/.test(c)) return ''; const a=c.slice(0,4)+c.slice(19,24), b=c.slice(24,34), d=c.slice(34,44); return a+fnMod10(a)+b+fnMod10(b)+d+fnMod10(d)+c[4]+c.slice(5,19); }
+function fnLinhaDoTexto(txt){
+  const m=String(txt).replace(/\n/g,' ').match(/(\d{5})[.\s]?(\d{5})\s+(\d{5})[.\s]?(\d{6})\s+(\d{5})[.\s]?(\d{6})\s+(\d)\s+(\d{14})/);
+  if(m){ const l=m.slice(1).join(''); if(fnLinhaValida(l)) return ['',l]; }
+  // foto: letras parecidas com números, espaços e pontos fora do lugar → procura 47 dígitos seguidos que batam com os verificadores
+  const fix=t=>t.replace(/[OoQD]/g,'0').replace(/[Il|!]/g,'1').replace(/[Ss]/g,'5').replace(/B/g,'8').replace(/Z/g,'2');
+  const cands=String(txt).split('\n').map(t=>soDig(fix(t))).filter(d=>d.length>=44);
+  for(const d of cands){ for(let k=0;k+47<=d.length;k++){ const l=d.slice(k,k+47); if(fnLinhaValida(l)) return ['',l]; } }
+  if(m) return ['',m.slice(1).join('')]; return null;
+}
+// lê um boleto a partir do texto de uma página (PDF ou foto): linhas = [{y, t, it}], it = [{s, x, y}] (y cresce para cima)
+function fnBoletoPagina(it,linhas,txt,nossos,p){
+    // linha digitável (bancário 47 dígitos)
+    const m=fnLinhaDoTexto(txt);
+    let linha='', valor=0, venc='';
+    if(m){ linha=m.slice(1).join(''); const fator=+linha.slice(33,37); valor=+linha.slice(37)/100; venc=fnVencFator(fator); }
+    // datas e valor pelos rótulos (confere / completa)
+    const datas=[...txt.matchAll(/\b(\d{2}\/\d{2}\/\d{4})\b/g)].map(x=>x[1]);
+    const lv=linhas.find(l=>/vencimento/i.test(l.t)&&/\d{2}\/\d{2}\/\d{4}/.test(l.t)) || (()=>{ const lab=it.find(i=>/^vencimento$/i.test(i.s)); if(!lab) return null; return linhas.filter(l=>/\d{2}\/\d{2}\/\d{4}/.test(l.t)).sort((a,b)=>Math.abs(a.y-lab.y)-Math.abs(b.y-lab.y))[0]; })();
+    const dRot=lv&&(lv.t.match(/\d{2}\/\d{2}\/\d{4}/)||[])[0];
+    if(!venc||(dRot&&datas.includes(dRot)&&dRot!==venc&&!datas.includes(venc))) venc=dRot||venc;
+    if(!valor){ const labV=it.find(i=>/valor do documento/i.test(i.s)); if(labV){ const c=it.filter(i=>/^\d{1,3}(\.\d{3})*,\d{2}$/.test(i.s)).sort((a,b)=>(Math.abs(a.y-labV.y)+Math.abs(a.x-labV.x)/4)-(Math.abs(b.y-labV.y)+Math.abs(b.x-labV.x)/4))[0]; if(c) valor=numBR(c.s); } }
+    if(!linha&&!valor) return null;
+    // CNPJs: o nosso (pagador) e o do beneficiário
+    const cnpjs=[...new Set([...txt.matchAll(/\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}/g)].map(x=>x[0]))].filter(fnCNPJValido);
+    const pag=cnpjs.find(c=>nossos.has(soDig(c)))||'';
+    const benC=cnpjs.find(c=>soDig(c)!==soDig(pag)&&!nossos.has(soDig(c)))||'';
+    // nome do beneficiário: linha onde está o CNPJ dele, ou a linha logo abaixo do rótulo "Beneficiário"
+    const limpa=t=>String(t||'').replace(/\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}/g,'').replace(/CNPJ(\/CPF)?\s*:?/ig,'').replace(/^.*benefici[aá]rio( final)?\s*:?/i,'').replace(/\s[-–]\s*$/,'').replace(/\s+/g,' ').trim();
+    let benef='';
+    const lb=benC&&linhas.find(l=>soDig(l.t).includes(soDig(benC))); if(lb){ benef=limpa(lb.t); }
+    if(!benef||benef.length<3){ const lab=it.find(i=>/^benefici[aá]rio\s*:?$/i.test(i.s)); if(lab){ const abaixo=linhas.filter(l=>l.y<lab.y&&lab.y-l.y<20).sort((a,b)=>b.y-a.y)[0]; if(abaixo) benef=limpa(abaixo.t); } }
+    if(!benef){ const lab=linhas.find(l=>/benefici[aá]rio\s*:/i.test(l.t)&&!/pagador/i.test(l.t)); if(lab) benef=limpa(lab.t); }
+    const dm=txt.match(/\b(?:NT|NF|NFE|NF-E)\s*[:.\-]?\s*([0-9A-Z]{3,})\s*(\d{1,2}\/\d{1,2})?/i);
+    // sem "NF" escrito: usa o campo "Nº do Documento" (ex.: 417/1 → NF 417, parcela 1)
+    let docN='', parN=''; if(!dm){ const cands=[]; linhas.forEach((l,i)=>{ if(!/d[oa]\s*documento/i.test(l.t)||/valor\s*d[oa]\s*documento/i.test(l.t)&&!/data\s*d[oa]\s*documento/i.test(l.t)) return; const prox=linhas[i+1]; if(!prox) return;
+        prox.t.replace(/\b\d{2}\/\d{2}\/\d{4}\b/g,' ').split(/\s+/).forEach(w=>{ const mm=w.match(/^(\d{2,9})(?:\/(\d{1,3}))?$/); if(mm) cands.push(mm); }); });
+      const c=cands.find(x=>x[2])||cands[0]; if(c){ docN=c[1]; parN=c[2]||''; } }
+    return {pagina:p,linha,valor:Math.round(valor*100)/100,venc,benef,benefCnpj:benC,pagadorCnpj:pag,doc:dm?dm[1]:docN,parcela:dm&&dm[2]?dm[2]:parN};
+}
+/* ---------- boleto por FOTO (JPG/PNG): lê o texto com OCR e o código de barras, tudo no próprio navegador ---------- */
+const FN_OCR={ tess:'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js', zxing:'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js', opts:{} };
+const fnScript=src=>new Promise((ok,err)=>{ if([...document.scripts].some(x=>x.src===src||x.dataset.src===src)) return ok(); const e=document.createElement('script'); e.src=src; e.dataset.src=src; e.onload=ok; e.onerror=()=>err(new Error('não consegui carregar o leitor de fotos (verifique a internet)')); document.head.appendChild(e); });
+async function fnImgCanvas(f,maxL){ const url=URL.createObjectURL(f); try{ const im=await new Promise((ok,err)=>{ const i=new Image(); i.onload=()=>ok(i); i.onerror=()=>err(new Error('não consegui abrir a foto (use JPG ou PNG)')); i.src=url; });
+  const k=Math.min(3,maxL/Math.max(im.naturalWidth,im.naturalHeight)); /* fotos pequenas são ampliadas: o OCR lê melhor letras maiores */ const c=document.createElement('canvas'); c.width=Math.round(im.naturalWidth*k); c.height=Math.round(im.naturalHeight*k); c.getContext('2d').drawImage(im,0,0,c.width,c.height); return c; } finally{ URL.revokeObjectURL(url); } }
+function fnGirar(c,g){ if(!g) return c; const o=document.createElement('canvas'); const v=g%180!==0; o.width=v?c.height:c.width; o.height=v?c.width:c.height; const x=o.getContext('2d'); x.translate(o.width/2,o.height/2); x.rotate(g*Math.PI/180); x.drawImage(c,-c.width/2,-c.height/2); return o; }
+// código de barras (Interleaved 2 of 5, 44 dígitos) pela imagem
+async function fnLerCBFoto(c){
+  try{ await fnScript(FN_OCR.zxing); const Z=window.ZXing; if(!Z) return '';
+    const h=new Map(); h.set(Z.DecodeHintType.POSSIBLE_FORMATS,[Z.BarcodeFormat.ITF]); h.set(Z.DecodeHintType.TRY_HARDER,true); h.set(Z.DecodeHintType.ALLOWED_LENGTHS,[44]);
+    for(const g of [0,90,270,180]){ const cv=fnGirar(c,g); try{ const src=new Z.HTMLCanvasElementLuminanceSource(cv); const r=new Z.MultiFormatReader(); r.setHints(h);
+      const t=r.decode(new Z.BinaryBitmap(new Z.HybridBinarizer(src))).getText(); if(/^\d{44}$/.test(t)&&fnMod11CB(t.slice(0,4)+t.slice(5))===+t[4]) return t; }catch(e){} }
+  }catch(e){} return '';
+}
+function fnOcrParaBoleto(data,H){
+  const k=842/(H||1), it=[], linhas=[]; // coordenadas como numa página de PDF (y cresce para cima)
+  (data.lines||[]).forEach(L=>{ const ws=(L.words||[]).map(w=>({s:String(w.text).replace(/^R\$/,'').trim(),x:w.bbox.x0*k,y:(H-w.bbox.y1)*k})).filter(w=>w.s); if(!ws.length) return;
+    it.push(...ws); linhas.push({y:(H-L.bbox.y1)*k,it:ws,t:ws.map(w=>w.s).join(' ')}); });
+  linhas.sort((a,b)=>b.y-a.y); const txt=linhas.map(l=>l.t).join('\n');
+  const nossos=new Set([...fin().centros.map(x=>soDig(x.CNPJ)),...((S.dados&&S.dados.filiais)||[]).map(x=>soDig(x.CNPJ))].filter(Boolean));
+  return fnBoletoPagina(it,linhas,txt,nossos,1);
+}
+async function fnLerBoletoFoto(f){
+  const c=await fnImgCanvas(f,3000);
+  await fnScript(FN_OCR.tess); if(!window.Tesseract) throw new Error('o leitor de fotos não carregou (verifique a internet)');
+  const w=await Tesseract.createWorker('por',1,FN_OCR.opts); let b=null;
+  try{ // foto deitada ou de cabeça para baixo: tenta girar até achar a linha digitável válida
+    for(const g of [0,90,270,180]){ const cv=fnGirar(c,g); const r=fnOcrParaBoleto((await w.recognize(cv)).data,cv.height);
+      if(r&&(!b||(r.linha&&!b.linha)||(fnLinhaValida(r.linha)&&!fnLinhaValida(b.linha)))) b=r; if(b&&fnLinhaValida(b.linha)) break; }
+  } finally{ try{ await w.terminate(); }catch(e){} }
+  if(!b||!fnLinhaValida(b.linha)){ const lcb=fnCBparaLinha(await fnLerCBFoto(c)); // último recurso: o código de barras desenhado
+    if(lcb){ b=b||{pagina:1,linha:'',valor:0,venc:'',benef:'',benefCnpj:'',pagadorCnpj:'',doc:'',parcela:''}; b.linha=lcb; b.valor=+lcb.slice(37)/100; b.venc=fnVencFator(+lcb.slice(33,37)); } }
+  if(!b||(!b.linha&&!b.valor)) throw new Error('não consegui ler o boleto nesta foto — tire a foto de frente, com boa luz, o boleto inteiro aparecendo e sem cortar a linha com os números do código de barras');
+  if(b.linha&&!fnLinhaValida(b.linha)) b.aviso='Confira o código de barras: a foto pode ter sido lida com erro';
+  const fnNF=(f.name.match(/NF[_\s\-]?([0-9A-Z]+)/i)||[])[1]||''; if(!b.doc) b.doc=fnNF;
+  return [b];
+}
 async function fnLerBoleto(f){
-  if(!/\.pdf$/i.test(f.name)&&f.type!=='application/pdf') throw new Error('envie o boleto em PDF');
+  if(/^image\//.test(f.type)||/\.(jpe?g|png|webp)$/i.test(f.name)) return fnLerBoletoFoto(f);
+  if(!/\.pdf$/i.test(f.name)&&f.type!=='application/pdf') throw new Error('envie o boleto em PDF ou foto (JPG/PNG)');
   if(!window.pdfjsLib) throw new Error('leitor de PDF não carregou (verifique a internet)');
   const doc=await pdfjsLib.getDocument({data:new Uint8Array(await f.arrayBuffer())}).promise; const out=[]; const vistos=new Set();
   const nossos=new Set([...fin().centros.map(c=>soDig(c.CNPJ)),...((S.dados&&S.dados.filiais)||[]).map(x=>soDig(x.CNPJ))].filter(Boolean));
@@ -2664,30 +2753,8 @@ async function fnLerBoleto(f){
     const linhas=[]; it.slice().sort((a,b)=>b.y-a.y||a.x-b.x).forEach(i=>{ const l=linhas.find(l=>Math.abs(l.y-i.y)<2.5); if(l) l.it.push(i); else linhas.push({y:i.y,it:[i]}); });
     linhas.forEach(l=>{ l.it.sort((a,b)=>a.x-b.x); l.t=l.it.map(i=>i.s).join(' '); });
     const txt=linhas.map(l=>l.t).join('\n');
-    // linha digitável (bancário 47 dígitos)
-    let m=txt.replace(/\n/g,' ').match(/(\d{5})[.\s]?(\d{5})\s+(\d{5})[.\s]?(\d{6})\s+(\d{5})[.\s]?(\d{6})\s+(\d)\s+(\d{14})/);
-    let linha='', valor=0, venc='';
-    if(m){ linha=m.slice(1).join(''); const fator=+linha.slice(33,37); valor=+linha.slice(37)/100; venc=fnVencFator(fator); }
-    // datas e valor pelos rótulos (confere / completa)
-    const datas=[...txt.matchAll(/\b(\d{2}\/\d{2}\/\d{4})\b/g)].map(x=>x[1]);
-    const lv=linhas.find(l=>/vencimento/i.test(l.t)&&/\d{2}\/\d{2}\/\d{4}/.test(l.t)) || (()=>{ const lab=it.find(i=>/^vencimento$/i.test(i.s)); if(!lab) return null; return linhas.filter(l=>/\d{2}\/\d{2}\/\d{4}/.test(l.t)).sort((a,b)=>Math.abs(a.y-lab.y)-Math.abs(b.y-lab.y))[0]; })();
-    const dRot=lv&&(lv.t.match(/\d{2}\/\d{2}\/\d{4}/)||[])[0];
-    if(!venc||(dRot&&datas.includes(dRot)&&dRot!==venc&&!datas.includes(venc))) venc=dRot||venc;
-    if(!valor){ const labV=it.find(i=>/valor do documento/i.test(i.s)); if(labV){ const c=it.filter(i=>/^\d{1,3}(\.\d{3})*,\d{2}$/.test(i.s)).sort((a,b)=>(Math.abs(a.y-labV.y)+Math.abs(a.x-labV.x)/4)-(Math.abs(b.y-labV.y)+Math.abs(b.x-labV.x)/4))[0]; if(c) valor=numBR(c.s); } }
-    if(!linha&&!valor) continue;
-    if(linha&&vistos.has(linha)) continue; if(linha) vistos.add(linha);
-    // CNPJs: o nosso (pagador) e o do beneficiário
-    const cnpjs=[...new Set([...txt.matchAll(/\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}/g)].map(x=>x[0]))];
-    const pag=cnpjs.find(c=>nossos.has(soDig(c)))||'';
-    const benC=cnpjs.find(c=>soDig(c)!==soDig(pag)&&!nossos.has(soDig(c)))||'';
-    // nome do beneficiário: linha onde está o CNPJ dele, ou a linha logo abaixo do rótulo "Beneficiário"
-    const limpa=t=>String(t||'').replace(/\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}/g,'').replace(/CNPJ(\/CPF)?\s*:?/ig,'').replace(/^.*benefici[aá]rio( final)?\s*:?/i,'').replace(/\s[-–]\s*$/,'').replace(/\s+/g,' ').trim();
-    let benef='';
-    const lb=benC&&linhas.find(l=>soDig(l.t).includes(soDig(benC))); if(lb){ benef=limpa(lb.t); }
-    if(!benef||benef.length<3){ const lab=it.find(i=>/^benefici[aá]rio\s*:?$/i.test(i.s)); if(lab){ const abaixo=linhas.filter(l=>l.y<lab.y&&lab.y-l.y<20).sort((a,b)=>b.y-a.y)[0]; if(abaixo) benef=limpa(abaixo.t); } }
-    if(!benef){ const lab=linhas.find(l=>/benefici[aá]rio\s*:/i.test(l.t)&&!/pagador/i.test(l.t)); if(lab) benef=limpa(lab.t); }
-    const dm=txt.match(/\b(?:NT|NF|NFE|NF-E)\s*[:.\-]?\s*([0-9A-Z]{3,})\s*(\d{1,2}\/\d{1,2})?/i);
-    out.push({pagina:p,linha,valor:Math.round(valor*100)/100,venc,benef,benefCnpj:benC,pagadorCnpj:pag,doc:dm?dm[1]:'',parcela:dm&&dm[2]?dm[2]:''});
+    const b=fnBoletoPagina(it,linhas,txt,nossos,p); if(!b) continue;
+    if(b.linha&&vistos.has(b.linha)) continue; if(b.linha) vistos.add(b.linha); out.push(b);
   }
   if(!out.length) throw new Error('não encontrei a linha digitável nem o valor do boleto neste PDF');
   const fnNF=(f.name.match(/NF[_\s\-]?([0-9A-Z]+)/i)||[])[1]||''; out.forEach(b=>{ if(!b.doc) b.doc=fnNF; });
@@ -3014,7 +3081,7 @@ function dnCalcular(cm,dist){
 // ---------- tela ----------
 function vDistNotas(){
   if(!S.dados) return '<p class="muted">Carregando…</p>';
-  const drop=(k,n,tit,dica,fmt)=>{ const st=DN[k]; return `<div class="card dn-card"><h3><span class="dn-num">${n}</span> ${tit}</h3><p class="small muted" style="margin:2px 0 10px">${dica}</p>
+  const drop=(k,n,tit,dica,fmt)=>{ const st=DN[k]; return `<div class="card dn-card"><h3><span class="dn-num">${n}</span> ${tit}${st?`<span class="sp"></span><button class="btn ghost sm" onclick="DN.${k}=null;DN.res=null;DN.aberto=null;dnAtualizar()" title="Tirar este arquivo para anexar outro">✕ Limpar</button>`:''}</h3><p class="small muted" style="margin:2px 0 10px">${dica}</p>
     <label class="dn-drop${st?' has':''}" ondragover="event.preventDefault();this.classList.add('on')" ondragleave="this.classList.remove('on')" ondrop="event.preventDefault();this.classList.remove('on');if(event.dataTransfer.files[0]) dnArquivo('${k}',event.dataTransfer.files[0])">
       <input type="file" accept=".xlsx,.xls,.csv" class="hide" onchange="if(this.files[0]) dnArquivo('${k}',this.files[0]); this.value=''">${st?'✔ '+esc(st.nome):'📄 Clique ou solte o arquivo aqui'}</label>
     <div class="small ${st&&st.erro?'bad':'ok'}" style="min-height:18px;margin-top:6px">${st?(st.erro?'Erro: '+esc(st.erro):`✔ ${Math.max(0,st.rows.length-1)} linha(s) lida(s).`):''}</div>
@@ -3029,7 +3096,8 @@ function vDistNotas(){
   <div class="card dn-card" style="margin-top:14px"><h3><span class="dn-num">3</span> Dados da nota</h3>
     <div class="row" style="gap:14px;margin-top:8px"><label class="sf" style="flex:2 1 300px"><span>Fornecedor</span><input id="dnForn" list="dlDnForn" value="${esc(DN.forn)}" placeholder="Nome do fornecedor" oninput="DN.forn=this.value"><datalist id="dlDnForn">${dnFornecedores().map(n=>`<option value="${esc(n)}">`).join('')}</datalist></label>
       <label class="sf" style="flex:1 1 160px"><span>Nota fiscal nº</span><input id="dnNF" value="${esc(DN.nf)}" placeholder="Ex.: 123456" oninput="DN.nf=this.value"></label></div></div>
-  <button class="btn dn-run" ${pronto&&!DN.salvando?'':'disabled'} onclick="dnRodar()">${DN.salvando?'Processando…':'Calcular rateio'}</button>
+  <div class="row" style="gap:10px;margin-top:14px;align-items:stretch"><button class="btn dn-run" style="margin-top:0;flex:1" ${pronto&&!DN.salvando?'':'disabled'} onclick="dnRodar()">${DN.salvando?'Processando…':'Calcular rateio'}</button>
+    ${DN.custo||DN.dist||DN.res||DN.forn||DN.nf?`<button class="btn sec" style="flex:0 0 auto;padding:0 18px" onclick="dnLimpar1()" title="Tira as planilhas e os dados da nota para começar outra distribuição">🧹 Limpar e começar outra</button>`:''}</div>
   <div id="dnRes">${dnResultado()}</div>
   <div class="dn-hist">${dnHistorico()}</div></div>`;
 }
@@ -3055,8 +3123,8 @@ async function dnRodar(){
       arqCustoNome:cf.name,arqCustoMime:cf.type,arqCusto:cf.size<=lim?await dnB64(cf):'',arqDistNome:df.name,arqDistMime:df.type,arqDist:df.size<=lim?await dnB64(df):''};
     const r=await api('distSalvar',dados); (S.dados.distNotas=S.dados.distNotas||[]).push(r.reg); DN.aberto=r.reg.ID;
     // o Financeiro passa a usar essa distribuição no lançamento do boleto com a mesma NF
-    const F=S.dados.fin; if(F&&R.nota){ F.rateiosNF=(F.rateiosNF||[]).concat(R.linhas.map(l=>({NF:R.nota,FORNECEDOR:R.fornecedor,FILIAL:l.filial,CODIGO:l.filial,VALOR:l.valor,LANC_ID:r.reg.ID}))); }
-    toast('Rateio calculado e salvo no histórico ✓',3500);
+    S.rateiosNF=null; // o Financeiro relê as distribuições por NF na próxima vez
+    if(r.vinc) dnVinc(r.vinc,R); else toast('Rateio calculado e salvo no histórico ✓',3500);
   }catch(e){ toast('Rateio calculado, mas não foi salvo no histórico: '+e.message,8000); }
   DN.salvando=false; dnAtualizar();
 }
@@ -3069,7 +3137,7 @@ function dnResultado(){
   <div class="tw sl-tab" style="margin-top:12px"><table><thead><tr><th>Filial</th><th class="n">Itens</th><th class="n">Valor transferido</th><th class="n">% da nota</th><th style="width:30%">Participação</th></tr></thead><tbody>
   ${R.linhas.map(l=>`<tr><td><b>${esc(l.filial)}</b></td><td class="n">${fN(l.itens)}</td><td class="n">${fR(l.valor)}</td><td class="n"><b class="dn-pct">${fN(l.pct,2)}%</b></td><td><span class="dn-bar" style="width:${Math.round(l.pct/max*100)}%"></span></td></tr>`).join('')}
   </tbody><tfoot><tr><td>TOTAL · ${R.linhas.length} filial(is)</td><td class="n">${fN(R.linhas.reduce((s,l)=>s+l.itens,0))}</td><td class="n">${fR(R.total)}</td><td class="n">100,00%</td><td></td></tr></tfoot></table></div>
-  <div class="row" style="gap:8px;margin-top:12px"><button class="btn sec sm" onclick="dnExcel()">⬇ Exportar Excel</button><button class="btn sec sm" onclick="dnCsv()">⬇ Exportar CSV</button><button class="btn sec sm" onclick="exportarPDF(dnExcel,'Rateio de Nota Fiscal por Filial')">🖨 Exportar PDF</button></div>
+  <div class="row" style="gap:8px;margin-top:12px"><button class="btn sec sm" onclick="dnExcel()">⬇ Exportar Excel</button><button class="btn sec sm" onclick="dnCsv()">⬇ Exportar CSV</button><button class="btn sec sm" onclick="dnPdf()">🖨 Exportar PDF</button></div>
   <details style="margin-top:12px"><summary class="small" style="cursor:pointer;font-weight:700">Ver detalhamento por produto (${R.detail.length})</summary>
   <div class="tw sl-tab" style="max-height:340px;margin-top:8px"><table><thead><tr><th>Código</th><th>Filial</th><th class="n">Qtd</th><th class="n">Custo un.</th><th class="n">Valor</th></tr></thead><tbody>
   ${R.detail.slice(0,3000).map(d=>`<tr><td>${esc(d.cod)}</td><td>${esc(d.filial)}</td><td class="n">${fN(d.qtd)}</td><td class="n">${d.custo==null?'<span class="bad">—</span>':fR(d.custo)}</td><td class="n">${fR(d.valor)}</td></tr>`).join('')}
@@ -3112,11 +3180,78 @@ async function dnAbrir(id){
 }
 async function dnExcluir(id){ if(!confirm('Excluir esta distribuição do histórico?')) return;
   const ant=S.dados.distNotas; S.dados.distNotas=ant.filter(x=>x.ID!==id); if(DN.aberto===id){ DN.aberto=null; DN.res=null; } dnAtualizar();
-  try{ await api('distExcluir',{id}); const F=S.dados.fin; if(F&&F.rateiosNF) F.rateiosNF=F.rateiosNF.filter(r=>r.LANC_ID!==id); toast('Distribuição excluída',2500); }
+  try{ await api('distExcluir',{id}); if(S.rateiosNF) S.rateiosNF=S.rateiosNF.filter(r=>r.LANC_ID!==id); toast('Distribuição excluída',2500); }
   catch(e){ S.dados.distNotas=ant; dnAtualizar(); toast('Erro ao excluir: '+e.message,6000); } }
 async function dnLimpar(){ const ids=dnLista().map(x=>x.ID); if(!ids.length||!confirm(`Limpar TODO o histórico de distribuições (${ids.length})? Esta ação não pode ser desfeita.`)) return;
-  try{ await api('distExcluir',{ids}); S.dados.distNotas=[]; DN.res=null; DN.aberto=null; const F=S.dados.fin; if(F&&F.rateiosNF) F.rateiosNF=F.rateiosNF.filter(r=>!ids.includes(r.LANC_ID)); dnAtualizar(); toast('Histórico limpo',2500); }
+  try{ await api('distExcluir',{ids}); S.dados.distNotas=[]; DN.res=null; DN.aberto=null; if(S.rateiosNF) S.rateiosNF=S.rateiosNF.filter(r=>!ids.includes(r.LANC_ID)); dnAtualizar(); toast('Histórico limpo',2500); }
   catch(e){ toast('Erro: '+e.message,6000); } }
+
+// PDF no modelo do relatório "Rateio de Nota Fiscal por Filial" (logo, título laranja, quadro do total e barras de participação)
+async function dnPdf(){
+  const R=DN.res; if(!R) return; if(!window.jspdf){ toast('Gerador de PDF não carregou'); return; }
+  const { jsPDF } = window.jspdf; const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  const LAR=[244,114,22], BAR=[255,152,56], INK=[42,26,14], MUT=[110,100,90], LIN=[240,217,194];
+  const brl=v=>'R$ '+fN(v||0,2), hoje=new Date().toLocaleDateString('pt-BR');
+  // logo
+  try{ const im=await new Promise((ok,err)=>{ const i=new Image(); i.onload=()=>ok(i); i.onerror=err; i.src=LOGO_MIASHOP; });
+    const c=document.createElement('canvas'); c.width=im.naturalWidth; c.height=im.naturalHeight; c.getContext('2d').drawImage(im,0,0); const h=9, w=h*im.naturalWidth/im.naturalHeight; doc.addImage(c.toDataURL('image/png'),'PNG',16,14,w,h); }catch(e){}
+  let y=0; const cab=()=>{
+    doc.setFont('helvetica','bold'); doc.setFontSize(17); doc.setTextColor(...LAR); doc.text('Rateio de Nota Fiscal por Filial',14,40);
+    doc.setDrawColor(...LAR); doc.setLineWidth(0.7); doc.line(14,44,196,44);
+    let x=14; doc.setFontSize(10.5); doc.setTextColor(...INK);
+    [['Fornecedor: ',R.fornecedor||'—'],['Nota fiscal nº: ',R.nota||'—'],['Data: ',hoje]].forEach(([k,v])=>{ doc.setFont('helvetica','bold'); doc.text(k,x,53); x+=doc.getTextWidth(k); doc.setFont('helvetica','normal'); doc.text(String(v),x,53); x+=doc.getTextWidth(String(v))+8; });
+    doc.setDrawColor(...LIN); doc.setLineWidth(0.3); doc.roundedRect(14,60,182,17,2.5,2.5,'S');
+    doc.setFont('helvetica','normal'); doc.setFontSize(9.5); doc.setTextColor(...MUT); doc.setCharSpace(0.35); doc.text('VALOR TOTAL DA NOTA (PRODUTOS DISTRIBUÍDOS)',18,70); doc.setCharSpace(0);
+    doc.setFont('helvetica','bold'); doc.setFontSize(20); doc.setTextColor(...INK); doc.text(brl(R.total),192,71.5,{align:'right'});
+    y=82; };
+  const X={fil:18,itens:58,valor:116,pct:150,bar0:158,bar1:194};
+  const cabTab=()=>{ doc.setFillColor(236,234,225); doc.roundedRect(14,y,182,11,2,2,'F'); doc.rect(14,y+5,182,6,'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...LAR); doc.setCharSpace(0.25);
+    doc.text('FILIAL',X.fil,y+7); doc.text('ITENS',X.itens,y+7,{align:'right'}); doc.text('VALOR TRANSFERIDO',X.valor,y+7,{align:'right'}); doc.text('% DA NOTA',X.pct,y+7,{align:'right'}); doc.text('PARTICIPAÇÃO',X.bar0,y+7); doc.setCharSpace(0); y+=11; };
+  cab(); cabTab();
+  const L=R.linhas, max=Math.max(...L.map(l=>l.pct),1);
+  const rh=Math.max(7.5,Math.min(12.5,(285-y)/Math.max(L.length,1))); // até ~16 filiais cabem numa página no tamanho do modelo
+  L.forEach(l=>{
+    if(y+rh>287){ doc.addPage(); y=16; cabTab(); }
+    const ym=y+rh/2+1.3;
+    doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor(...INK); doc.text(String(l.filial),X.fil,ym,{maxWidth:30});
+    doc.setFont('helvetica','normal'); doc.text(fN(l.itens),X.itens,ym,{align:'right'}); doc.text(brl(l.valor),X.valor,ym,{align:'right'});
+    doc.setFont('helvetica','bold'); doc.setTextColor(...BAR); doc.text(fN(l.pct,2)+'%',X.pct,ym,{align:'right'});
+    const w=(X.bar1-X.bar0)*l.pct/max; if(w>=0.8){ doc.setFillColor(...BAR); doc.roundedRect(X.bar0,ym-2.4,w,1.9,0.95,0.95,'F'); }
+    y+=rh; doc.setDrawColor(250,232,214); doc.setLineWidth(0.25); doc.line(16,y,194,y);
+  });
+  if(R.semCusto&&R.semCusto.length){ y+=6; if(y>285){ doc.addPage(); y=16; } doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...MUT);
+    doc.text(doc.splitTextToSize(`Atenção: ${R.semCusto.length} código(s) sem custo na planilha de custos, contados como R$ 0,00: ${R.semCusto.slice(0,40).join(', ')}${R.semCusto.length>40?'…':''}`,180),14,y); }
+  const nome=[R.fornecedor,R.nota].filter(Boolean).join('_').replace(/[\\/:*?"<>|]+/g,'-').replace(/\s+/g,'_')||'rateio_filiais';
+  doc.save(nome+'.pdf');
+}
+
+// limpa as planilhas anexadas e os dados da nota (o histórico continua salvo)
+function dnLimpar1(){ Object.assign(DN,{custo:null,dist:null,res:null,forn:'',nf:'',aberto:null}); dnAtualizar(); window.scrollTo({top:0,behavior:'smooth'}); }
+
+// ---------- envio automático para a distribuição do Controle de Logística ----------
+function dnVinc(v,R){
+  if(!v) return; if(v.erro){ toast('Rateio salvo, mas não consegui enviar ao Controle de Logística: '+v.erro,8000); return; }
+  if(v.ok){ toast(`✓ Rateio salvo e enviado ao Controle de Logística: ${v.fornecedor} · NF ${v.nf} distribuída para ${v.filiais} filial(is)`,7000); if(S.dados.logistica) carregar(true); return; }
+  if(v.varios){ modal(`<div class="mh"><h3>Qual lançamento do Controle de Logística?</h3><button class="btn ghost" onclick="fecharModal()">✕</button></div>
+    <p class="small muted" style="margin-top:0">Há mais de um lançamento recebido no CD com a NF ${esc(R.nota)} aguardando distribuição. Escolha para qual enviar este rateio:</p>
+    <div class="tw sl-tab"><table><thead><tr><th>Fornecedor</th><th>NF</th><th>Chegada</th><th class="n">Valor NF</th><th></th></tr></thead><tbody>
+    ${v.varios.map(x=>`<tr><td><b>${esc(x.fornecedor)}</b></td><td>${esc(x.nf)}</td><td>${esc(x.chegada)}</td><td class="n">${fR(+x.valor||0)}</td><td><button class="btn sm" onclick="dnEnviarLog('${esc(x.id)}')">Enviar</button></td></tr>`).join('')}</tbody></table></div>`); return; }
+  if(v.pendentes){ DN.envio={lancId:v.lancId};
+    modal(`<div class="mh"><h3>Enviar ao Controle de Logística · ${esc(v.fornecedor)} · NF ${esc(v.nf)}</h3><button class="btn ghost" onclick="fecharModal()">✕</button></div>
+    <p class="small muted" style="margin-top:0">O rateio foi salvo. Para enviar à distribuição do Controle de Logística, diga qual filial é cada código abaixo — <b>só desta vez</b>: nas próximas notas o sistema já reconhece.</p>
+    <datalist id="dlDnFil">${(v.filiais||[]).map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
+    <div class="tw sl-tab"><table><thead><tr><th>Código na distribuição</th><th>Filial</th></tr></thead><tbody>
+    ${v.pendentes.map(c=>`<tr><td><b>${esc(c)}</b></td><td><input class="dn-map" data-cod="${esc(c)}" list="dlDnFil" placeholder="Nome da filial" style="width:100%"></td></tr>`).join('')}</tbody></table></div>
+    <div class="row" style="justify-content:flex-end;gap:8px;margin-top:12px"><button class="btn ghost" onclick="fecharModal()">Agora não</button><button class="btn" onclick="dnEnviarLog(DN.envio.lancId,true)">Enviar ao Controle de Logística</button></div>`); return; }
+}
+async function dnEnviarLog(lancId,comMapa){
+  const R=DN.res; if(!R) return; const mapa={};
+  if(comMapa){ let falta=0; document.querySelectorAll('.dn-map').forEach(i=>{ const v=i.value.trim(); if(!v) falta++; mapa[i.dataset.cod]=v; }); if(falta){ toast('Preencha a filial de todos os códigos'); return; } }
+  fecharModal();
+  try{ const v=await api('distEnviarLog',{lancId,mapa,linhas:R.linhas.map(l=>({filial:l.filial,valor:l.valor,itens:l.itens}))}); dnVinc(v,R); }
+  catch(e){ toast('Não consegui enviar ao Controle de Logística: '+e.message,8000); }
+}
 
 iniciar();
 </script>
