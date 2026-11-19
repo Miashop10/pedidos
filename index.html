@@ -194,6 +194,10 @@ tr.fn-sel td{background:var(--acc-soft)!important}
 .dc-venc .dc-v{color:var(--bad)}
 .fn-cbtxt{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;letter-spacing:.2px;white-space:nowrap}
 .fn-sug-par{box-shadow:0 0 0 2px var(--ok)}
+body:not(.abas-ok) #nav button,body:not(.abas-ok) #btConfig{visibility:hidden}
+.fn-chk{width:24px;height:24px;border:2px solid #b9bec7;border-radius:6px;background:#fff;cursor:pointer;font-weight:900;font-size:15px;line-height:1;color:#fff;padding:0}.fn-chk:hover{border-color:#2e7d32}.fn-chk.on{background:#2e7d32;border-color:#2e7d32}
+tr.fn-bok td{background:#eef7ef}
+.dc-atr{padding:12px;margin-bottom:12px;border-left:5px solid var(--bad)}.dc-atr.ok{border-left-color:var(--ok);color:var(--ok)}.dc-atr h3{margin:0;font-size:15px}
 .fnd-drop{display:block;border:2px dashed var(--line);border-radius:10px;padding:9px 12px;margin:0 0 10px;font-size:13px;cursor:pointer;background:var(--card);text-align:center}
 .fnd-drop:hover,.fnd-drop.on{border-color:var(--acc);background:var(--acc-soft)}
 .fnd-drop.lendo{opacity:.7;pointer-events:none}
@@ -786,7 +790,7 @@ function loading(on){ document.getElementById('loading').classList.toggle('hide'
 /* =================== API =================== */
 function api(acao, dados){
   loading(true);
-  const fim = r => { loading(false); if(r && r.ok && r.fin && S.dados){ if(r.finParcial&&S.dados.fin){ Object.assign(S.dados.fin,r.fin); if(r.finUpsert){ Object.keys(r.finUpsert).forEach(k=>{ const L=S.dados.fin[k]=S.dados.fin[k]||[]; r.finUpsert[k].forEach(x=>{ const i=L.findIndex(y=>String(y.ID)===String(x.ID)); if(i>=0) L[i]=x; else L.push(x); }); }); } if(r.finHist){ (S.dados.fin.historico=S.dados.fin.historico||[]).push(r.finHist); } } else S.dados.fin=r.fin; S.finFresco=true; } if(r&&r.tempos&&window.console) console.info('[api]',acao,r.tempos); if(r && r.ok){ S.master=!!r.master; S.abas=r.abas||[]; const b=document.getElementById('btConfig'); if(b) b.classList.toggle('hide',!S.master); aplicarAbas(); } if(!r || !r.ok){ if(r && r.erro==='SENHA_INVALIDA'){ sair(); throw new Error('Senha inválida'); } const er=new Error(r&&r.erro||'Falha na comunicação'); er.servidor=!!(r&&r.erro); throw er; } return r.dados; };
+  const fim = r => { loading(false); if(r&&r.dados) r.dados=descompactar(r.dados); if(r && r.ok && r.fin && S.dados){ if(r.finParcial&&S.dados.fin){ Object.assign(S.dados.fin,r.fin); if(r.finUpsert){ Object.keys(r.finUpsert).forEach(k=>{ const L=S.dados.fin[k]=S.dados.fin[k]||[]; r.finUpsert[k].forEach(x=>{ const i=L.findIndex(y=>String(y.ID)===String(x.ID)); if(i>=0) L[i]=x; else L.push(x); }); }); } if(r.finHist){ (S.dados.fin.historico=S.dados.fin.historico||[]).push(r.finHist); } } else S.dados.fin=r.fin; S.finFresco=true; } if(r&&r.tempos&&window.console) console.info('[api]',acao,r.tempos); if(r && r.ok){ S.master=!!r.master; S.abas=r.abas||[]; const b=document.getElementById('btConfig'); if(b) b.classList.toggle('hide',!S.master); aplicarAbas(); } if(!r || !r.ok){ if(r && r.erro==='SENHA_INVALIDA'){ sair(); throw new Error('Senha inválida'); } const er=new Error(r&&r.erro||'Falha na comunicação'); er.servidor=!!(r&&r.erro); throw er; } return r.dados; };
   if (emAppsScript()) return new Promise((res,rej)=>google.script.run.withSuccessHandler(r=>{try{res(fim(r));}catch(e){rej(e);}}).withFailureHandler(e=>{loading(false);rej(e);}).api(acao,S.senha,dados||{},S.usuario));
   return fetch(S.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({acao,senha:S.senha,usuario:S.usuario,dados:dados||{}})})
     .then(r=>r.json()).then(fim).catch(e=>{loading(false);throw e;});
@@ -816,8 +820,9 @@ async function entrar(){
     if(d&&S.master&&!d.masterTrocada) setTimeout(()=>toast('🔒 Por segurança, troque a senha master em ⚙ Configurações → Trocar senha master',12000),1500); if(!API_URL) LS.set('mc_url',S.url); document.getElementById('telaLogin').classList.add('hide'); abrirApp(); }
   catch(e){ err.textContent = e.message==='Senha inválida' ? 'Usuário ou senha incorretos.' : ('Não conectou: '+e.message); }
 }
-function sair(){ if(S.senha&&String(S.senha).startsWith('tk:')){ const s=S.senha; try{ (emAppsScript()?Promise.resolve():fetch(S.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({acao:'sair',senha:s,usuario:S.usuario,dados:{}})})).catch(()=>{}); }catch(e){} } LS.del('mc_senha'); LS.del('mc_tok'); S.senha=''; document.getElementById('telaApp').classList.add('hide'); document.getElementById('telaLogin').classList.remove('hide'); document.getElementById('lgUrlBox').classList.toggle('hide', emAppsScript() || !!API_URL); }
+function sair(){ if(S.senha&&String(S.senha).startsWith('tk:')){ const s=S.senha; try{ (emAppsScript()?Promise.resolve():fetch(S.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({acao:'sair',senha:s,usuario:S.usuario,dados:{}})})).catch(()=>{}); }catch(e){} } LS.del('mc_senha'); LS.del('mc_tok'); LS.del('mc_abas'); S.senha=''; S.abas=undefined; S.dados=null; S.finFresco=false; document.body.classList.remove('abas-ok'); document.getElementById('telaApp').classList.add('hide'); document.getElementById('telaLogin').classList.remove('hide'); document.getElementById('lgUrlBox').classList.toggle('hide', emAppsScript() || !!API_URL); }
 function abrirApp(){
+  try{ const c=JSON.parse(LS.get('mc_abas')||'null'); if(c&&S.abas===undefined){ S.master=!!c.m; S.abas=c.a||[]; aplicarAbas(); } }catch(e){}
   document.getElementById('telaApp').classList.remove('hide');
   document.getElementById('whoNome').textContent=S.usuario;
   document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>irPara(b.dataset.v));
@@ -826,15 +831,22 @@ function abrirApp(){
 }
 // mostra no menu só as abas liberadas para o usuário (master vê todas)
 function aplicarAbas(){
-  const ok=v=>S.master||(S.abas||[]).includes(v);
+  const ok=v=>S.master||(S.abas||[]).includes(v); document.body.classList.add('abas-ok'); try{ LS.set('mc_abas',JSON.stringify({m:!!S.master,a:S.abas||[]})); }catch(e){}
   document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('hide',!ok(b.dataset.v)));
   if(S.view==='config'?!S.master:!ok(S.view)){ const prim=[...document.querySelectorAll('#nav button')].find(b=>ok(b.dataset.v)); S.view=prim?prim.dataset.v:'semacesso'; document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===S.view)); if(document.getElementById('main')&&S.dados) render(); }
 }
 function irPara(v){ if(v!=='config' && !(S.master||(S.abas||[]).includes(v))) return; S.view=v; const navV=v; document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===navV)); const bc=document.getElementById('btConfig'); if(bc) bc.classList.toggle('on',v==='config'); if(v==='config') CFG.usuarios=null; render(); window.scrollTo(0,0); }
 
+function descompactar(o){ if(Array.isArray(o)) return o.map(descompactar); if(o&&typeof o==='object'){ if(o.__c&&o.__r){ const c=o.__c; return o.__r.map(r=>{ const x={}; c.forEach((k,i)=>x[k]=r[i]); return x; }); } const r={}; for(const k in o) r[k]=descompactar(o[k]); return r; } return o; }
+// abre o sistema com as abas leves primeiro; o financeiro (maior) chega em paralelo, sem segurar as outras abas
 async function carregar(silencioso){
-  try{ S.dados = await api('getDados'); document.getElementById('whoSync').textContent='atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); render(); }
+  const temFin=()=>S.master||(S.abas||[]).includes('financeiro');
+  const pFin=(S.abas||S.master)&&temFin()?api('finCarregar').catch(e=>{ if(!silencioso) toast('Erro ao carregar o financeiro: '+e.message,5000); return null; }):null;
+  try{ const d=await api('getDados'); const finAnt=S.dados&&S.dados.fin; S.dados=d; if(finAnt) S.dados.fin=finAnt; S.dados.compras=(d.importadoras||[]).map(n=>({IMPORTADORA:n}));
+    document.getElementById('whoSync').textContent='atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); render(); }
   catch(e){ if(!silencioso) toast('Erro ao carregar: '+e.message,5000); }
+  let f=pFin?await pFin:null; if(!pFin&&temFin()) f=await api('finCarregar').catch(()=>null);
+  if(f&&S.dados){ S.dados.fin=f; S.finFresco=false; if(S.view==='financeiro') render(); }
 }
 
 let P = []; // (abas de produtos removidas)
@@ -1172,7 +1184,9 @@ function acLigar(inp,tipo,proximo){
     else if((e.key==='Enter'||e.key==='Tab') && k>=0){ e.preventDefault(); escolher(it[k].dataset.v); }
     else if(e.key==='Escape') box.style.display='none'; };
 }
-function okBtn(id,on,lbl){ return `<button type="button" id="${id}" class="okb${on?' on':''}" onclick="this.classList.toggle('on')" title="Clique para marcar/desmarcar">${lbl}</button>`; }
+// OK nos boletos: só a Geiza ou o master
+const lgPodeOk = () => !!S.master || up(semAcento(S.usuario||''))==='GEIZA';
+function okBtn(id,on,lbl){ const p=lgPodeOk(); return `<button type="button" id="${id}" class="okb${on?' on':''}" ${p?`onclick="this.classList.toggle('on')" title="Clique para marcar/desmarcar"`:'disabled title="Só a Geiza ou o master podem dar OK nos boletos"'}>${lbl}</button>`; }
 
 function vLogistica(){
   if(!S.dados) return '<p class="muted">Carregando…</p>';
@@ -1198,6 +1212,7 @@ function vLogistica(){
   </div>
   <div class="sl-filtros">
     <input type="search" class="w-q" style="flex:1 1 auto;max-width:520px" value="${esc(F.q)}" placeholder="Buscar fornecedor, filial, NF, data, cálculo, obs, valor…" oninput="LG.f.q=this.value;LG.lim=0;clearTimeout(window._lq);window._lq=setTimeout(lgAtualizar,200)">
+    <select onchange="LG.f.bol=this.value;LG.lim=0;lgAtualizar()"><option value="">Boletos: todos</option><option value="pend" ${F.bol==='pend'?'selected':''}>Só SEM OK</option><option value="ok" ${F.bol==='ok'?'selected':''}>Só com OK</option></select>
     <span class="sp"></span><button class="btn sec sm" onclick="lgExportar()">Excel</button><button class="btn sec sm" onclick="exportarPDF(lgExportar,'Controle de Logística')">PDF</button>
   </div>
   <div class="tw sl-tab"><table id="tbLog">${lgTabela()}</table></div>
@@ -1232,7 +1247,7 @@ function lgFiltrados(){
 function lgOrdenar(k){ LG.sort = LG.sort.k===k ? {k,d:-LG.sort.d} : {k,d:['vnf','vcalc','chegada','lanc'].includes(k)?-1:1}; lgAtualizar(); }
 function lgLinha(r){ // cada célula é um campo: clique, digite e saia (Enter/Tab) que já salva
   const q=lgQuitado(r);
-  const chip=(campo,on,lbl,off)=>`<button class="okb sm${on?' on':''}" onclick="lgAlternar(this.closest('tr').dataset.id,'${campo}')" title="Clique para alterar">${on?lbl:off}</button>`;
+  const pOk=lgPodeOk(); const chip=(campo,on,lbl,off)=>`<button class="okb sm${on?' on':''}" ${pOk||campo==='RECEBIDO'?`onclick="lgAlternar(this.closest('tr').dataset.id,'${campo}')" title="Clique para alterar"`:'disabled style="cursor:not-allowed" title="Só a Geiza ou o master podem dar OK nos boletos"'}>${on?lbl:off}</button>`;
   const inp=(campo,val,extra)=>`<input class="lgi" data-campo="${campo}" value="${esc(val)}" ${extra||''} onchange="lgCampo(this)" onkeydown="if(event.key==='Enter'){this.blur()}else if(event.key==='Escape'){this.value=this.defaultValue;this.blur()}">`;
   return `<tr class="${q?'lg-ok':''}" data-id="${esc(r.ID)}">
     <td class="w-f">${inp('FORNECEDOR',r.FORNECEDOR||'','list="dlForn" style="font-weight:700"')}</td>
@@ -1794,10 +1809,10 @@ function fnSaldo(c){ return (+c.SALDO_INICIAL||0) + fin().extrato.filter(e=>Stri
 const FIN_ICON={inicio:'📊',contas:'🏦',receb:'↑',pagar:'↓',rel:'📄',config:'⚙'};
 function fnIr(sec,sub){ FN.lim=0; if(sub){ FN.sec=sec; FN.sub[sec]=sub; FN.aberto=sec; } else if(FN.aberto===sec){ FN.aberto=''; } else { FN.aberto=sec; FN.sec=sec; } render(); }
 function vFinanceiro(){
-  if(!S.dados) return '<p class="muted">Carregando…</p>';
+  if(!S.dados||!S.dados.fin) return '<div class="card muted" style="margin-top:20px;padding:18px">⏳ Carregando o financeiro…</div>';
   const sec=FN.sec, sub=FN.sub[sec]; if(FN.aberto===undefined) FN.aberto=sec;
   const titulo=(FIN_SUBS[sec].find(x=>x[0]===sub)||[])[1]||'';
-  const acoes = sec==='contas'?`<button class="btn sec sm" onclick="fnModalConta()">+ Adicionar conta</button><button class="btn sm" onclick="fnEscolherExtrato()">⬆ Importar extrato (Excel)</button><input type="file" id="fnInExt" accept=".xlsx,.xls,.csv" class="hide" onchange="if(this.files[0]) fnLerExtrato(this.files[0]); this.value=''">`
+  const acoes = sec==='contas'?`<button class="btn sec sm" onclick="fnModalConta()">+ Adicionar conta</button><button class="btn sec sm" onclick="fnColarExtrato()">📋 Colar extrato</button><button class="btn sm" onclick="fnEscolherExtrato()">⬆ Importar extrato (Excel)</button><input type="file" id="fnInExt" accept=".xlsx,.xls,.csv" class="hide" onchange="if(this.files[0]) fnLerExtrato(this.files[0]); this.value=''">`
     : (sec==='receb'||sec==='pagar')&&sub!=='importar'&&sub!=='boletos'?`<button class="btn sec sm" onclick="fnIr('${sec}','importar')">⬆ Importar lançamentos</button><button class="btn" onclick="fnAbrirLanc(null,'${sec==='receb'?'RECEBER':'PAGAR'}')">+ Agendar ${sec==='receb'?'recebimento':'pagamento'}</button>`
     : sec==='rel'&&(sub==='dre'||sub==='drep')?`<button class="btn sec sm" onclick="fnDREPdf(${sub==='drep'})">Exportar PDF</button>`
     : sec==='pagar'&&sub==='boletos'?`<button class="btn sec sm" onclick="exportarPDF(fnBoletosExcel,'Histórico de boletos lançados')">Exportar PDF</button>`
@@ -1857,23 +1872,61 @@ async function fnExcluirConta(id){ const c=fnConta(id); if(!confirm('Excluir a c
 
 /* ---------- importar extrato (Excel do banco) ---------- */
 function fnEscolherExtrato(){ if(!fin().contas.length){ toast('Cadastre uma conta antes de importar o extrato'); fnModalConta(); return; } document.getElementById('fnInExt').click(); }
-function fnNumExtrato(v){ if(typeof v==='number') return v; let t=String(v==null?'':v).trim(); if(!t) return 0; let neg=/^-|\(.*\)|\bD$|-$/.test(t.toUpperCase());
+function fnNumExtrato(v){ if(typeof v==='number') return v; let t=String(v==null?'':v).trim(); if(!t) return 0; let neg=/^-|\(.*\)|D$|-$/.test(t.toUpperCase().replace(/\s+/g,''));
   t=t.replace(/[R$\s()]/g,'').replace(/[CD]$/i,'').replace(/-$/,'').replace(/^-/,''); const n=numBR(t); return neg?-Math.abs(n):n; }
+// linhas da planilha/colagem → movimentações {data, descricao, documento, valor}
+function fnExtratoDeLinhas(rows){
+  const H=v=>semAcento(v).replace(/[^A-Z ]/g,' ').replace(/\s+/g,' ').trim();
+  const hi=rows.findIndex(r=>{ const h=(r||[]).map(H); return h.some(x=>/^DATA/.test(x)) && h.some(x=>/^(VALOR|CREDITO|DEBITO|ENTRADA|SAIDA)/.test(x)); });
+  if(hi<0) return fnExtratoSemCabecalho(rows);
+  const h=rows[hi].map(H); const col=re=>h.findIndex(x=>re.test(x));
+  const cD=col(/^DATA/), cDesc=col(/^(DESCRICAO|HISTORICO|LANCAMENTO|DETALHE|MEMO)/), cDoc=col(/^(DOCUMENTO|DOC|N DOC|NUMERO)/), cV=col(/^VALOR/), cCr=col(/^(CREDITO|ENTRADA)/), cDb=col(/^(DEBITO|SAIDA)/);
+  return rows.slice(hi+1).map(r=>r||[]).filter(r=>r.some(c=>String(c).trim()!=='')).map(r=>{
+    let v=cV>=0?fnNumExtrato(r[cV]):(fnNumExtrato(r[cCr])||0)-Math.abs(fnNumExtrato(r[cDb])||0);
+    return {data:fnDataExtrato(r[cD]),descricao:String(cDesc>=0?r[cDesc]:'').trim(),documento:String(cDoc>=0?r[cDoc]:'').trim().replace(/\.0+$/,''),valor:Math.round(v*100)/100}; })
+    .filter(l=>/\d{2}\/\d{2}\/\d{4}/.test(l.data) && l.valor && !/^SALDO/i.test(semAcento(l.descricao)));
+}
+function fnDataExtrato(v){ if(typeof v==='number') return dataExcel(v); const t=String(v||'').trim(); let m=t.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
+  if(m){ let a=m[3]||String(FN.anoCola||new Date().getFullYear()); if(a.length===2) a='20'+a; return m[1].padStart(2,'0')+'/'+m[2].padStart(2,'0')+'/'+a; }
+  m=t.match(/^(\d{4})-(\d{2})-(\d{2})/); return m?m[3]+'/'+m[2]+'/'+m[1]:dataExcel(v); }
+// extrato colado do site do banco, sem cabeçalho: em cada linha procura a data (início), o valor (último número com centavos) e o resto vira a descrição
+function fnExtratoSemCabecalho(rows){
+  const out=[];
+  rows.forEach(r=>{ const cel=(r||[]).map(c=>String(c==null?'':c).trim()).filter(Boolean); if(!cel.length) return;
+    let txt=cel.join('\t'); const md=txt.match(/^(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)/); if(!md) return;
+    const vals=[...txt.matchAll(/(-?\s?R?\$?\s?-?\(?\d{1,3}(?:\.\d{3})*,\d{2}\)?\s?[CD-]?)(?=\s|\t|$)/g)].map(x=>x[1]); if(!vals.length) return;
+    // se houver 2+ valores (valor e saldo), o valor é o penúltimo; com um só, é ele
+    const vtxt=vals.length>=2?vals[vals.length-2]:vals[0]; let valor=fnNumExtrato(vtxt.replace(/\s/g,''));
+    let desc=txt.slice(md[0].length); vals.forEach(v=>{ desc=desc.replace(v,' '); }); desc=desc.replace(/\t+/g,' ').replace(/\s+/g,' ').trim();
+    if(/\bD\b|DEBITO|PAGAMENTO|PAGTO|PIX ENVIADO|TARIFA|SAQUE|COMPRA/i.test(semAcento(desc))&&valor>0&&!/[C]$/.test(vtxt.trim())&&!/RECEB|CREDITO|DEPOSITO/i.test(semAcento(desc))&&/-/.test(vtxt)===false&&FN.colaSinal==='auto') valor=-valor;
+    if(/^SALDO/i.test(semAcento(desc))) return;
+    out.push({data:fnDataExtrato(md[1]),descricao:desc,documento:'',valor:Math.round(valor*100)/100}); });
+  return out.filter(l=>l.valor);
+}
 async function fnLerExtrato(f){
   try{
-    const rows=await linhasXLSX(f); const H=v=>semAcento(v).replace(/[^A-Z ]/g,' ').replace(/\s+/g,' ').trim();
-    const hi=rows.findIndex(r=>{ const h=(r||[]).map(H); return h.some(x=>/^DATA/.test(x)) && h.some(x=>/^(VALOR|CREDITO|DEBITO|ENTRADA|SAIDA)/.test(x)); });
-    if(hi<0) throw new Error('não achei o cabeçalho (precisa ter DATA e VALOR, ou CRÉDITO e DÉBITO)');
-    const h=rows[hi].map(H); const col=re=>h.findIndex(x=>re.test(x));
-    const cD=col(/^DATA/), cDesc=col(/^(DESCRICAO|HISTORICO|LANCAMENTO|DETALHE|MEMO)/), cDoc=col(/^(DOCUMENTO|DOC|N DOC|NUMERO)/), cV=col(/^VALOR/), cCr=col(/^(CREDITO|ENTRADA)/), cDb=col(/^(DEBITO|SAIDA)/);
-    const linhas=rows.slice(hi+1).map(r=>r||[]).filter(r=>r.some(c=>String(c).trim()!=='')).map(r=>{
-      let v=cV>=0?fnNumExtrato(r[cV]):(fnNumExtrato(r[cCr])||0)-Math.abs(fnNumExtrato(r[cDb])||0);
-      return {data:dataExcel(r[cD]),descricao:String(cDesc>=0?r[cDesc]:'').trim(),documento:String(cDoc>=0?r[cDoc]:'').trim().replace(/\.0+$/,''),valor:Math.round(v*100)/100}; })
-      .filter(l=>/\d{2}\/\d{2}\/\d{4}/.test(l.data) && l.valor && !/^SALDO/i.test(semAcento(l.descricao)));
-    if(!linhas.length) throw new Error('nenhuma movimentação encontrada');
+    const linhas=fnExtratoDeLinhas(await linhasXLSX(f));
+    if(!linhas.length) throw new Error('nenhuma movimentação encontrada (precisa ter DATA e VALOR, ou CRÉDITO e DÉBITO)');
     FN.imp={arquivo:f,linhas}; fnModalExtrato();
   }catch(e){ toast(f.name+': '+e.message,7000); }
 }
+// colar o extrato (Ctrl+C no Excel ou no site do banco → Ctrl+V aqui)
+function fnColarExtrato(){
+  if(!fin().contas.length){ toast('Cadastre uma conta antes de importar o extrato'); fnModalConta(); return; }
+  modal(`<div class="mh"><h3>📋 Colar extrato</h3><button class="btn ghost" onclick="fecharModal()">✕</button></div>
+  <p class="small muted" style="margin-top:0">Copie as linhas do extrato (do Excel ou do site do banco) e cole abaixo com <b>Ctrl+V</b>. Com cabeçalho, o sistema usa as colunas DATA, HISTÓRICO/DESCRIÇÃO, DOCUMENTO e VALOR (ou CRÉDITO e DÉBITO). Sem cabeçalho, procura em cada linha a data, a descrição e o valor (saídas com sinal de menos ou "D").</p>
+  <div class="row" style="gap:10px;align-items:flex-end;margin-bottom:8px"><label class="sf" style="flex:0 0 160px"><span>Ano (se a data vier sem ano)</span><input id="fnColaAno" inputmode="numeric" value="${new Date().getFullYear()}"></label></div>
+  <textarea id="fnColaExt" class="fn-cola" style="min-height:220px" placeholder="Cole aqui o extrato…" oninput="clearTimeout(window._ce);window._ce=setTimeout(fnColaExtPrev,300)"></textarea>
+  <div id="fnColaExtInfo" class="small" style="margin:8px 0"></div>
+  <div class="row" style="justify-content:flex-end"><button class="btn" id="fnColaExtBt" disabled onclick="fnColaExtUsar()">Continuar</button></div>`);
+  setTimeout(()=>{ const t=document.getElementById('fnColaExt'); if(t) t.focus(); },60);
+}
+function fnColaExtLinhas(){ FN.anoCola=(document.getElementById('fnColaAno')||{}).value||new Date().getFullYear(); FN.colaSinal='';
+  const t=document.getElementById('fnColaExt').value.replace(/\r/g,''); const rows=t.split('\n').map(l=>l.includes('\t')?l.split('\t'):l.split(/\s{2,}/)); return fnExtratoDeLinhas(rows); }
+function fnColaExtPrev(){ const L=fnColaExtLinhas(); const el=document.getElementById('fnColaExtInfo'), bt=document.getElementById('fnColaExtBt');
+  const ent=L.filter(l=>l.valor>0).reduce((s,l)=>s+l.valor,0), sai=L.filter(l=>l.valor<0).reduce((s,l)=>s+l.valor,0);
+  el.innerHTML=L.length?`<b>${L.length}</b> movimentação(ões) encontradas · entradas <b class="ok">${fR(ent)}</b> · saídas <b class="bad">${fR(sai)}</b>`:'<span class="muted">Nenhuma movimentação reconhecida ainda.</span>'; bt.disabled=!L.length; }
+function fnColaExtUsar(){ const L=fnColaExtLinhas(); if(!L.length) return; FN.imp={arquivo:{name:'Extrato colado '+hojeBR(),type:''},linhas:L,colado:true}; fnModalExtrato(); }
 function fnModalExtrato(){
   const L=FN.imp.linhas, C=fin().contas; const ent=L.filter(l=>l.valor>0).reduce((s,l)=>s+l.valor,0), sai=L.filter(l=>l.valor<0).reduce((s,l)=>s+l.valor,0);
   modal(`<div class="mh"><h3>Importar extrato · <span class="muted small">${esc(FN.imp.arquivo.name)}</span></h3><button class="btn ghost" onclick="fecharModal()">✕</button></div>
@@ -1885,7 +1938,7 @@ function fnModalExtrato(){
 }
 async function fnConfirmarExtrato(){
   const bt=document.getElementById('fnImpBt'); bt.disabled=true; bt.textContent='Importando…'; const contaId=document.getElementById('fnImpConta').value;
-  try{ const d={contaId,linhas:FN.imp.linhas,arquivoNome:FN.imp.arquivo.name,arquivoMime:FN.imp.arquivo.type}; d.arquivoBase64=await b64Arquivo(FN.imp.arquivo);
+  try{ const d={contaId,linhas:FN.imp.linhas,arquivoNome:FN.imp.arquivo.name,arquivoMime:FN.imp.arquivo.type}; if(!FN.imp.colado) d.arquivoBase64=await b64Arquivo(FN.imp.arquivo);
     const r=await api('finImportarExtrato',d); fecharModal(); FN.imp=null; FN.conta=contaId; FN.sec='contas'; FN.sub.contas='conc'; FN.aberto='contas';
     toast(`${r.importadas} linha(s) importada(s)${r.ignoradas?' · '+r.ignoradas+' já existiam':''}`,5000); await fnRecarregar(); render(); }
   catch(e){ bt.disabled=false; bt.textContent='Importar'; toast('Erro: '+e.message,7000); }
@@ -1910,30 +1963,42 @@ function fnConciliacao(){
   if(!FN.conta||!fnConta(FN.conta)) FN.conta=C[0].ID;
   const c=fnConta(FN.conta); const E=fin().extrato.filter(e=>String(e.CONTA_ID)===String(FN.conta));
   const pend=E.filter(e=>!e.LANC_ID); const L=(FN.concFiltro==='pend'?pend:FN.concFiltro==='conc'?E.filter(e=>e.LANC_ID):E).slice().sort((a,b)=>(isoBR(a.DATA)||'').localeCompare(isoBR(b.DATA)||'')||String(a.ID).localeCompare(String(b.ID)));
-  const q=semAcento(FN.q).trim(); const LL=q?L.filter(e=>semAcento([e.DESCRICAO,e.DOCUMENTO,e.DATA,fN(Math.abs(+e.VALOR),2)].join(' ')).includes(q)):L;
+  const q=semAcento(FN.q).trim(); const CF=FN.cf=FN.cf||{de:'',ate:'',tipo:'',sug:''};
   // par sugerido para cada linha pendente (sem repetir o mesmo lançamento em duas linhas)
   const usados=new Set(); FN.concPar={}; FN.concSel=FN.concSel||new Set();
-  LL.forEach(e=>{ if(e.LANC_ID) return; const l=fnSugestoes(e).find(x=>!usados.has(x.ID)); if(l){ FN.concPar[e.ID]=l.ID; usados.add(l.ID); } });
-  [...FN.concSel].forEach(id=>{ if(!FN.concPar[id]) FN.concSel.delete(id); });
-  const nPar=Object.keys(FN.concPar).length, nSel=FN.concSel.size; const limC=FN.lim||300;
+  L.forEach(e=>{ if(e.LANC_ID) return; const l=fnSugestoes(e).find(x=>!usados.has(x.ID)); if(l){ FN.concPar[e.ID]=l.ID; usados.add(l.ID); } });
+  const LL=L.filter(e=>{ const d=isoBR(e.DATA)||''; if(CF.de&&d<CF.de) return false; if(CF.ate&&d>CF.ate) return false;
+    if(CF.tipo==='ent'&&+e.VALOR<0) return false; if(CF.tipo==='sai'&&+e.VALOR>=0) return false;
+    if(CF.sug==='com'&&!FN.concPar[e.ID]) return false; if(CF.sug==='sem'&&(e.LANC_ID||FN.concPar[e.ID])) return false;
+    return !q||semAcento([e.DESCRICAO,e.DOCUMENTO,e.DATA,fN(Math.abs(+e.VALOR),2)].join(' ')).includes(q); });
+  const vis=new Set(LL.filter(e=>!e.LANC_ID).map(e=>e.ID)); [...FN.concSel].forEach(id=>{ if(!vis.has(id)) FN.concSel.delete(id); });
+  const nSel=FN.concSel.size, nSelSug=[...FN.concSel].filter(id=>FN.concPar[id]).length, nPend=vis.size; const limC=FN.lim||300;
+  const totF=LL.reduce((s,e)=>s+(+e.VALOR||0),0);
   return `<div class="sl-filtros">
-    <select style="max-width:260px" onchange="FN.conta=this.value;fnAtualizar()">${C.map(x=>`<option value="${esc(x.ID)}" ${x.ID===FN.conta?'selected':''}>${esc(x.NOME)}</option>`).join('')}</select>
-    <select style="max-width:200px" onchange="FN.concFiltro=this.value;fnAtualizar()"><option value="pend" ${FN.concFiltro==='pend'?'selected':''}>Pendentes (${pend.length})</option><option value="conc" ${FN.concFiltro==='conc'?'selected':''}>Conciliadas (${E.length-pend.length})</option><option value="todas" ${FN.concFiltro==='todas'?'selected':''}>Todas (${E.length})</option></select>
-    <input type="search" class="w-q" value="${esc(FN.q)}" placeholder="Buscar no extrato…" oninput="FN.q=this.value;FN.lim=0;clearTimeout(window._fq);window._fq=setTimeout(fnAtualizar,250)">
-    <span class="sp"></span><span class="small">Saldo da conta: ${fnVal(fnSaldo(c))}</span>
+    <select style="max-width:220px" onchange="FN.conta=this.value;fnAtualizar()">${C.map(x=>`<option value="${esc(x.ID)}" ${x.ID===FN.conta?'selected':''}>${esc(x.NOME)}</option>`).join('')}</select>
+    <select onchange="FN.concFiltro=this.value;fnAtualizar()"><option value="pend" ${FN.concFiltro==='pend'?'selected':''}>Pendentes (${pend.length})</option><option value="conc" ${FN.concFiltro==='conc'?'selected':''}>Conciliadas (${E.length-pend.length})</option><option value="todas" ${FN.concFiltro==='todas'?'selected':''}>Todas (${E.length})</option></select>
+    <span class="muted small">de</span><input type="date" value="${CF.de}" onchange="FN.cf.de=this.value;fnAtualizar()"><span class="muted small">a</span><input type="date" value="${CF.ate}" onchange="FN.cf.ate=this.value;fnAtualizar()">
+    <select onchange="FN.cf.tipo=this.value;fnAtualizar()"><option value="">Entradas e saídas</option><option value="ent" ${CF.tipo==='ent'?'selected':''}>Só entradas</option><option value="sai" ${CF.tipo==='sai'?'selected':''}>Só saídas</option></select>
+    <select onchange="FN.cf.sug=this.value;fnAtualizar()"><option value="">Com e sem sugestão</option><option value="com" ${CF.sug==='com'?'selected':''}>Só com sugestão</option><option value="sem" ${CF.sug==='sem'?'selected':''}>Só sem sugestão</option></select>
+    <input type="search" class="w-q" value="${esc(FN.q)}" placeholder="Buscar descrição, valor…" oninput="FN.q=this.value;FN.lim=0;clearTimeout(window._fq);window._fq=setTimeout(fnAtualizar,250)">
+    <button class="btn ghost sm" onclick="FN.cf={de:'',ate:'',tipo:'',sug:''};FN.q='';fnAtualizar()">limpar</button>
+    <span class="sp"></span><span class="small">${LL.length} linha(s) · ${fnVal(totF)} · saldo da conta: ${fnVal(fnSaldo(c))}</span>
   </div>
-  ${nPar?`<div class="fn-selbar" id="fnConcBar"><label class="fnd-rd" style="margin:0"><input type="checkbox" ${nSel&&nSel===nPar?'checked':''} onchange="fnConcTodos(this.checked)"> Marcar todas com sugestão (${nPar})</label>
-    <span class="sp"></span><button class="btn" ${nSel?'':'disabled'} onclick="fnConciliarMarcados()">✓ Conciliar lançamentos marcados${nSel?' ('+nSel+')':''}</button></div>`:''}
+  ${nPend?`<div class="fn-selbar" id="fnConcBar"><label class="fnd-rd" style="margin:0"><input type="checkbox" ${nSel&&nSel===nPend?'checked':''} onchange="fnConcTodos(this.checked)"> Marcar todas as pendentes da lista (${nPend})</label>
+    <button class="btn ghost sm" onclick="fnConcSoSug()">Marcar só as com sugestão (${[...vis].filter(id=>FN.concPar[id]).length})</button>
+    <span class="sp"></span>${nSel?`<span class="small"><b>${nSel}</b> marcada(s)</span>`:''}
+    <button class="btn" ${nSelSug?'':'disabled'} onclick="fnConciliarMarcados()">✓ Conciliar lançamentos marcados${nSelSug?' ('+nSelSug+')':''}</button>
+    <button class="btn ghost sm" ${nSel?'':'disabled'} onclick="fnIgnorarMarcados()" title="Sem lançamento (ex.: transferência entre contas)">Ignorar marcados</button></div>`:''}
   <div class="tw sl-tab"><table class="fn-conc"><thead><tr><th style="width:28px"></th><th>Data</th><th>Descrição no extrato</th><th class="n">Valor</th><th>Conciliação</th></tr></thead><tbody>
-  ${LL.slice(0,limC).map(e=>{ const lk=e.LANC_ID, la=lk&&lk!=='IGNORADO'?fnLanc(lk):null;
+  ${LL.slice(0,limC).map(e=>{ const lk=e.LANC_ID; const las=lk&&lk!=='IGNORADO'?String(lk).split(',').map(fnLanc):[];
     let acao;
     if(lk==='IGNORADO') acao=`<span class="tag t-mut">Ignorado (sem lançamento)</span> <button class="ib" onclick="fnDesconciliar('${esc(e.ID)}')">desfazer</button>`;
-    else if(lk) acao=`<span class="tag t-ok">✓ Conciliado</span> <b>${esc(la?la.NOME:'(lançamento apagado)')}</b>${la&&la.CATEGORIA?' <span class="muted small">· '+esc(la.CATEGORIA)+'</span>':''}${la&&la.NOTA_FISCAL?' <span class="muted small">· NF '+esc(la.NOTA_FISCAL)+'</span>':''} <button class="ib" onclick="fnDesconciliar('${esc(e.ID)}')">desfazer</button>`;
+    else if(lk) acao=`<span class="tag t-ok">✓ Conciliado</span> ${las.map(la=>`<b>${esc(la?la.NOME:'(lançamento apagado)')}</b>${la&&las.length>1?' '+fR(+la.VALOR):''}${la&&la.CATEGORIA?' <span class="muted small">· '+esc(la.CATEGORIA)+'</span>':''}${la&&la.NOTA_FISCAL?' <span class="muted small">· NF '+esc(la.NOTA_FISCAL)+'</span>':''}`).join(' <span class="muted">+</span> ')} <button class="ib" onclick="fnDesconciliar('${esc(e.ID)}')">desfazer</button>`;
     else { const sg=fnSugestoes(e);
       acao=(sg.length?sg.slice(0,3).map(l=>`<button class="fn-sug${FN.concPar[e.ID]===l.ID?' fn-sug-par':''}" onclick="fnConciliar('${esc(e.ID)}','${esc(l.ID)}')" title="Conciliar com este lançamento"><span class="fn-sug-k">Sugestão</span> <b>${esc(l.NOME)}</b>${l.NOTA_FISCAL?' · NF '+esc(l.NOTA_FISCAL):''} · venc. ${esc(l.VENCIMENTO)} · ${fR(+l.VALOR)} <span class="fn-sug-ok">✓ Conciliar</span></button>`).join(''):'<span class="muted small">Sem lançamento com mesmo valor e vencimento.</span>')
-        +` <span class="fn-acts"><button class="ib" onclick="fnBuscarLanc('${esc(e.ID)}')">🔍 Buscar lançamento</button><button class="ib" onclick="fnCriarDoExtrato('${esc(e.ID)}')">+ Criar lançamento</button><button class="ib" onclick="fnIgnorar('${esc(e.ID)}')" title="Sem lançamento (ex.: transferência entre contas)">Ignorar</button></span>`; }
-    return `<tr class="${lk?'fn-ok':''}${FN.concSel.has(e.ID)?' fn-sel':''}"><td class="c">${!lk&&FN.concPar[e.ID]?`<input type="checkbox" class="fn-cck" ${FN.concSel.has(e.ID)?'checked':''} onchange="fnConcMarcar('${esc(e.ID)}',this.checked)" title="Marcar para conciliar com a sugestão destacada">`:''}</td><td>${esc(e.DATA)}</td><td style="white-space:normal;min-width:200px">${esc(e.DESCRICAO)}${e.DOCUMENTO?' <span class="muted small">· doc '+esc(e.DOCUMENTO)+'</span>':''}</td><td class="n">${fnVal(+e.VALOR)}</td><td style="white-space:normal">${acao}</td></tr>`; }).join('')
-    ||`<tr><td colspan="5" class="muted">${E.length?(FN.concFiltro==='pend'?'Tudo conciliado nesta conta. ✓':'Nada aqui.'):'Nenhum extrato importado nesta conta. Use "⬆ Importar extrato (Excel)".'}</td></tr>`}
+        +` <span class="fn-acts"><button class="ib" onclick="fnBuscarLanc('${esc(e.ID)}')">🔍 Buscar lançamento(s)</button><button class="ib" onclick="fnCriarDoExtrato('${esc(e.ID)}')">+ Criar lançamento</button><button class="ib" onclick="fnIgnorar('${esc(e.ID)}')" title="Sem lançamento (ex.: transferência entre contas)">Ignorar</button></span>`; }
+    return `<tr class="${lk?'fn-ok':''}${FN.concSel.has(e.ID)?' fn-sel':''}"><td class="c">${!lk?`<input type="checkbox" class="fn-cck" ${FN.concSel.has(e.ID)?'checked':''} onchange="fnConcMarcar('${esc(e.ID)}',this.checked)">`:''}</td><td>${esc(e.DATA)}</td><td style="white-space:normal;min-width:200px">${esc(e.DESCRICAO)}${e.DOCUMENTO?' <span class="muted small">· doc '+esc(e.DOCUMENTO)+'</span>':''}</td><td class="n">${fnVal(+e.VALOR)}</td><td style="white-space:normal">${acao}</td></tr>`; }).join('')
+    ||`<tr><td colspan="5" class="muted">${E.length?(FN.concFiltro==='pend'&&!pend.length?'Tudo conciliado nesta conta. ✓':'Nada com esses filtros.'):'Nenhum extrato importado nesta conta. Use "📋 Colar extrato" ou "⬆ Importar extrato (Excel)".'}</td></tr>`}
   </tbody>${LL.length>limC?`<tfoot><tr><td colspan="5" class="c" style="background:var(--card);font-weight:400">Mostrando ${limC} de ${LL.length} · <button class="btn ghost sm" onclick="FN.lim=1e9;fnAtualizar()">Mostrar todas</button></td></tr></tfoot>`:''}</table></div>`;
 }
 async function fnConciliar(exId,lancId){ try{ await api('finConciliar',{extratoId:exId,lancId}); fecharModal(); toast('Conciliado ✓'); await fnRecarregar(); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
@@ -1942,14 +2007,21 @@ async function fnIgnorar(exId){ try{ await api('finConciliar',{extratoId:exId,ig
 function fnBuscarLanc(exId){
   const e=fin().extrato.find(x=>x.ID===exId); const tipo=(+e.VALOR)>=0?'RECEBER':'PAGAR', v=Math.abs(+e.VALOR), d=isoBR(e.DATA);
   const dist=l=>Math.abs((+l.VALOR)-v)/Math.max(v,1)*100+Math.abs((new Date(isoBR(l.VENCIMENTO)||d)-new Date(d))/864e5)/30;
-  const L=fin().lanc.filter(l=>l.STATUS!=='QUITADO'&&l.TIPO===tipo).sort((a,b)=>dist(a)-dist(b));
+  const L=fin().lanc.filter(l=>l.STATUS!=='QUITADO'&&l.TIPO===tipo).sort((a,b)=>dist(a)-dist(b)); FN.buscaEx={id:exId,v};
   modal(`<div class="mh"><h3>Conciliar: ${esc(e.DATA)} · ${fnVal(+e.VALOR)}</h3><button class="btn ghost" onclick="fecharModal()">✕</button></div>
-  <p class="small muted" style="margin-top:0">${esc(e.DESCRICAO)} — escolha a conta ${tipo==='RECEBER'?'a receber':'a pagar'} em aberto (mais parecidas primeiro).</p>
-  <input type="search" placeholder="Buscar nome, NF, valor…" style="width:100%;margin-bottom:8px" oninput="const q=semAcento(this.value);document.querySelectorAll('#fnBusca tr').forEach(t=>t.style.display=semAcento(t.innerText).includes(q)?'':'none')">
-  <div class="tw sl-tab" style="max-height:55vh"><table><thead><tr><th>Vencimento</th><th>Nome</th><th>Descrição</th><th>NF</th><th>Categoria</th><th class="n">Valor</th><th></th></tr></thead><tbody id="fnBusca">
-  ${L.map(l=>`<tr><td>${esc(l.VENCIMENTO)}</td><td><b>${esc(l.NOME)}</b></td><td>${esc(l.DESCRICAO)}</td><td>${esc(l.NOTA_FISCAL)}</td><td>${esc(l.CATEGORIA)}</td><td class="n">${fR(+l.VALOR)}${Math.abs((+l.VALOR)-v)>0.011?' <span class="warn small">≠</span>':''}</td><td><button class="btn sm" onclick="fnConciliar('${esc(exId)}','${esc(l.ID)}')">Conciliar</button></td></tr>`).join('')||'<tr><td colspan="7" class="muted">Nenhuma conta em aberto deste tipo.</td></tr>'}
+  <p class="small muted" style="margin-top:0">${esc(e.DESCRICAO)} — clique em <b>Conciliar</b> num lançamento, ou <b>marque vários</b> (ex.: um pagamento no banco que quitou vários boletos) e use "Conciliar marcados". A soma dos marcados precisa bater com o valor do extrato.</p>
+  <div class="row" style="gap:8px;align-items:center;margin-bottom:8px"><input type="search" placeholder="Buscar nome, NF, valor…" style="flex:1" oninput="const q=semAcento(this.value);document.querySelectorAll('#fnBusca tr').forEach(t=>t.style.display=semAcento(t.innerText).includes(q)?'':'none')">
+    <span id="fnBuscaSoma" class="small"></span><button class="btn" id="fnBuscaBt" disabled onclick="fnConciliarVarios()">✓ Conciliar marcados</button></div>
+  <div class="tw sl-tab" style="max-height:55vh"><table><thead><tr><th></th><th>Vencimento</th><th>Nome</th><th>Descrição</th><th>NF</th><th>Categoria</th><th class="n">Valor</th><th></th></tr></thead><tbody id="fnBusca">
+  ${L.slice(0,500).map(l=>`<tr><td class="c"><input type="checkbox" class="fn-bck" data-id="${esc(l.ID)}" data-v="${+l.VALOR||0}" onchange="fnBuscaSoma()"></td><td>${esc(l.VENCIMENTO)}</td><td><b>${esc(l.NOME)}</b></td><td>${esc(l.DESCRICAO)}</td><td>${esc(l.NOTA_FISCAL)}</td><td>${esc(l.CATEGORIA)}</td><td class="n">${fR(+l.VALOR)}${Math.abs((+l.VALOR)-v)>0.011?' <span class="warn small">≠</span>':''}</td><td><button class="btn sm" onclick="fnConciliar('${esc(exId)}','${esc(l.ID)}')">Conciliar</button></td></tr>`).join('')||'<tr><td colspan="8" class="muted">Nenhuma conta em aberto deste tipo.</td></tr>'}
   </tbody></table></div>`);
 }
+function fnBuscaSoma(){ const ck=[...document.querySelectorAll('.fn-bck:checked')]; const t=ck.reduce((s,c)=>s+(+c.dataset.v),0), v=FN.buscaEx.v; const ok=ck.length>1&&Math.abs(t-v)<=0.011;
+  document.getElementById('fnBuscaSoma').innerHTML=ck.length?`${ck.length} marcado(s): <b class="${ok?'ok':'bad'}">${fR(t)}</b> de ${fR(v)}${ok?' ✓':' — diferença '+fR(v-t)}`:''; document.getElementById('fnBuscaBt').disabled=!ok; }
+function fnConciliarVarios(){ const ids=[...document.querySelectorAll('.fn-bck:checked')].map(c=>c.dataset.id); const exId=FN.buscaEx.id; fecharModal();
+  fnBg('finConciliar',{extratoId:exId,lancIds:ids},{rotulo:`Conciliar 1 linha do extrato com ${ids.length} lançamentos`,
+    local:()=>{ const F=fin(); const e=F.extrato.find(x=>x.ID===exId); if(e) e.LANC_ID=ids.join(','); ids.forEach(id=>{ const l=F.lanc.find(x=>x.ID===id); if(l){ l.STATUS='QUITADO'; l.DATA_PAGAMENTO=e&&e.DATA; l.VALOR_PAGO=+l.VALOR; l.EXTRATO_ID=exId; } }); }});
+  toast(`${ids.length} lançamentos conciliados com a linha do extrato — gravando no Google`,4000); }
 function fnCriarDoExtrato(exId){
   const e=fin().extrato.find(x=>x.ID===exId); const tipo=(+e.VALOR)>=0?'RECEBER':'PAGAR';
   fnModalLanc(null,tipo,{VENCIMENTO:e.DATA,NOME:e.DESCRICAO,VALOR:Math.abs(+e.VALOR)},exId);
@@ -1995,7 +2067,7 @@ function fnAbrirLanc(id,tipo,pre,exId){
       <div class="fnd-g">
         ${f('Nome',`<input id="fmNome" list="dlFnNome${tipo}" value="${esc(l.NOME||'')}" placeholder="${rec?'Cliente / origem':'Fornecedor / favorecido'}">`)}
         ${f('Descrição',`<input id="fmDesc" value="${esc(l.DESCRICAO||'')}" placeholder="Ex.: Serviço prestado">`,'',1)}
-        ${f('Nota fiscal',`<input id="fmNF" value="${esc(l.NOTA_FISCAL||'')}">`,'',1)}
+        ${f('Nota fiscal',`<input id="fmNF" value="${esc(l.NOTA_FISCAL||'')}" onchange="fnDrNFDist(this.value)">`,'',1)}
         ${f('Categoria',`<input id="fmCat" list="dlFnCat${tipo}" value="${esc(l.CATEGORIA||'')}" placeholder="Selecione ou digite uma categoria…">`)}
         ${f('Valor',`<div class="fnd-val"><span class="${rec?'ok':'bad'}">${rec?'↑':'↓'}</span><input id="fmValor" inputmode="decimal" value="${l.VALOR?fN(+l.VALOR,2):''}" placeholder="0,00" oninput="fnDrRecalc()"></div>`)}
       </div>
@@ -2046,6 +2118,26 @@ function fnCCDoCodigo(cod){ const C=fnCentros(), c=semAcento(cod).trim(); if(!c)
   const al=(fin().ccAlias||[]).find(a=>semAcento(a.CODIGO).trim()===c); if(al) return al.CENTRO;
   const fil=(typeof rtAuto==='function'&&S.dados.logistica)?rtAuto(cod):'';
   return C.find(n=>semAcento(n)===c) || (fil&&C.find(n=>semAcento(n)===semAcento(fil))) || (c.length>=3&&C.find(n=>semAcento(n).startsWith(c))) || fil || ''; }
+// NF digitada no lançamento → se essa NF teve distribuição do CD no Controle de Logística, usa os mesmos % por filial
+const fnNFk = n => soDig(n).replace(/^0+/,'');
+function fnDrNFDist(nf,silencioso){
+  const k=fnNFk(nf); if(!k||!FN.dr) return; const R=(fin().rateiosNF||[]).filter(r=>fnNFk(r.NF)===k); if(!R.length) return;
+  // mesma NF em mais de um fornecedor: fica com o do nome digitado
+  const por={}; R.forEach(r=>{ (por[r.LANC_ID]=por[r.LANC_ID]||[]).push(r); }); let grupos=Object.values(por);
+  if(grupos.length>1){ const nm=semAcento((document.getElementById('fmNome')||{}).value||'').trim(); const g=nm&&grupos.filter(G=>{ const f=semAcento(G[0].FORNECEDOR).trim(); return f&&(f.includes(nm.split(' ')[0])||nm.includes(f.split(' ')[0])); }); if(g&&g.length) grupos=g; }
+  const G=grupos[0]; const tot=G.reduce((s,r)=>s+(+r.VALOR||0),0); if(!tot) return;
+  const ag={}; G.forEach(r=>{ const kk=semAcento(r.FILIAL).trim(); const o=ag[kk]||(ag[kk]={cod:r.FILIAL,nome:fnCCDoCodigo(r.FILIAL)||fnCCDoCodigo(r.CODIGO),v:0}); o.v+=(+r.VALOR||0); });
+  const lin=Object.values(ag).map(o=>({nome:o.nome,cod:o.cod,pct:Math.round(o.v/tot*10000)/100}));
+  const dif=Math.round((100-lin.reduce((s,c)=>s+c.pct,0))*100)/100; if(dif&&lin.length){ lin.sort((a,b)=>b.pct-a.pct)[0].pct=Math.round((lin[0].pct+dif)*100)/100; }
+  lin.sort((a,b)=>(a.nome?0:1)-(b.nome?0:1)||(a.nome||a.cod).localeCompare(b.nome||b.cod,'pt-BR'));
+  const atual=fnDrLerCC(); const igual=atual.length===lin.length&&lin.every(c=>atual.some(a=>up(a.nome)===up(c.nome)&&Math.abs(a.pct-c.pct)<0.01)); if(igual) return;
+  const preenchido=atual.length>1||(atual.length===1&&atual[0].nome);
+  if(preenchido&&!silencioso&&!confirm(`A NF ${nf} foi distribuída no Controle de Logística (${G[0].FORNECEDOR}) para ${lin.length} filial(is).\n\nTrocar os centros de custo deste lançamento por essa distribuição?`)) return;
+  document.getElementById('fmCCs').innerHTML=lin.map(fnDrLinhaCC).join('');
+  FN.dr.modo='pct'; const rp=document.querySelector('input[name=fmModo][value=pct]'); if(rp) rp.checked=true; fnDrRecalc();
+  const falta=lin.filter(c=>!c.nome).length;
+  toast(`Centro de custo pela distribuição da NF ${nf} (${G[0].FORNECEDOR}) · ${lin.length} filial(is)${falta?` · escolha o centro de custo de ${falta} filial(is) em amarelo`:''}`,7000);
+}
 async function fnDrPdf(f){
   const box=document.getElementById('fmDrop'); box.classList.add('lendo'); const txt=box.innerHTML; box.innerHTML='Lendo '+esc(f.name)+'…';
   try{
@@ -2099,7 +2191,7 @@ async function fnDrBoleto(f){
     const dsc=document.getElementById('fmDesc'); if(dsc&&!dsc.value.trim()) dsc.value=ultD?String(ultD.DESCRICAO).trim():(b.doc?('NF '+b.doc):'');
     const cc=fnCentroDoCnpj(b.pagadorCnpj); const ccTxt=cc||(ult&&ult.CENTRO_CUSTO)||'';
     if(ccTxt){ const lin=fnCCParse(ccTxt); document.getElementById('fmCCs').innerHTML=lin.map(fnDrLinhaCC).join(''); }
-    fnDrRecalc();
+    fnDrRecalc(); const nfDoc=document.getElementById('fmNF').value; if(nfDoc) setTimeout(()=>fnDrNFDist(nfDoc,true),0);
     const n=B.length, tot=B.reduce((x,y)=>x+y.valor,0);
     document.getElementById('fmBolInfo').innerHTML=`<div class="fnd-bolinfo">
       <div>Beneficiário no boleto: <b>${esc(b.benef||'—')}</b>${b.benefCnpj?' · '+esc(b.benefCnpj):''}${igual&&igual!==b.benef?` <span class="tag t-ok">usando o nome já cadastrado: ${esc(igual)}</span>`:(!igual?' <span class="tag t-warn">nome novo</span>':'')}</div>
@@ -2712,6 +2804,7 @@ function fnDashboard(){
     return h+'</div>'; };
   return `<div class="dc-top"><button class="btn ghost sm" onclick="FN.mesDash='${nav(-1)}';fnAtualizar()">◀</button><b class="dc-mes">${nomeMes}</b><button class="btn ghost sm" onclick="FN.mesDash='${nav(1)}';fnAtualizar()">▶</button>${mes!==hoje.slice(0,7)?`<button class="btn ghost sm" onclick="FN.mesDash='';fnAtualizar()">mês atual</button>`:''}</div>
   <div class="dc-kpis"><div class="dc-k bad"><span>A pagar no mês</span><b>${fR(totP)}</b></div><div class="dc-k"><span>A pagar de hoje até o fim do mês</span><b>${fR(totPres)}</b></div>${totPvenc?`<div class="dc-k bad"><span>Vencido e não pago</span><b>${fR(totPvenc)}</b></div>`:''}<div class="dc-k ok"><span>Recebido no mês${FN.dashCC?' · '+esc(FN.dashCC):''}</span><b>${fR(totR)}</b></div></div>
+  ${fnAtrasados()}
   <div class="dc-cols"><div class="card dc-card"><h3>📅 Calendário a pagar <span class="muted small">— contas em aberto; sábado, domingo e feriado caem no próximo dia útil</span></h3>${cal('pagar',pagar)}</div>
   <div class="card dc-card"><div class="dc-rh"><h3>💰 Calendário recebido <span class="muted small">— valores recebidos em cada dia</span></h3><span class="sp"></span>
     <select onchange="FN.dashCC=this.value;fnAtualizar()" style="max-width:260px"><option value="">Todos os centros de custo (soma)</option>${fnCentros().map(c=>`<option value="${esc(c)}" ${up(c)===up(FN.dashCC||'')?'selected':''}>${esc(c)}</option>`).join('')}</select>
@@ -2726,29 +2819,39 @@ function fnDashDia(tipo,iso){ const L=(FN.dashDias[tipo]||{})[iso]||[]; const dt
     <td class="c">${l.COD_BARRAS?`<button class="ib" title="Copiar código de barras" onclick="fnCopiarCB('${esc(l.COD_BARRAS)}')">📋</button>`:''}<button class="ib" onclick="fecharModal();fnAbrirLanc('${esc(l.ID)}')">✎</button></td></tr>`).join('')}</tbody></table></div>`); }
 
 /* ---------- Histórico de boletos lançados (pagamentos com código de barras) ---------- */
+// data em que o lançamento foi feito: CRIADO_EM; se faltar, tira do próprio código (ID tem aammddhhmmss); senão a última alteração
+function fnDataLanc(l){ const c=String(l.CRIADO_EM||'').trim(); if(c) return c.slice(0,16); const m=String(l.ID||'').match(/^[A-Z]{2}(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/); if(m) return `${m[3]}/${m[2]}/20${m[1]} ${m[4]}:${m[5]}`; return String(l.ATUALIZADO_EM||'').slice(0,16); }
 function fnCriadoChave(t){ const m=String(t||'').match(/^(\d{2})\/(\d{2})\/(\d{4})\s*(\d{2}:\d{2}(:\d{2})?)?/); return m?m[3]+m[2]+m[1]+(m[4]||''):''; }
 function fnHistBoletos(){
-  const q=semAcento(FN.bq||'').trim();
-  const T=fin().lanc.filter(l=>l.TIPO==='PAGAR'&&soDig(l.COD_BARRAS));
-  const L=T.filter(l=>!q||semAcento([l.CRIADO_EM,l.VENCIMENTO,l.NOME,l.DESCRICAO,l.NOTA_FISCAL,fN(+l.VALOR,2),l.COD_BARRAS].join(' ')).includes(q))
-    .map(l=>({l,k:fnCriadoChave(l.CRIADO_EM)||String(l.ID)})).sort((a,b)=>b.k.localeCompare(a.k)).map(x=>x.l);
+  const q=semAcento(FN.bq||'').trim(); const hojeBRs=hojeBR();
+  const ok=l=>String(l.BANCO_OK||'').trim(); const some=l=>ok(l)&&ok(l)!==hojeBRs; // marcado em dia anterior: some da lista
+  const T=fin().lanc.filter(l=>l.TIPO==='PAGAR'&&soDig(l.COD_BARRAS)); const ocultos=T.filter(some).length;
+  const L=T.filter(l=>(FN.bTodos||!some(l))&&(!q||semAcento([fnDataLanc(l),l.VENCIMENTO,l.NOME,l.DESCRICAO,l.NOTA_FISCAL,fN(+l.VALOR,2),l.COD_BARRAS].join(' ')).includes(q)))
+    .map(l=>({l,k:fnCriadoChave(fnDataLanc(l))||String(l.ID)})).sort((a,b)=>b.k.localeCompare(a.k)).map(x=>x.l);
   const lim=FN.blim||300, tot=L.reduce((s,l)=>s+(+l.VALOR||0),0);
   return `<div class="sl-filtros"><input type="search" class="w-q" value="${esc(FN.bq||'')}" placeholder="Buscar nome, valor, vencimento, código…" oninput="FN.bq=this.value;FN.blim=0;clearTimeout(window._fq);window._fq=setTimeout(fnAtualizar,250)">
-    <span class="muted small">${T.length} boleto(s) lançado(s) no sistema</span></div>
-  <div class="tw sl-tab"><table><thead><tr><th style="width:150px">Data do lançamento</th><th style="width:105px">Vencimento</th><th>Nome</th><th class="n" style="width:120px">Valor</th><th>Código de barras</th><th style="width:90px"></th></tr></thead><tbody>
-  ${L.slice(0,lim).map(l=>`<tr><td>${esc(String(l.CRIADO_EM||'').slice(0,16))}</td><td>${esc(l.VENCIMENTO)}${l.STATUS==='QUITADO'?' <span class="tag t-ok" title="Pago em '+esc(l.DATA_PAGAMENTO)+'">pago</span>':''}</td><td><b>${esc(l.NOME)}</b>${l.DESCRICAO?`<div class="muted small">${esc(l.DESCRICAO)}</div>`:''}</td><td class="n"><b>${fR(+l.VALOR||0)}</b></td>
-    <td><span class="fn-cbtxt">${esc(fnFmtCB(l.COD_BARRAS))}</span></td><td class="c" style="white-space:nowrap"><button class="btn sec sm" onclick="fnCopiarCB('${esc(l.COD_BARRAS)}')">📋 Copiar</button><button class="ib" title="Abrir lançamento" onclick="fnAbrirLanc('${esc(l.ID)}')">✎</button></td></tr>`).join('')||'<tr><td colspan="6" class="muted">Nenhum boleto lançado ainda. Os boletos anexados em Agendar pagamento aparecem aqui.</td></tr>'}
-  </tbody><tfoot>${L.length>lim?`<tr><td colspan="6" class="c" style="background:var(--card);font-weight:400">Mostrando ${lim} de ${L.length} · <button class="btn ghost sm" onclick="FN.blim=1e9;fnAtualizar()">Mostrar todos</button></td></tr>`:''}<tr><td colspan="3">TOTAL · ${L.length} boleto(s)</td><td class="n">${fR(tot)}</td><td colspan="2"></td></tr></tfoot></table></div>`;
+    <span class="muted small">Marque ✓ quando o boleto já foi lançado no banco — no dia seguinte ele sai desta lista.</span><span class="sp"></span>
+    ${ocultos?`<label class="fnd-rd" style="margin:0"><input type="checkbox" ${FN.bTodos?'checked':''} onchange="FN.bTodos=this.checked;fnAtualizar()"> mostrar também os ${ocultos} já lançados no banco</label>`:''}</div>
+  <div class="tw sl-tab"><table><thead><tr><th style="width:62px" class="c">No banco</th><th style="width:150px">Data do lançamento</th><th style="width:105px">Vencimento</th><th>Nome</th><th class="n" style="width:120px">Valor</th><th>Código de barras</th><th style="width:90px"></th></tr></thead><tbody>
+  ${L.slice(0,lim).map(l=>`<tr class="${ok(l)?'fn-bok':''}"><td class="c"><button class="fn-chk${ok(l)?' on':''}" title="${ok(l)?'Lançado no banco em '+esc(ok(l))+' — clique para desmarcar':'Marcar como lançado no banco'}" onclick="fnMarcarBanco('${esc(l.ID)}',${ok(l)?'false':'true'})">${ok(l)?'✓':''}</button></td>
+    <td>${esc(fnDataLanc(l))}</td><td>${esc(l.VENCIMENTO)}${l.STATUS==='QUITADO'?' <span class="tag t-ok" title="Pago em '+esc(l.DATA_PAGAMENTO)+'">pago</span>':''}</td><td><b>${esc(l.NOME)}</b>${l.DESCRICAO?`<div class="muted small">${esc(l.DESCRICAO)}</div>`:''}</td><td class="n"><b>${fR(+l.VALOR||0)}</b></td>
+    <td><span class="fn-cbtxt">${esc(fnFmtCB(l.COD_BARRAS))}</span></td><td class="c" style="white-space:nowrap"><button class="btn sec sm" onclick="fnCopiarCB('${esc(l.COD_BARRAS)}')">📋 Copiar</button><button class="ib" title="Abrir lançamento" onclick="fnAbrirLanc('${esc(l.ID)}')">✎</button></td></tr>`).join('')||'<tr><td colspan="7" class="muted">Nenhum boleto pendente de lançar no banco. ✓</td></tr>'}
+  </tbody><tfoot>${L.length>lim?`<tr><td colspan="7" class="c" style="background:var(--card);font-weight:400">Mostrando ${lim} de ${L.length} · <button class="btn ghost sm" onclick="FN.blim=1e9;fnAtualizar()">Mostrar todos</button></td></tr>`:''}<tr><td colspan="4">TOTAL · ${L.length} boleto(s)</td><td class="n">${fR(tot)}</td><td colspan="2"></td></tr></tfoot></table></div>`;
 }
+function fnMarcarBanco(id,on){ const hoje=hojeBR();
+  fnBg('finMarcarBanco',{id,ok:on},{rotulo:`${on?'Marcar':'Desmarcar'} boleto lançado no banco`,local:()=>{ const l=fnLanc(id); if(l) l.BANCO_OK=on?hoje:''; }}); }
 
 /* ---------- conciliação em lote ---------- */
 function fnConcMarcar(id,on){ on?FN.concSel.add(id):FN.concSel.delete(id); fnAtualizar(); }
-function fnConcTodos(on){ FN.concSel=new Set(on?Object.keys(FN.concPar):[]); fnAtualizar(); }
+function fnConcTodos(on){ FN.concSel=new Set(on?[...document.querySelectorAll('.fn-cck')].map(c=>c.getAttribute('onchange').match(/'([^']+)'/)[1]):[]); if(on&&FN.lim<1e9){ const E=fin().extrato; /* inclui as não desenhadas */ } fnAtualizar(); }
+function fnConcSoSug(){ FN.concSel=new Set([...document.querySelectorAll('.fn-cck')].map(c=>c.getAttribute('onchange').match(/'([^']+)'/)[1]).filter(id=>FN.concPar[id])); fnAtualizar(); }
+function fnIgnorarMarcados(){ const ids=[...FN.concSel]; if(!ids.length||!confirm(`Marcar ${ids.length} linha(s) do extrato como "sem lançamento" (ignorar)?`)) return; FN.concSel=new Set();
+  fnBg('finConciliarLote',{pares:ids.map(id=>({extratoId:id,ignorar:true}))},{rotulo:`Ignorar ${ids.length} linha(s) do extrato`,local:()=>{ fin().extrato.forEach(e=>{ if(ids.includes(e.ID)&&!e.LANC_ID) e.LANC_ID='IGNORADO'; }); }}); toast(`${ids.length} linha(s) ignorada(s) — gravando no Google`,4000); }
 function fnConciliarMarcados(){
-  const pares=[...FN.concSel].filter(id=>FN.concPar[id]).map(id=>({extratoId:id,lancId:FN.concPar[id]})); if(!pares.length) return;
+  const pares=[...FN.concSel].filter(id=>FN.concPar[id]).map(id=>({extratoId:id,lancId:FN.concPar[id]})); if(!pares.length){ toast('Nenhuma linha marcada tem sugestão — use 🔍 Buscar lançamento(s) nelas'); return; }
   const tot=pares.reduce((s,p)=>{ const e=fin().extrato.find(x=>x.ID===p.extratoId); return s+Math.abs(+(e||{}).VALOR||0); },0);
-  if(!confirm(`Conciliar ${pares.length} linha(s) do extrato com as sugestões destacadas (${fR(tot)})?`)) return;
-  FN.concSel=new Set();
+  const semS=FN.concSel.size-pares.length; if(!confirm(`Conciliar ${pares.length} linha(s) do extrato com as sugestões destacadas (${fR(tot)})?${semS?`\n\n${semS} linha(s) marcada(s) sem sugestão continuam pendentes.`:''}`)) return;
+  pares.forEach(p=>FN.concSel.delete(p.extratoId));
   fnBg('finConciliarLote',{pares},{rotulo:`Conciliar ${pares.length} lançamento(s) do extrato`,
     local:()=>{ const F=fin(); pares.forEach(p=>{ const e=F.extrato.find(x=>x.ID===p.extratoId), l=F.lanc.find(x=>x.ID===p.lancId); if(!e||!l) return;
       e.LANC_ID=l.ID; l.STATUS='QUITADO'; l.DATA_PAGAMENTO=e.DATA; l.VALOR_PAGO=Math.abs(+e.VALOR); l.CONTA_ID=e.CONTA_ID; l.EXTRATO_ID=e.ID; }); },
@@ -2773,7 +2876,19 @@ function fnDREPdf(part){
       if(k==='ag'){ d.cell.styles.textColor=[150,150,150]; d.cell.styles.fontSize=5.8; d.cell.styles.fontStyle='italic'; } else if(/^\(/.test(t)) d.cell.styles.textColor=[198,40,40]; }});
 }
 function fnBoletosExcel(){ const T=fin().lanc.filter(l=>l.TIPO==='PAGAR'&&soDig(l.COD_BARRAS)).map(l=>({l,k:fnCriadoChave(l.CRIADO_EM)||String(l.ID)})).sort((a,b)=>b.k.localeCompare(a.k)).map(x=>x.l);
-  const ws=XLSX.utils.json_to_sheet(T.map(l=>({'Data do lançamento':String(l.CRIADO_EM||'').slice(0,16),'Vencimento':l.VENCIMENTO,'Nome':l.NOME,'Valor':+l.VALOR||0,'Código de barras':fnFmtCB(l.COD_BARRAS)}))); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Boletos'); XLSX.writeFile(wb,'boletos-lancados.xlsx'); }
+  const ws=XLSX.utils.json_to_sheet(T.map(l=>({'Data do lançamento':fnDataLanc(l),'Vencimento':l.VENCIMENTO,'Nome':l.NOME,'Valor':+l.VALOR||0,'Código de barras':fnFmtCB(l.COD_BARRAS)}))); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Boletos'); XLSX.writeFile(wb,'boletos-lancados.xlsx'); }
+
+// quadro do dashboard: todos os pagamentos em aberto já vencidos (vencimento ajustado ao dia útil anterior a hoje), de qualquer mês
+function fnAtrasados(){
+  const hoje=hojeISO(); const L=fin().lanc.filter(l=>l.TIPO==='PAGAR'&&l.STATUS!=='QUITADO'&&isoBR(l.VENCIMENTO)&&fnDiaUtil(isoBR(l.VENCIMENTO))<hoje)
+    .map(l=>({l,d:fnDiaUtil(isoBR(l.VENCIMENTO))})).sort((a,b)=>a.d.localeCompare(b.d));
+  if(!L.length) return `<div class="card dc-atr ok"><b>✓ Nenhum pagamento atrasado</b></div>`;
+  const tot=L.reduce((s,x)=>s+(+x.l.VALOR||0),0); const dias=d=>Math.round((new Date(hoje+'T12:00')-new Date(d+'T12:00'))/864e5);
+  return `<div class="card dc-atr"><div class="dc-rh"><h3>⚠ Pagamentos atrasados <span class="muted small">— em aberto e já vencidos</span></h3><span class="sp"></span><b class="bad" style="font-size:18px">${L.length} · ${fR(tot)}</b></div>
+  <div class="tw sl-tab" style="max-height:${FN.atrTodos?'none':'260px'};overflow:auto"><table><thead><tr><th>Vencimento</th><th class="n">Atraso</th><th>Nome</th><th>Descrição</th><th>Categoria</th><th class="n">Valor</th><th></th></tr></thead><tbody>
+  ${L.map(({l,d})=>`<tr><td>${esc(l.VENCIMENTO)}</td><td class="n"><span class="tag t-bad">${dias(d)} dia(s)</span></td><td><b>${esc(l.NOME)}</b></td><td>${esc(l.DESCRICAO)}</td><td>${esc(l.CATEGORIA)}</td><td class="n"><b class="bad">${fR(+l.VALOR||0)}</b></td>
+    <td class="c" style="white-space:nowrap">${l.COD_BARRAS?`<button class="ib" title="Copiar código de barras" onclick="fnCopiarCB('${esc(l.COD_BARRAS)}')">📋</button>`:''}<button class="ib" title="Abrir lançamento" onclick="fnAbrirLanc('${esc(l.ID)}')">✎</button></td></tr>`).join('')}</tbody></table></div></div>`;
+}
 
 /* =================== APLICAÇÕES FINANCEIRAS =================== */
 const AP={q:'',nome:'',ano:''};
