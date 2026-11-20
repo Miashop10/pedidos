@@ -1837,7 +1837,7 @@ const FIN_SUBS = {
   contas:[['conc','Conciliação bancária'],['contas','Contas bancárias'],['hist','Histórico de importações']],
   receb:[['agendar','Agendar recebimento'],['importar','Importar lançamentos']],
   pagar:[['agendar','Agendar pagamento'],['importar','Importar lançamentos'],['boletos','Histórico de boletos lançados']],
-  rel:[['areceber','Contas a receber'],['apagar','Contas a pagar'],['recebidas','Contas recebidas'],['pagas','Contas pagas'],['dre','DRE Miashop'],['drep','DRE particular']],
+  rel:[['areceber','Contas a receber'],['apagar','Contas a pagar'],['recebidas','Contas recebidas'],['pagas','Contas pagas'],['dre','DRE Miashop'],['drep','DRE particular'],['lucro','Lucro por loja']],
   config:[['cats','Categorias'],['centros','Centros de custo'],['hist','Histórico de ações'],['nuvem','Envio para a nuvem']]
 };
 async function fnRecarregar(){ if(S.finFresco){ S.finFresco=false; return; } await carregar(true); }
@@ -1859,6 +1859,7 @@ function vFinanceiro(){
   const acoes = sec==='contas'?`<button class="btn sec sm" onclick="fnModalConta()">+ Adicionar conta</button><button class="btn sec sm" onclick="fnColarExtrato()">📋 Colar extrato</button><button class="btn sm" onclick="fnEscolherExtrato()">⬆ Importar extrato (Excel)</button><input type="file" id="fnInExt" accept=".xlsx,.xls,.csv" class="hide" onchange="if(this.files[0]) fnLerExtrato(this.files[0]); this.value=''">`
     : (sec==='receb'||sec==='pagar')&&sub!=='importar'&&sub!=='boletos'?`<button class="btn sec sm" onclick="fnIr('${sec}','importar')">⬆ Importar lançamentos</button><button class="btn" onclick="fnAbrirLanc(null,'${sec==='receb'?'RECEBER':'PAGAR'}')">+ Agendar ${sec==='receb'?'recebimento':'pagamento'}</button>`
     : sec==='rel'&&(sub==='dre'||sub==='drep')?`<button class="btn sec sm" onclick="fnDREPdf(${sub==='drep'})">Exportar PDF</button>`
+    : sec==='rel'&&sub==='lucro'?`<button class="btn sec sm" onclick="fnLucroExcel()">Exportar Excel</button><button class="btn sec sm" onclick="exportarPDF(fnLucroExcel,'Lucro por loja · '+FN.ano)">Exportar PDF</button>`
     : sec==='pagar'&&sub==='boletos'?`<button class="btn sec sm" onclick="exportarPDF(fnBoletosExcel,'Histórico de boletos lançados')">Exportar PDF</button>`
     : sec==='rel'?`<button class="btn sec sm" onclick="fnExportar()">Exportar Excel</button><button class="btn sec sm" onclick="exportarPDF(fnExportar,(FIN_SUBS.rel.find(x=>x[0]===FN.sub.rel)||[])[1])">Exportar PDF</button>${sub==='apagar'||sub==='areceber'?`<button class="btn" onclick="fnAbrirLanc(null,'${sub==='areceber'?'RECEBER':'PAGAR'}')">+ Agendar ${sub==='areceber'?'recebimento':'pagamento'}</button>`:''}`:'';
   return `<div class="slim fn-wrap">
@@ -1884,6 +1885,7 @@ function fnCorpo(){
   if(sec==='config') return sub==='centros'?fnCentrosTela():sub==='hist'?fnHistTela():fnCategoriasTela();
   if(sub==='dre') return fnDRE(false);
   if(sub==='drep') return fnDRE(true);
+  if(sub==='lucro') return fnLucroLoja();
   return fnRelatorio(sub);
 }
 function fnAtualizar(){ const el=document.getElementById('fnCorpo'); if(!el) return; el.innerHTML=fnCorpo(); ajustarTabelas(el); }
@@ -3030,6 +3032,52 @@ function fnAtrasados(){
   <div class="tw sl-tab" style="max-height:${FN.atrTodos?'none':'260px'};overflow:auto"><table><thead><tr><th>Vencimento</th><th class="n">Atraso</th><th>Nome</th><th>Descrição</th><th>Categoria</th><th class="n">Valor</th><th></th></tr></thead><tbody>
   ${L.map(({l,d})=>`<tr><td>${esc(l.VENCIMENTO)}</td><td class="n"><span class="tag t-bad">${dias(d)} dia(s)</span></td><td><b>${esc(l.NOME)}</b></td><td>${esc(l.DESCRICAO)}</td><td>${esc(l.CATEGORIA)}</td><td class="n"><b class="bad">${fR(+l.VALOR||0)}</b></td>
     <td class="c" style="white-space:nowrap">${l.COD_BARRAS?`<button class="ib" title="Copiar código de barras" onclick="fnCopiarCB('${esc(l.COD_BARRAS)}')">📋</button>`:''}<button class="ib" title="Abrir lançamento" onclick="fnAbrirLanc('${esc(l.ID)}')">✎</button></td></tr>`).join('')}</tbody></table></div></div>`;
+}
+
+/* ---------- Lucro por loja: RESULTADO OPERACIONAL (A−B−C−D=G) de cada centro de custo, mês a mês ---------- */
+// mesma regra do DRE Miashop: receitas − despesas operacionais − folha − produtos (montagem e categorias do DRE particular ficam fora);
+// lançamento dividido entre centros entra em cada um pelo seu %.
+function fnLucroCalc(meses){
+  const catInfo={}; fin().categorias.forEach(c=>catInfo[up(c.NOME)]=c);
+  const canon={}; fnCentros().forEach(n=>canon[up(n)]=n); const SEM='Sem centro de custo';
+  const R={}, P={}; const add=(o,cc,m,v)=>{ const x=o[cc]||(o[cc]={}); x[m]=(x[m]||0)+v; };
+  fin().lanc.forEach(l=>{
+    const real=l.STATUS==='QUITADO'; const d=isoBR(real?l.DATA_PAGAMENTO:l.VENCIMENTO); if(!d) return; const m=d.slice(0,7); if(!meses.includes(m)) return;
+    const gc=fnGrupoCat(catInfo[up(String(l.CATEGORIA||'').trim()||'Sem categoria')]); if(gc==='PARTICULAR'||(l.TIPO!=='RECEBER'&&gc==='MONTAGEM')) return;
+    const v=(+(real?l.VALOR_PAGO:l.VALOR)||0)*(l.TIPO==='RECEBER'?1:-1);
+    const cs=fnCCParse(l.CENTRO_CUSTO); const alvo=real?R:P;
+    if(!cs.length) add(alvo,SEM,m,v); else cs.forEach(c=>add(alvo,canon[up(c.nome)]||c.nome,m,v*c.pct/100));
+  });
+  const lojas=[...new Set([...fnCentros(),...Object.keys(R),...Object.keys(P)])].filter(n=>n!==SEM||R[SEM]||P[SEM]).sort((a,b)=>a===SEM?1:b===SEM?-1:a.localeCompare(b,'pt-BR'));
+  return {R,P,lojas};
+}
+function fnLucroLoja(){
+  const ano=FN.ano; const meses=Array.from({length:12},(_,k)=>ano+'-'+String(k+1).padStart(2,'0'));
+  const anos=new Set([new Date().getFullYear()]); fin().lanc.forEach(l=>{ [l.VENCIMENTO,l.DATA_PAGAMENTO].forEach(d=>{ const i=isoBR(d); if(i) anos.add(+i.slice(0,4)); }); });
+  const {R,P,lojas}=fnLucroCalc(meses); const MN=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']; const mAt=hojeISO().slice(0,7);
+  const tot=o=>meses.reduce((s,m)=>s+((o||{})[m]||0),0);
+  const num=x=>{ x=x||0; const t=fnDREnum(x); return `<span class="${x<0?'bad':''}${Math.round(x)===0?' dre-0':''}" title="${fR(x)}">${t}</span>`; };
+  const cel=(r,p)=>`<td class="n"><div class="dre-r">${num(r)}</div><div class="dre-p">${num(p)}</div></td>`;
+  const soma=(O,m)=>lojas.reduce((s,n)=>s+(m?((O[n]||{})[m]||0):tot(O[n])),0);
+  const ord=FN.lucroOrd==='lucro'?lojas.slice().sort((a,b)=>tot(R[b])-tot(R[a])):lojas;
+  return `<div class="sl-filtros"><select onchange="FN.ano=+this.value;fnAtualizar()">${[...anos].sort((a,b)=>b-a).map(a=>`<option ${a===ano?'selected':''}>${a}</option>`).join('')}</select>
+    <select onchange="FN.lucroOrd=this.value;fnAtualizar()"><option value="">Lojas em ordem alfabética</option><option value="lucro" ${FN.lucroOrd==='lucro'?'selected':''}>Da que mais lucrou para a que menos</option></select>
+    <span class="muted small">Resultado operacional <b>(A−B−C−D=G)</b> de cada loja, igual ao DRE Miashop filtrado pelo centro de custo. Clique no nome da loja para abrir o DRE dela.</span></div>
+  <p class="small muted" style="margin:6px 0 8px">Em cada célula: em cima o <b>realizado</b> (pago/recebido) e embaixo, mais claro, o <b>agendado</b> (em aberto). Lançamento dividido entre lojas entra em cada uma pelo seu %.</p>
+  <div class="dre-wrap dre"><table class="dre-t"><thead><tr><th>LOJA</th>${meses.map(m=>`<th class="n${m===mAt?' dre-mes':''}">${MN[+m.slice(5,7)-1]}</th>`).join('')}<th class="n">TOTAL ${ano}</th></tr></thead><tbody>
+  ${ord.map(n=>`<tr class="dre-g"><td><span class="dre-lk" onclick="FN.dreCC='${esc(n).replace(/'/g,"\\'")}';fnIr('rel','dre')" title="Abrir o DRE desta loja">${esc(n)}</span><div class="dre-sub-l">Agendado</div></td>${meses.map(m=>cel((R[n]||{})[m],(P[n]||{})[m])).join('')}${cel(tot(R[n]),tot(P[n]))}</tr>`).join('')}
+  <tr class="dre-res2"><td>TOTAL DAS LOJAS <span class="dre-letra">(G)</span><div class="dre-sub-l">Agendado</div></td>${meses.map(m=>cel(soma(R,m),soma(P,m))).join('')}${cel(soma(R,''),soma(P,''))}</tr>
+  </tbody></table></div>`;
+}
+function fnLucroExcel(){
+  const ano=FN.ano; const meses=Array.from({length:12},(_,k)=>ano+'-'+String(k+1).padStart(2,'0')); const {R,P,lojas}=fnLucroCalc(meses);
+  const MN=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']; const tot=o=>meses.reduce((s,m)=>s+((o||{})[m]||0),0); const r2=x=>Math.round((x||0)*100)/100;
+  const ord=FN.lucroOrd==='lucro'?lojas.slice().sort((a,b)=>tot(R[b])-tot(R[a])):lojas;
+  const L=[['Loja',...MN,'Total '+ano]];
+  ord.forEach(n=>{ L.push([n,...meses.map(m=>r2((R[n]||{})[m])),r2(tot(R[n]))]); L.push(['   agendado',...meses.map(m=>r2((P[n]||{})[m])),r2(tot(P[n]))]); });
+  const sm=(O,m)=>lojas.reduce((s,n)=>s+(m?((O[n]||{})[m]||0):tot(O[n])),0);
+  L.push(['TOTAL DAS LOJAS (G)',...meses.map(m=>r2(sm(R,m))),r2(sm(R,''))]); L.push(['   agendado',...meses.map(m=>r2(sm(P,m))),r2(sm(P,''))]);
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(L),'Lucro por loja'); XLSX.writeFile(wb,'lucro-por-loja-'+ano+'.xlsx');
 }
 
 /* =================== APLICAÇÕES FINANCEIRAS =================== */
