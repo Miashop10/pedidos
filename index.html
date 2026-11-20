@@ -197,6 +197,8 @@ tr.fn-sel td{background:var(--acc-soft)!important}
 body:not(.abas-ok) #nav button,body:not(.abas-ok) #btConfig{visibility:hidden}
 .fn-chk{width:24px;height:24px;border:2px solid #b9bec7;border-radius:6px;background:#fff;cursor:pointer;font-weight:900;font-size:15px;line-height:1;color:#fff;padding:0}.fn-chk:hover{border-color:#2e7d32}.fn-chk.on{background:#2e7d32;border-color:#2e7d32}
 tr.fn-bok td{background:#eef7ef}
+.dc-saldo{padding:14px 16px;margin-bottom:12px;border-left:5px solid var(--acc)}.dc-saldo-t{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-weight:700}.dc-saldo-t>b{font-size:26px}
+.dc-saldo-l{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.dc-saldo-c{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:13px;cursor:pointer}.dc-saldo-c:hover{border-color:var(--acc)}
 .dc-atr{padding:12px;margin-bottom:12px;border-left:5px solid var(--bad)}.dc-atr.ok{border-left-color:var(--ok);color:var(--ok)}.dc-atr h3{margin:0;font-size:15px}
 .dn-steps{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:760px){.dn-steps{grid-template-columns:1fr}}
 .dn-card{padding:16px}.dn-card h3{margin:0;display:flex;align-items:center;gap:8px;font-size:15px}
@@ -2948,6 +2950,7 @@ function fnDashboard(){
     return h+'</div>'; };
   return `<div class="dc-top"><button class="btn ghost sm" onclick="FN.mesDash='${nav(-1)}';fnAtualizar()">◀</button><b class="dc-mes">${nomeMes}</b><button class="btn ghost sm" onclick="FN.mesDash='${nav(1)}';fnAtualizar()">▶</button>${mes!==hoje.slice(0,7)?`<button class="btn ghost sm" onclick="FN.mesDash='';fnAtualizar()">mês atual</button>`:''}</div>
   <div class="dc-kpis"><div class="dc-k bad"><span>A pagar no mês</span><b>${fR(totP)}</b></div><div class="dc-k"><span>A pagar de hoje até o fim do mês</span><b>${fR(totPres)}</b></div>${totPvenc?`<div class="dc-k bad"><span>Vencido e não pago</span><b>${fR(totPvenc)}</b></div>`:''}<div class="dc-k ok"><span>Recebido no mês${FN.dashCC?' · '+esc(FN.dashCC):''}</span><b>${fR(totR)}</b></div></div>
+  ${fnSaldoUnificado()}
   ${fnAtrasados()}
   <div class="dc-cols"><div class="card dc-card"><h3>📅 Calendário a pagar <span class="muted small">— contas em aberto; sábado, domingo e feriado caem no próximo dia útil</span></h3>${cal('pagar',pagar)}</div>
   <div class="card dc-card"><div class="dc-rh"><h3>💰 Calendário recebido <span class="muted small">— valores recebidos em cada dia</span></h3><span class="sp"></span>
@@ -3059,12 +3062,12 @@ function fnLucroLoja(){
   const num=x=>{ x=x||0; const t=fnDREnum(x); return `<span class="${x<0?'bad':''}${Math.round(x)===0?' dre-0':''}" title="${fR(x)}">${t}</span>`; };
   const cel=(r,p)=>`<td class="n"><div class="dre-r">${num(r)}</div><div class="dre-p">${num(p)}</div></td>`;
   const soma=(O,m)=>lojas.reduce((s,n)=>s+(m?((O[n]||{})[m]||0):tot(O[n])),0);
-  const ord=FN.lucroOrd==='lucro'?lojas.slice().sort((a,b)=>tot(R[b])-tot(R[a])):lojas;
+  const ord=fnLucroOrdem(lojas,R,meses);
   return `<div class="sl-filtros"><select onchange="FN.ano=+this.value;fnAtualizar()">${[...anos].sort((a,b)=>b-a).map(a=>`<option ${a===ano?'selected':''}>${a}</option>`).join('')}</select>
-    <select onchange="FN.lucroOrd=this.value;fnAtualizar()"><option value="">Lojas em ordem alfabética</option><option value="lucro" ${FN.lucroOrd==='lucro'?'selected':''}>Da que mais lucrou para a que menos</option></select>
-    <span class="muted small">Resultado operacional <b>(A−B−C−D=G)</b> de cada loja, igual ao DRE Miashop filtrado pelo centro de custo. Clique no nome da loja para abrir o DRE dela.</span></div>
+    <select onchange="FN.lucroOrd=this.value;fnAtualizar()"><option value="">Lojas em ordem alfabética</option><option value="lucro" ${FN.lucroOrd==='lucro'?'selected':''}>Da que mais lucrou no ano para a que menos</option>${/^\d{4}-\d{2}$/.test(FN.lucroOrd||'')?`<option value="${FN.lucroOrd}" selected>Mais lucro em ${MN[+FN.lucroOrd.slice(5,7)-1]} primeiro</option>`:''}</select>
+    <span class="muted small">Resultado operacional <b>(A−B−C−D=G)</b> de cada loja, igual ao DRE Miashop filtrado pelo centro de custo. Clique no <b>nome do mês</b> para ordenar as lojas da que mais lucrou naquele mês (de novo volta à ordem alfabética) e no nome da loja para abrir o DRE dela.</span></div>
   <p class="small muted" style="margin:6px 0 8px">Em cada célula: em cima o <b>realizado</b> (pago/recebido) e embaixo, mais claro, o <b>agendado</b> (em aberto). Lançamento dividido entre lojas entra em cada uma pelo seu %.</p>
-  <div class="dre-wrap dre"><table class="dre-t"><thead><tr><th>LOJA</th>${meses.map(m=>`<th class="n${m===mAt?' dre-mes':''}">${MN[+m.slice(5,7)-1]}</th>`).join('')}<th class="n">TOTAL ${ano}</th></tr></thead><tbody>
+  <div class="dre-wrap dre"><table class="dre-t"><thead><tr><th class="rr-th" onclick="FN.lucroOrd='';fnAtualizar()" title="Ordem alfabética">LOJA${!FN.lucroOrd?' ▲':''}</th>${meses.map(m=>`<th class="n rr-th${m===mAt?' dre-mes':''}${FN.lucroOrd===m?' on':''}" onclick="fnLucroOrdenar('${m}')" title="Ordenar pelas lojas que mais lucraram em ${MN[+m.slice(5,7)-1]}">${MN[+m.slice(5,7)-1]}${FN.lucroOrd===m?' ▼':''}</th>`).join('')}<th class="n rr-th${FN.lucroOrd==='lucro'?' on':''}" onclick="fnLucroOrdenar('lucro')" title="Ordenar pelo lucro do ano">TOTAL ${ano}${FN.lucroOrd==='lucro'?' ▼':''}</th></tr></thead><tbody>
   ${ord.map(n=>`<tr class="dre-g"><td><span class="dre-lk" onclick="FN.dreCC='${esc(n).replace(/'/g,"\\'")}';fnIr('rel','dre')" title="Abrir o DRE desta loja">${esc(n)}</span><div class="dre-sub-l">Agendado</div></td>${meses.map(m=>cel((R[n]||{})[m],(P[n]||{})[m])).join('')}${cel(tot(R[n]),tot(P[n]))}</tr>`).join('')}
   <tr class="dre-res2"><td>TOTAL DAS LOJAS <span class="dre-letra">(G)</span><div class="dre-sub-l">Agendado</div></td>${meses.map(m=>cel(soma(R,m),soma(P,m))).join('')}${cel(soma(R,''),soma(P,''))}</tr>
   </tbody></table></div>`;
@@ -3072,12 +3075,28 @@ function fnLucroLoja(){
 function fnLucroExcel(){
   const ano=FN.ano; const meses=Array.from({length:12},(_,k)=>ano+'-'+String(k+1).padStart(2,'0')); const {R,P,lojas}=fnLucroCalc(meses);
   const MN=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']; const tot=o=>meses.reduce((s,m)=>s+((o||{})[m]||0),0); const r2=x=>Math.round((x||0)*100)/100;
-  const ord=FN.lucroOrd==='lucro'?lojas.slice().sort((a,b)=>tot(R[b])-tot(R[a])):lojas;
+  const ord=fnLucroOrdem(lojas,R,meses);
   const L=[['Loja',...MN,'Total '+ano]];
   ord.forEach(n=>{ L.push([n,...meses.map(m=>r2((R[n]||{})[m])),r2(tot(R[n]))]); L.push(['   agendado',...meses.map(m=>r2((P[n]||{})[m])),r2(tot(P[n]))]); });
   const sm=(O,m)=>lojas.reduce((s,n)=>s+(m?((O[n]||{})[m]||0):tot(O[n])),0);
   L.push(['TOTAL DAS LOJAS (G)',...meses.map(m=>r2(sm(R,m))),r2(sm(R,''))]); L.push(['   agendado',...meses.map(m=>r2(sm(P,m))),r2(sm(P,''))]);
   const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(L),'Lucro por loja'); XLSX.writeFile(wb,'lucro-por-loja-'+ano+'.xlsx');
+}
+
+// ordem das lojas: alfabética, pelo lucro do ano ('lucro') ou pelo lucro realizado de um mês ('2026-10'); "Sem centro de custo" fica sempre no fim
+function fnLucroOrdem(lojas,R,meses){ const o=FN.lucroOrd||''; if(!o) return lojas; const SEM='Sem centro de custo';
+  const v=n=>o==='lucro'?meses.reduce((s,m)=>s+((R[n]||{})[m]||0),0):((R[n]||{})[o]||0);
+  return lojas.slice().sort((a,b)=>(a===SEM)-(b===SEM)||v(b)-v(a)||a.localeCompare(b,'pt-BR')); }
+function fnLucroOrdenar(k){ FN.lucroOrd=FN.lucroOrd===k?'':k; fnAtualizar(); }
+
+// dashboard: saldo de todas as contas correntes somadas (saldo inicial + movimentos do extrato), com o saldo de cada conta
+function fnSaldoUnificado(){
+  const C=fin().contas; if(!C.length) return '';
+  const ult={}, sal={}; C.forEach(c=>{ sal[c.ID]=+c.SALDO_INICIAL||0; });
+  fin().extrato.forEach(e=>{ const k=e.CONTA_ID; if(!(k in sal)) return; sal[k]+=(+e.VALOR||0); const d=isoBR(e.DATA)||''; if(d>(ult[k]||'')) ult[k]=d; });
+  const tot=C.reduce((s,c)=>s+sal[c.ID],0); const br=d=>d?d.split('-').reverse().join('/'):'sem extrato';
+  return `<div class="card dc-saldo"><div class="dc-saldo-t"><span>🏦 Saldo das contas correntes <span class="muted small">(unificado · ${C.length} conta${C.length>1?'s':''})</span></span><b class="${tot<0?'bad':''}">${fR(tot)}</b></div>
+  <div class="dc-saldo-l">${C.map(c=>`<span class="dc-saldo-c" onclick="FN.conta='${esc(c.ID)}';fnIr('contas','conc')" title="Abrir a conciliação desta conta"><b>${esc(c.NOME)}</b> <span class="${sal[c.ID]<0?'bad':''}">${fR(sal[c.ID])}</span> <span class="muted small">· ${ult[c.ID]?'extrato até '+br(ult[c.ID]):'sem extrato'}</span></span>`).join('')}</div></div>`;
 }
 
 /* =================== APLICAÇÕES FINANCEIRAS =================== */
