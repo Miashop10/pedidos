@@ -197,6 +197,7 @@ tr.fn-sel td{background:var(--acc-soft)!important}
 body:not(.abas-ok) #nav button,body:not(.abas-ok) #btConfig{visibility:hidden}
 .fn-chk{width:24px;height:24px;border:2px solid #b9bec7;border-radius:6px;background:#fff;cursor:pointer;font-weight:900;font-size:15px;line-height:1;color:#fff;padding:0}.fn-chk:hover{border-color:#2e7d32}.fn-chk.on{background:#2e7d32;border-color:#2e7d32}
 tr.fn-bok td{background:#eef7ef}
+.lg-res{display:inline-block;background:#fff4e8;border:1px solid #f3c79b;border-radius:8px;padding:5px 10px;font-size:13.5px;white-space:nowrap}.lg-res b{color:#b45309;font-size:15px}.lg-res.ok{background:#eef7ef;border-color:#b9dcbd;color:var(--ok)}
 .dc-saldo{padding:14px 16px;margin-bottom:12px;border-left:5px solid var(--acc)}.dc-saldo-t{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-weight:700}.dc-saldo-t>b{font-size:26px}
 .dc-saldo-l{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.dc-saldo-c{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:13px;cursor:pointer}.dc-saldo-c:hover{border-color:var(--acc)}
 .dc-atr{padding:12px;margin-bottom:12px;border-left:5px solid var(--bad)}.dc-atr.ok{border-left-color:var(--ok);color:var(--ok)}.dc-atr h3{margin:0;font-size:15px}
@@ -1257,6 +1258,7 @@ function vLogistica(){
   <div class="sl-filtros">
     <input type="search" class="w-q" style="flex:1 1 auto;max-width:520px" value="${esc(F.q)}" placeholder="Buscar fornecedor, filial, NF, data, cálculo, obs, valor…" oninput="LG.f.q=this.value;LG.lim=0;clearTimeout(window._lq);window._lq=setTimeout(lgAtualizar,200)">
     <select onchange="LG.f.bol=this.value;LG.lim=0;lgAtualizar()" title="Filtrar pelo OK dos boletos" style="font-weight:600"><option value="">Boletos: todos</option><option value="recpend" ${F.bol==='recpend'?'selected':''}>NF recebida · boleto SEM OK</option><option value="pend" ${F.bol==='pend'?'selected':''}>Só SEM OK</option><option value="ok" ${F.bol==='ok'?'selected':''}>Só com OK</option></select>
+    <span id="lgResumo">${lgResumo()}</span>
     <span class="sp"></span><button class="btn sec sm" onclick="lgExportar()">Excel</button><button class="btn sec sm" onclick="exportarPDF(lgExportar,'Controle de Logística')">PDF</button>
   </div>
   <div class="tw sl-tab"><table id="tbLog">${lgTabela()}</table></div>
@@ -1320,7 +1322,8 @@ function lgTabela(){
     ||`<tr><td colspan="12" class="muted">${(S.dados.logistica||[]).length?'Nenhum lançamento encontrado.':'Nenhum lançamento ainda. Preencha a linha acima.'}</td></tr>`}</tbody>
   <tfoot>${L.length>(LG.lim||LG_LIM)?`<tr class="lg-mais"><td colspan="12" class="c">Mostrando ${LG.lim||LG_LIM} de ${L.length} · <button class="btn ghost sm" onclick="LG.lim=(LG.lim||LG_LIM)+500;lgAtualizar()">Mostrar mais 500</button> <button class="btn ghost sm" onclick="LG.lim=1e9;lgAtualizar()">Mostrar todos</button> <span class="muted small">(a busca procura em todos)</span></td></tr>`:''}${lgRodape(L)}</tfoot>`;
 }
-function lgAtualizar(){ const t=document.getElementById('tbLog'); if(!t) return; t.innerHTML=lgTabela(); ajustarTabelas(t.parentElement.parentElement); }
+function lgAtualizar(){ const t=document.getElementById('tbLog'); if(!t) return; t.innerHTML=lgTabela(); ajustarTabelas(t.parentElement.parentElement); lgResumoAtualizar(); }
+function lgResumoAtualizar(){ const e=document.getElementById('lgResumo'); if(e) e.innerHTML=lgResumo(); }
 
 function lgLerForm(){
   const g=id=>document.getElementById(id), on=id=>g(id).classList.contains('on');
@@ -1376,7 +1379,7 @@ function lgRedesenharLinha(tr,r){ // troca a linha mantendo o cursor no campo em
 }
 async function lgAlternar(id,campo){ // marca/desmarca Recebido ou boletos direto na tabela
   const r=lgAchar(id); if(!r) return; const antes=r[campo];
-  r[campo] = campo==='RECEBIDO' ? (r.RECEBIDO==='SIM'?'NÃO':'SIM') : (isOK(r[campo])?'':'OK'); const tr=document.querySelector(`#tbLog tr[data-id="${CSS.escape(String(r.ID))}"]`); if(tr) lgRedesenharLinha(tr,r); else lgAtualizar();
+  r[campo] = campo==='RECEBIDO' ? (r.RECEBIDO==='SIM'?'NÃO':'SIM') : (isOK(r[campo])?'':'OK'); const tr=document.querySelector(`#tbLog tr[data-id="${CSS.escape(String(r.ID))}"]`); if(tr){ lgRedesenharLinha(tr,r); lgResumoAtualizar(); } else lgAtualizar();
   try{ await api('salvarLogistica',lgPayload(r)); }
   catch(e){ r[campo]=antes; lgAtualizar(); toast('Erro: '+e.message,6000); }
 }
@@ -1625,6 +1628,15 @@ function rrExpandir(L){ // o valor lançado no sistema é dividido pelo % de cad
     rt.forEach(x=>{ const p=(+x.PARTICIPACAO||0)/tot; out.push({...r,FILIAL:x.FILIAL,VALOR_NF:(+r.VALOR_NF||0)*p,VALOR_CALCULADO:Math.round((+r.VALOR_CALCULADO||0)*p*100)/100,_viaCD:true}); });
   });
   return out;
+}
+
+// quanto falta lançar de boletos (das notas na lista filtrada): parte NF = valor da NF (sem OK em Bol. NF) + parte especial = calculado − NF (sem OK em Bol. especial); bonificado não tem boleto
+function lgFaltaBol(r){ if(r.CALCULO==='BONIF') return [0,0]; const nf=+r.VALOR_NF||0, esp=Math.max(0,(+r.VALOR_CALCULADO||0)-nf);
+  return [isOK(r.BOLETOS_PARTE_NF)?0:nf, isOK(r.BOLETO_PARTE_ESPECIAL)?0:esp]; }
+function lgResumo(){
+  let a=0,b=0,n=0; lgFiltrados().forEach(r=>{ const [x,y]=lgFaltaBol(r); if(x||y){ a+=x; b+=y; n++; } });
+  if(!n) return '<span class="lg-res ok">✓ Nenhum boleto faltando nesta lista</span>';
+  return `<span class="lg-res" title="Soma das notas da lista (com os filtros aplicados) que ainda não têm OK nos boletos.\nParte NF (sem OK em Bol. NF): ${fR(a)}\nParte especial (sem OK em Bol. especial): ${fR(b)}">Falta lançar boletos: <b>${fR(a+b)}</b> <span class="muted small">· ${n} nota${n>1?'s':''} · NF ${fR(a)} + especial ${fR(b)}</span></span>`;
 }
 
 
