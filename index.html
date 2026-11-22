@@ -317,6 +317,7 @@ tr.fn-venc td:first-child{box-shadow:inset 3px 0 var(--bad)}
 th.c,td.c{text-align:center}
 td.ell{max-width:200px;overflow:hidden;text-overflow:ellipsis}
 tr.lg-ok td{background:var(--ok-soft)}
+.rt-b.rt-sug{background:#fff1e3;border-color:#f18634;color:#c2410c;font-weight:700}
 tr.lg-ok td:first-child{box-shadow:inset 3px 0 var(--ok)}
 tr.lg-ed td{background:var(--acc-soft)}
 .ib{border:0;background:none;cursor:pointer;color:var(--mut);font-size:13px;font-weight:600;padding:2px 7px;border-radius:6px;line-height:1.4}
@@ -1200,7 +1201,10 @@ const brISO = iso => { const m=String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})$/
 const semAcento = t => up(t).normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 const isOK = v => String(v||'').trim().toUpperCase()==='OK';
 // linha verde: boletos da NF OK e, quando há parte especial (cálculo ≠ NC), boleto da parte especial também OK
-const lgQuitado = r => r.CALCULO==='BONIF' || (isOK(r.BOLETOS_PARTE_NF) && (r.CALCULO==='NC' || isOK(r.BOLETO_PARTE_ESPECIAL)));
+const lgCalcDe = r => calcNorm(r.CALCULO)||String(r.CALCULO||'').trim().toUpperCase();
+const lgQuitado = r => { const c=lgCalcDe(r); return c==='BONIF' || (isOK(r.BOLETOS_PARTE_NF) && (c==='NC' || isOK(r.BOLETO_PARTE_ESPECIAL))); };
+// gravações da mesma linha vão uma de cada vez e sempre com o estado atual (antes, mudar o cálculo e dar OK logo em seguida podia chegar fora de ordem e a planilha ficar com o OK antigo)
+const LG_FILA={}; function lgGravar(r){ const k=String(r.ID); const p=(LG_FILA[k]||Promise.resolve()).catch(()=>{}).then(()=>api('salvarLogistica',lgPayload(r))); LG_FILA[k]=p; return p; }
 
 function nomesLog(tipo){ // nomes já digitados (salvos) + os que aparecem nos lançamentos
   const m={}; const add=n=>{ n=String(n||'').trim(); if(n && !m[up(n)]) m[up(n)]=n; };
@@ -1304,7 +1308,7 @@ function lgLinha(r){ // cada célula é um campo: clique, digite e saia (Enter/T
     <td class="n w-v">${inp('VALOR_NF',fN(+r.VALOR_NF,2),'inputmode="decimal" style="text-align:right"')}</td>
     <td class="c w-c">${inp('CALCULO',r.CALCULO||'NC','list="lgCalcLista" style="text-align:center" title="NC, BONIF ou X + número"')}</td>
     <td class="n" title="${+r.VALOR_PARTE_ESPECIAL?'Parte especial: '+fR(+r.VALOR_PARTE_ESPECIAL):''}"><b>${fR(+r.VALOR_CALCULADO)}</b></td>
-    ${r.CALCULO==='BONIF'?'<td class="c" colspan="2"><span class="tag t-ok" title="Bonificado pelo fornecedor: sem boletos">BONIFICADO</span></td>':`<td class="c">${r.CALCULO==='NC'&&!isOK(r.BOLETO_PARTE_ESPECIAL)?'<span class="muted small">—</span>':chip('BOLETO_PARTE_ESPECIAL',isOK(r.BOLETO_PARTE_ESPECIAL),'OK','')}</td>
+    ${lgCalcDe(r)==='BONIF'?'<td class="c" colspan="2"><span class="tag t-ok" title="Bonificado pelo fornecedor: sem boletos">BONIFICADO</span></td>':`<td class="c">${lgCalcDe(r)==='NC'&&!isOK(r.BOLETO_PARTE_ESPECIAL)?'<span class="muted small">—</span>':chip('BOLETO_PARTE_ESPECIAL',isOK(r.BOLETO_PARTE_ESPECIAL),'OK','')}</td>
     <td class="c">${chip('BOLETOS_PARTE_NF',isOK(r.BOLETOS_PARTE_NF),'OK','')}</td>`}
     <td class="lg-obs">${inp('OBS',r.OBS||'','placeholder="—" title="'+esc(r.OBS||'')+'"')}</td>
     <td class="c" style="white-space:nowrap">${rtBotao(r)}<button class="ib del" title="Excluir lançamento" onclick="lgExcluir(this.closest('tr').dataset.id)">✕</button></td></tr>`;
@@ -1368,7 +1372,7 @@ async function lgCampo(inp){ // edição direto na linha: salva assim que o camp
   if(campo==='VALOR_NF'||campo==='CALCULO'){ const f=fatorDe(r.CALCULO); r.FATOR=f; r.VALOR_CALCULADO=Math.round((+r.VALOR_NF||0)*f*100)/100; r.VALOR_PARTE_ESPECIAL=Math.round((r.VALOR_CALCULADO-(+r.VALOR_NF||0))*100)/100;
     if(r.CALCULO==='BONIF'){ r.BOLETO_PARTE_ESPECIAL='OK'; r.BOLETOS_PARTE_NF='OK'; } }
   setTimeout(()=>{ const t=document.querySelector(`#tbLog tr[data-id="${CSS.escape(String(r.ID))}"]`); if(t) lgRedesenharLinha(t,r); },0); // espera o Tab mover o cursor
-  try{ await api('salvarLogistica',lgPayload(r)); toast('Salvo ✓',1500); }
+  try{ await lgGravar(r); toast('Salvo ✓',1500); }
   catch(e){ Object.assign(r,antes); const t2=document.querySelector(`#tbLog tr[data-id="${CSS.escape(String(r.ID))}"]`); if(t2) lgRedesenharLinha(t2,r); toast('Erro ao salvar: '+e.message,6000); }
 }
 function lgRedesenharLinha(tr,r){ // troca a linha mantendo o cursor no campo em que o usuário está
@@ -1380,7 +1384,7 @@ function lgRedesenharLinha(tr,r){ // troca a linha mantendo o cursor no campo em
 async function lgAlternar(id,campo){ // marca/desmarca Recebido ou boletos direto na tabela
   const r=lgAchar(id); if(!r) return; const antes=r[campo];
   r[campo] = campo==='RECEBIDO' ? (r.RECEBIDO==='SIM'?'NÃO':'SIM') : (isOK(r[campo])?'':'OK'); const tr=document.querySelector(`#tbLog tr[data-id="${CSS.escape(String(r.ID))}"]`); if(tr){ lgRedesenharLinha(tr,r); lgResumoAtualizar(); } else lgAtualizar();
-  try{ await api('salvarLogistica',lgPayload(r)); }
+  try{ await lgGravar(r); }
   catch(e){ r[campo]=antes; lgAtualizar(); toast('Erro: '+e.message,6000); }
 }
 function lgExportar(){
@@ -1542,8 +1546,26 @@ function rtAuto(cod){ // sugere a filial para o código do anexo (ex.: "lon" →
 function rtBotao(r){
   if(!isCD(r.FILIAL)) return '';
   const n=rateioDe(r.ID).length;
+  const dn=!n&&lgDistDaNF(r);
+  if(dn) return `<button class="ib rt-b rt-sug" title="Esta NF (${esc(dn.NOTA_FISCAL)} · ${esc(dn.FORNECEDOR)}) já foi distribuída em Distribuição Notas — clique para usar a mesma distribuição" onclick="lgPuxarDist(this.closest('tr').dataset.id)">⇄ Puxar distribuição</button><button class="ib" title="Anexar outra distribuição" onclick="lgRateio(this.closest('tr').dataset.id)">📎</button>`;
   return `<button class="ib rt-b${n?' on':''}" title="${n?'Distribuído para '+n+' filiais — ver / trocar':'Anexar a distribuição desta NF para as filiais'}" onclick="lgRateio(this.closest('tr').dataset.id)">⇄ ${n?n+' filiais':'Distribuir'}</button>`;
 }
+// distribuição já feita em "Distribuição Notas" com a mesma NF ("NF 2010" = "2010") e o mesmo fornecedor
+function lgDistDaNF(r){ const k=fnNFk(r.NOTA_FISCAL); if(!k) return null;
+  return (S.dados.distNF||[]).filter(d=>fnNFk(d.NOTA_FISCAL)===k&&(!String(d.FORNECEDOR||'').trim()||!String(r.FORNECEDOR||'').trim()||fnFornBate(d.FORNECEDOR,r.FORNECEDOR))).sort((a,b)=>String(b.ID).localeCompare(String(a.ID)))[0]||null; }
+async function lgPuxarDist(id,mapa){
+  let v; try{ v=await api('lgPuxarDist',{lancId:id,mapa:mapa||{}}); }catch(e){ toast('Não consegui puxar a distribuição: '+e.message,8000); return; }
+  if(v&&v.ok){ fecharModal(); toast(`✓ Distribuição puxada: ${v.fornecedor} · NF ${v.nf} → ${v.filiais} filial(is)`,6000); await carregar(true); render(); return; }
+  if(v&&v.pendentes){ LG.puxar=id;
+    modal(`<div class="mh"><h3>Puxar distribuição · ${esc(v.fornecedor)} · NF ${esc(v.nf)}</h3><button class="btn ghost" onclick="fecharModal()">✕</button></div>
+    <p class="small muted" style="margin-top:0">Diga qual filial é cada código da distribuição — <b>só desta vez</b>: nas próximas notas o sistema já reconhece.</p>
+    <datalist id="dlLgFil">${(v.filiais||[]).map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
+    <div class="tw sl-tab"><table><thead><tr><th>Código na distribuição</th><th>Filial</th></tr></thead><tbody>
+    ${v.pendentes.map(c=>`<tr><td><b>${esc(c)}</b></td><td><input class="lg-map" data-cod="${esc(c)}" list="dlLgFil" placeholder="Nome da filial" style="width:100%"></td></tr>`).join('')}</tbody></table></div>
+    <div class="row" style="justify-content:flex-end;gap:8px;margin-top:12px"><button class="btn ghost" onclick="fecharModal()">Cancelar</button><button class="btn" onclick="lgPuxarDistMapa()">Gravar distribuição</button></div>`); return; }
+  toast('Nada a distribuir nessa NF',5000);
+}
+function lgPuxarDistMapa(){ const m={}; let falta=0; document.querySelectorAll('.lg-map').forEach(i=>{ const v=i.value.trim(); if(!v) falta++; m[i.dataset.cod]=v; }); if(falta){ toast('Preencha a filial de todos os códigos'); return; } lgPuxarDist(LG.puxar,m); }
 function lgRateio(id){ // abre a distribuição de um lançamento do CD
   const r=lgAchar(id); if(!r) return; const ex=rateioDe(id);
   if(!ex.length){ RT.lancId=id; document.getElementById('rtIn').click(); return; }
@@ -1631,7 +1653,7 @@ function rrExpandir(L){ // o valor lançado no sistema é dividido pelo % de cad
 }
 
 // quanto falta lançar de boletos (das notas na lista filtrada): parte NF = valor da NF (sem OK em Bol. NF) + parte especial = calculado − NF (sem OK em Bol. especial); bonificado não tem boleto
-function lgFaltaBol(r){ if(r.CALCULO==='BONIF') return [0,0]; const nf=+r.VALOR_NF||0, esp=Math.max(0,(+r.VALOR_CALCULADO||0)-nf);
+function lgFaltaBol(r){ if(lgCalcDe(r)==='BONIF') return [0,0]; const nf=+r.VALOR_NF||0, esp=Math.max(0,(+r.VALOR_CALCULADO||0)-nf);
   return [isOK(r.BOLETOS_PARTE_NF)?0:nf, isOK(r.BOLETO_PARTE_ESPECIAL)?0:esp]; }
 function lgResumo(){
   let a=0,b=0,n=0; lgFiltrados().forEach(r=>{ const [x,y]=lgFaltaBol(r); if(x||y){ a+=x; b+=y; n++; } });
@@ -1860,7 +1882,10 @@ const hojeISO = () => { const d=new Date(); return d.getFullYear()+'-'+String(d.
 const fnConta = id => fin().contas.find(c=>String(c.ID)===String(id));
 const fnLanc = id => fin().lanc.find(l=>String(l.ID)===String(id));
 const fnVal = v => `<span class="${v<0?'bad':'ok'}" style="font-weight:700">${fR(v)}</span>`;
-function fnSaldo(c){ return (+c.SALDO_INICIAL||0) + fin().extrato.filter(e=>String(e.CONTA_ID)===String(c.ID)).reduce((s,e)=>s+(+e.VALOR||0),0); }
+// saldo da conta = saldo inicial (no fim do dia "Data do saldo") + movimentos do extrato DEPOIS dessa data (os de antes já estão dentro do saldo inicial)
+const fnConta0 = c => isoBR(c.DATA_SALDO)||'';
+const fnConsta = (c,e) => { const d0=fnConta0(c); return !d0 || (isoBR(e.DATA)||'')>d0; };
+function fnSaldo(c){ return (+c.SALDO_INICIAL||0) + fin().extrato.filter(e=>String(e.CONTA_ID)===String(c.ID)&&fnConsta(c,e)).reduce((s,e)=>s+(+e.VALOR||0),0); }
 
 const FIN_ICON={inicio:'📊',contas:'🏦',receb:'↑',pagar:'↓',rel:'📄',config:'⚙'};
 function fnIr(sec,sub){ FN.lim=0; if(sub){ FN.sec=sec; FN.sub[sec]=sub; FN.aberto=sec; } else if(FN.aberto===sec){ FN.aberto=''; } else { FN.aberto=sec; FN.sec=sec; } render(); }
@@ -1917,7 +1942,8 @@ function fnModalConta(id){
   const c=id?fnConta(id):{}; const f=(l,html,st)=>`<label class="sf" style="${st||'flex:1 1 160px'}"><span>${l}</span>${html}</label>`;
   modal(`<div class="mh"><h3>${id?'Editar conta':'Adicionar conta'}</h3><button class="btn ghost" onclick="fecharModal()">✕</button></div>
   <div class="row">${f('Nome da conta',`<input id="fcNome" value="${esc(c.NOME||'')}" placeholder="Ex.: Itaú PJ Miashop">`,'flex:2 1 240px')}${f('Banco',`<input id="fcBanco" value="${esc(c.BANCO||'')}">`)}</div>
-  <div class="row" style="margin-top:10px">${f('Agência',`<input id="fcAg" value="${esc(c.AGENCIA||'')}">`)}${f('Conta',`<input id="fcCc" value="${esc(c.CONTA||'')}">`)}${f('Saldo inicial',`<input id="fcSaldo" inputmode="decimal" value="${c.SALDO_INICIAL!==undefined&&c.SALDO_INICIAL!==''?fN(+c.SALDO_INICIAL,2):''}" placeholder="0,00">`)}${f('Data do saldo',`<input type="date" id="fcData" value="${isoBR(c.DATA_SALDO)}">`)}</div>
+  <div class="row" style="margin-top:10px">${f('Agência',`<input id="fcAg" value="${esc(c.AGENCIA||'')}">`)}${f('Conta',`<input id="fcCc" value="${esc(c.CONTA||'')}">`)}${f('Saldo inicial',`<input id="fcSaldo" inputmode="decimal" value="${c.SALDO_INICIAL!==undefined&&c.SALDO_INICIAL!==''?fN(+c.SALDO_INICIAL,2):''}" placeholder="0,00 (negativo: -1.234,56)">`)}${f('Data do saldo',`<input type="date" id="fcData" value="${isoBR(c.DATA_SALDO)}">`)}</div>
+  <p class="small muted" style="margin:8px 0 0">💡 <b>Saldo inicial</b> = saldo da conta no <b>fim do dia</b> da "Data do saldo" (como aparece no extrato do banco), do dia em que vocês começaram a usar o sistema. O saldo da conta passa a ser esse valor + os lançamentos do extrato <b>depois</b> dessa data — os de antes já estão dentro do saldo inicial e não são somados de novo.</p>
   <div class="row" style="margin-top:14px;justify-content:flex-end"><button class="btn" onclick="fnSalvarConta('${esc(id||'')}')">Salvar conta</button></div>`);
   setTimeout(()=>{ const e=document.getElementById('fcNome'); if(e) e.focus(); },50);
 }
@@ -2125,7 +2151,7 @@ function fnAbrirLanc(id,tipo,pre,exId){
         ${f('Forma de pagamento',`<div class="fnd-fp">${['CONTA CORRENTE','CARTÃO DE CRÉDITO'].map(o=>`<label><input type="radio" name="fmFP" value="${o}" ${(/CART/i.test(l.FORMA_PAGAMENTO||'')?'CARTÃO DE CRÉDITO':'CONTA CORRENTE')===o?'checked':''}><span>${o==='CONTA CORRENTE'?'🏦':'💳'} ${o}</span></label>`).join('')}</div>`,'flex:0 0 auto')}<span class="sp"></span>
         <div class="fnd-tot"><span>Total a ${rec?'receber':'pagar'}</span><b id="fmTotTop">${fR(+l.VALOR||0)}</b></div></div>
       <div class="fnd-g">
-        ${f('Nome',`<input id="fmNome" list="dlFnNome${tipo}" value="${esc(l.NOME||'')}" placeholder="${rec?'Cliente / origem':'Fornecedor / favorecido'}">`)}
+        ${f('Nome',`<input id="fmNome" list="dlFnNome${tipo}" value="${esc(l.NOME||'')}" placeholder="${rec?'Cliente / origem':'Fornecedor / favorecido'}" onchange="const nf=document.getElementById('fmNF'); if(nf&&nf.value.trim()) fnDrNFDist(nf.value)">`)}
         ${f('Descrição',`<input id="fmDesc" value="${esc(l.DESCRICAO||'')}" placeholder="Ex.: Serviço prestado">`,'',1)}
         ${f('Nota fiscal',`<input id="fmNF" value="${esc(l.NOTA_FISCAL||'')}" onchange="fnDrNFDist(this.value)">`,'',1)}
         ${f('Categoria',`<input id="fmCat" list="dlFnCat${tipo}" value="${esc(l.CATEGORIA||'')}" placeholder="Selecione ou digite uma categoria…">`)}
@@ -2180,11 +2206,16 @@ function fnCCDoCodigo(cod){ const C=fnCentros(), c=semAcento(cod).trim(); if(!c)
   return C.find(n=>semAcento(n)===c) || (fil&&C.find(n=>semAcento(n)===semAcento(fil))) || (c.length>=3&&C.find(n=>semAcento(n).startsWith(c))) || fil || ''; }
 // NF digitada no lançamento → se essa NF teve distribuição do CD no Controle de Logística, usa os mesmos % por filial
 const fnNFk = n => soDig(n).replace(/^0+/,'');
+// mesmo fornecedor com nomes escritos diferente ("MULTIART" × "Multiart Comércio Ltda"): compara a primeira palavra significativa
+function fnFornBate(a,b){ const pal=t=>semAcento(t).toUpperCase().replace(/[^A-Z0-9 ]/g,' ').split(/\s+/).filter(w=>w.length>=3&&!['LTDA','EIRELI','COMERCIO','COM','IND','INDUSTRIA','DISTRIBUIDORA','IMPORTACAO','EXPORTACAO','THE'].includes(w));
+  const A=pal(a), B=pal(b); if(!A.length||!B.length) return false; return A.includes(B[0])||B.includes(A[0]); }
 async function fnDrNFDist(nf,silencioso){
   const k=fnNFk(nf); if(!k||!FN.dr) return; if(!S.rateiosNF) await carregarRateiosNF(); if(!FN.dr) return; const R=(S.rateiosNF||[]).filter(r=>fnNFk(r.NF)===k); if(!R.length) return;
   // mesma NF em mais de um fornecedor: fica com o do nome digitado
   const por={}; R.forEach(r=>{ (por[r.LANC_ID]=por[r.LANC_ID]||[]).push(r); }); let grupos=Object.values(por);
-  if(grupos.length>1){ const nm=semAcento((document.getElementById('fmNome')||{}).value||'').trim(); const g=nm&&grupos.filter(G=>{ const f=semAcento(G[0].FORNECEDOR).trim(); return f&&(f.includes(nm.split(' ')[0])||nm.includes(f.split(' ')[0])); }); if(g&&g.length) grupos=g; }
+  // com o fornecedor digitado: só usa a distribuição desse fornecedor (NF + fornecedor precisam bater)
+  const nm=((document.getElementById('fmNome')||{}).value||'').trim();
+  if(nm){ const g=grupos.filter(G=>!G[0].FORNECEDOR||fnFornBate(G[0].FORNECEDOR,nm)); if(!g.length) return; grupos=g; }
   const G=grupos[0]; const tot=G.reduce((s,r)=>s+(+r.VALOR||0),0); if(!tot) return;
   const ag={}; G.forEach(r=>{ const kk=semAcento(r.FILIAL).trim(); const o=ag[kk]||(ag[kk]={cod:r.FILIAL,nome:fnCCDoCodigo(r.FILIAL)||fnCCDoCodigo(r.CODIGO),v:0}); o.v+=(+r.VALOR||0); });
   const lin=Object.values(ag).map(o=>({nome:o.nome,cod:o.cod,pct:Math.round(o.v/tot*10000)/100}));
@@ -2326,7 +2357,7 @@ const FN_LIM=200; // linhas desenhadas de início (as demais em "Mostrar mais") 
 function fnTabelaLanc(Ltodos,quitadas,sel){
   const hoje=hojeISO(); FN.sel=FN.sel||new Set(); const tot=Ltodos.reduce((s,l)=>s+(+(quitadas?l.VALOR_PAGO:l.VALOR)||0),0); const lim=FN.lim||FN_LIM; const L=Ltodos.slice(0,lim);
   return `<div class="tw sl-tab"><table><thead><tr>${sel?`<th class="c" style="width:30px"><input type="checkbox" title="Marcar/desmarcar todos os filtrados" ${Ltodos.length&&Ltodos.every(l=>FN.sel.has(l.ID))?'checked':''} onchange="fnSelTodos(this.checked)"></th>`:''}<th>${quitadas?'Pago/recebido em':'Vencimento'}</th>${quitadas?'<th>Vencimento</th>':''}<th>Nome</th><th>Descrição</th><th>NF</th><th>Categoria</th><th>Centro de custo</th><th class="n">Valor</th>${quitadas?'<th>Conta</th>':''}<th></th></tr></thead><tbody>
-  ${L.map(l=>{ const venc=!quitadas&&isoBR(l.VENCIMENTO)&&isoBR(l.VENCIMENTO)<hoje;
+  ${L.map(l=>{ const venc=!quitadas&&fnVencido(l,hoje);
     return `<tr class="${venc?'fn-venc':''}${sel&&FN.sel.has(l.ID)?' fn-sel':''}">${sel?`<td class="c"><input type="checkbox" class="fn-ck" data-id="${esc(l.ID)}" ${FN.sel.has(l.ID)?'checked':''} onchange="fnSelUm(this)"></td>`:''}<td>${esc(quitadas?l.DATA_PAGAMENTO:l.VENCIMENTO)}${venc?' <span class="tag t-bad">vencido</span>':''}</td>${quitadas?`<td class="muted">${esc(l.VENCIMENTO)}</td>`:''}<td><b>${esc(l.NOME)}</b>${/CART/i.test(l.FORMA_PAGAMENTO||'')?' <span class="tag t-warn" title="Cartão de crédito">💳 cartão</span>':''}</td><td style="white-space:normal">${esc(l.DESCRICAO)}${l.OBS?`<div class="muted small" title="Observações">📝 ${esc(l.OBS)}</div>`:''}</td><td>${esc(l.NOTA_FISCAL)}</td><td>${esc(l.CATEGORIA)||'<span class="muted">—</span>'}</td><td style="white-space:normal">${fnCCHtml(l.CENTRO_CUSTO)}</td>
     <td class="n"><b>${fR(+(quitadas?l.VALOR_PAGO:l.VALOR))}</b></td>${quitadas?`<td>${esc((fnConta(l.CONTA_ID)||{}).NOME||'—')}${l.EXTRATO_ID?' <span class="tag t-ok" title="Conciliado com o extrato">✓</span>':''}</td>`:''}
     <td class="c" style="white-space:nowrap">${l.COD_BARRAS?`<button class="ib" title="Copiar código de barras: ${esc(fnFmtCB(l.COD_BARRAS))}" onclick="fnCopiarCB('${esc(l.COD_BARRAS)}')">📋</button>`:''}${quitadas?`<button class="ib" onclick="fnEstornar('${esc(l.ID)}')">Estornar</button>`:(fnSoConciliacao(l)?`<button class="ib fn-soconc" title="Conta corrente: o pagamento só é baixado pela Conciliação bancária" onclick="fnIr('contas','conc')">🏦 Conciliação</button>`:`<button class="ib" onclick="fnModalBaixa('${esc(l.ID)}')">✓ ${l.TIPO==='RECEBER'?'Receber':'Pagar'}</button>`)}<button class="ib" onclick="fnModalLanc('${esc(l.ID)}')">✎</button><button class="ib del" onclick="fnExcluirLanc('${esc(l.ID)}')">✕</button></td></tr>`; }).join('')
@@ -2431,7 +2462,7 @@ function fnFiltrados(sub){
 }
 function fnRelatorio(sub){
   const quit=(sub==='pagas'||sub==='recebidas'), tipo=(sub==='areceber'||sub==='recebidas')?'RECEBER':'PAGAR';
-  const L=fnFiltrados(sub); const hoje=hojeISO(); const vencidos=quit?[]:L.filter(l=>isoBR(l.VENCIMENTO)&&isoBR(l.VENCIMENTO)<hoje);
+  const L=fnFiltrados(sub); const hoje=hojeISO(); const vencidos=quit?[]:L.filter(l=>fnVencido(l,hoje));
   return `<div class="sl-filtros">
     <input type="search" class="w-q" value="${esc(FN.q)}" placeholder="Buscar nome, descrição, NF, valor…" oninput="FN.q=this.value;FN.lim=0;clearTimeout(window._fq);window._fq=setTimeout(fnAtualizar,250)">
     <span class="muted small">${quit?(tipo==='RECEBER'?'recebido':'pago'):'vencimento'} de</span><input type="date" value="${FN.de}" onchange="FN.de=this.value;fnAtualizar()"><span class="muted small">a</span><input type="date" value="${FN.ate}" onchange="FN.ate=this.value;fnAtualizar()">
@@ -2936,6 +2967,8 @@ function fnFeriados(ano){ if(FN_FER[ano]) return FN_FER[ano];
   const F=Object.fromEntries([[`${ano}-01-01`,'Confraternização Universal'],[`${ano}-04-21`,'Tiradentes'],[`${ano}-05-01`,'Dia do Trabalho'],[`${ano}-09-07`,'Independência'],[`${ano}-10-12`,'N. Sra. Aparecida'],[`${ano}-11-02`,'Finados'],[`${ano}-11-15`,'Proclamação da República'],[`${ano}-11-20`,'Consciência Negra'],[`${ano}-12-25`,'Natal'],
     mov(-48,'Carnaval'),mov(-47,'Carnaval'),mov(-2,'Sexta-feira Santa'),mov(60,'Corpus Christi')]);
   return FN_FER[ano]=F; }
+// vencido só depois do dia útil: vencimento em sábado, domingo ou feriado vale até o próximo dia útil (a data gravada não muda)
+function fnVencido(l,hoje){ const v=isoBR(l.VENCIMENTO); return !!v&&l.STATUS!=='QUITADO'&&fnDiaUtil(v)<(hoje||hojeISO()); }
 function fnDiaUtil(iso){ // sábado, domingo e feriado passam para o próximo dia útil
   let d=new Date(iso+'T12:00'); for(let n=0;n<15;n++){ const s=d.toISOString().slice(0,10); if(d.getDay()!==0&&d.getDay()!==6&&!fnFeriados(d.getFullYear())[s]) return s; d.setDate(d.getDate()+1); } return iso; }
 function fnDashboard(){
@@ -3105,10 +3138,11 @@ function fnLucroOrdenar(k){ FN.lucroOrd=FN.lucroOrd===k?'':k; fnAtualizar(); }
 function fnSaldoUnificado(){
   const C=fin().contas; if(!C.length) return '';
   const ult={}, sal={}; C.forEach(c=>{ sal[c.ID]=+c.SALDO_INICIAL||0; });
-  fin().extrato.forEach(e=>{ const k=e.CONTA_ID; if(!(k in sal)) return; sal[k]+=(+e.VALOR||0); const d=isoBR(e.DATA)||''; if(d>(ult[k]||'')) ult[k]=d; });
+  const cId={}; C.forEach(c=>cId[c.ID]=c);
+  fin().extrato.forEach(e=>{ const k=e.CONTA_ID; if(!(k in sal)) return; if(fnConsta(cId[k],e)) sal[k]+=(+e.VALOR||0); const d=isoBR(e.DATA)||''; if(d>(ult[k]||'')) ult[k]=d; });
   const tot=C.reduce((s,c)=>s+sal[c.ID],0); const br=d=>d?d.split('-').reverse().join('/'):'sem extrato';
   return `<div class="card dc-saldo"><div class="dc-saldo-t"><span>🏦 Saldo das contas correntes <span class="muted small">(unificado · ${C.length} conta${C.length>1?'s':''})</span></span><b class="${tot<0?'bad':''}">${fR(tot)}</b></div>
-  <div class="dc-saldo-l">${C.map(c=>`<span class="dc-saldo-c" onclick="FN.conta='${esc(c.ID)}';fnIr('contas','conc')" title="Abrir a conciliação desta conta"><b>${esc(c.NOME)}</b> <span class="${sal[c.ID]<0?'bad':''}">${fR(sal[c.ID])}</span> <span class="muted small">· ${ult[c.ID]?'extrato até '+br(ult[c.ID]):'sem extrato'}</span></span>`).join('')}</div></div>`;
+  <div class="dc-saldo-l">${C.map(c=>`<span class="dc-saldo-c" onclick="FN.conta='${esc(c.ID)}';fnIr('contas','conc')" title="Abrir a conciliação desta conta"><b>${esc(c.NOME)}</b> <span class="${sal[c.ID]<0?'bad':''}">${fR(sal[c.ID])}</span> <span class="muted small">· ${ult[c.ID]?'extrato até '+br(ult[c.ID]):'sem extrato'}</span>${!fnConta0(c)?` <a href="#" class="small" onclick="event.stopPropagation();event.preventDefault();fnModalConta('${esc(c.ID)}')">definir saldo inicial</a>`:''}</span>`).join('')}</div></div>`;
 }
 
 /* =================== APLICAÇÕES FINANCEIRAS =================== */
