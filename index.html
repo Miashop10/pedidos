@@ -198,6 +198,8 @@ body:not(.abas-ok) #nav button,body:not(.abas-ok) #btConfig{visibility:hidden}
 .fn-chk{width:24px;height:24px;border:2px solid #b9bec7;border-radius:6px;background:#fff;cursor:pointer;font-weight:900;font-size:15px;line-height:1;color:#fff;padding:0}.fn-chk:hover{border-color:#2e7d32}.fn-chk.on{background:#2e7d32;border-color:#2e7d32}
 tr.fn-bok td{background:#eef7ef}
 .lg-res{display:inline-block;background:#fff4e8;border:1px solid #f3c79b;border-radius:8px;padding:5px 10px;font-size:13.5px;white-space:nowrap}.lg-res b{color:#b45309;font-size:15px}.lg-res.ok{background:#eef7ef;border-color:#b9dcbd;color:var(--ok)}
+.dc-vchq{font-size:11.5px;font-weight:800;color:#a16207;background:#fef3c7;border-radius:4px;padding:0 4px;margin-top:2px;white-space:nowrap}.dc-k.chq b{color:#a16207}.dc-k.chq{background:#fffbeb;border-color:#fcd34d}
+.dc-ctop{display:flex;justify-content:flex-start;margin:-4px 0 4px}.dc-cnav{display:inline-flex;align-items:center;gap:4px;font-size:12.5px;background:var(--soft);border:1px solid var(--line);border-radius:7px;padding:1px 4px}.dc-cnav b{min-width:120px;text-align:center}.dc-cnav .ib{padding:0 6px;font-size:11px}
 .dc-chqs{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0 10px}.dc-chq{background:#fff;border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:13px;cursor:pointer;font-family:inherit}.dc-chq b{color:var(--bad)}.dc-chq:hover,.dc-chq.on{border-color:var(--bad);background:#fdeeee}
 .dc-saldo{padding:14px 16px;margin-bottom:12px;border-left:5px solid var(--acc)}.dc-saldo-t{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-weight:700}.dc-saldo-t>b{font-size:26px}
 .dc-saldo-l{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.dc-saldo-c{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:13px;cursor:pointer}.dc-saldo-c:hover{border-color:var(--acc)}
@@ -2977,31 +2979,37 @@ function fnDashboard(){
   let nomeMes=new Date(A,M-1,1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'}); nomeMes=nomeMes.charAt(0).toUpperCase()+nomeMes.slice(1);
   const nav=(n)=>{ const d=new Date(A,M-1+n,1); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); };
   // a pagar: em aberto, pelo vencimento ajustado ao dia útil
-  const pagar={}, receb={};
-  fin().lanc.forEach(l=>{
-    if(l.TIPO==='PAGAR'&&l.STATUS!=='QUITADO'){ const v=isoBR(l.VENCIMENTO); if(!v) return; const u=fnDiaUtil(v); if(u.slice(0,7)!==mes) return; (pagar[u]=pagar[u]||[]).push(l); }
-    if(l.TIPO==='RECEBER'&&l.STATUS==='QUITADO'){ const d=isoBR(l.DATA_PAGAMENTO); if(!d||d.slice(0,7)!==mes) return; if(FN.dashCC&&!fnCCPeso(l,FN.dashCC)) return; (receb[d]=receb[d]||[]).push(l); } });
-  FN.dashDias={pagar,receb};
+  // cada calendário pode ir para outro mês com as próprias setas (o mês do topo vale para os totais e reposiciona os dois)
+  const mesP=FN.mesPag||mes, mesR=FN.mesRec||mes;
+  const pagarDe=m=>{ const o={}; fin().lanc.forEach(l=>{ if(l.TIPO==='PAGAR'&&l.STATUS!=='QUITADO'){ const v=isoBR(l.VENCIMENTO); if(!v) return; const u=fnDiaUtil(v); if(u.slice(0,7)!==m) return; (o[u]=o[u]||[]).push(l); } }); return o; };
+  const recebDe=m=>{ const o={}; fin().lanc.forEach(l=>{ if(l.TIPO==='RECEBER'&&l.STATUS==='QUITADO'){ const d=isoBR(l.DATA_PAGAMENTO); if(!d||d.slice(0,7)!==m) return; if(FN.dashCC&&!fnCCPeso(l,FN.dashCC)) return; (o[d]=o[d]||[]).push(l); } }); return o; };
+  const pagar=pagarDe(mes), receb=recebDe(mes), pagarC=mesP===mes?pagar:pagarDe(mesP), recebC=mesR===mes?receb:recebDe(mesR);
+  FN.dashDias={pagar:pagarC,receb:recebC};
+  const nomeDe=m=>{ const [a,b]=m.split('-').map(Number); const t=new Date(a,b-1,1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'}); return t.charAt(0).toUpperCase()+t.slice(1); };
+  const navDe=(m,n)=>{ const [a,b]=m.split('-').map(Number); const d=new Date(a,b-1+n,1); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); };
+  const navCal=(k,m)=>`<span class="dc-cnav"><button class="ib" onclick="FN.${k}='${navDe(m,-1)}';fnAtualizar()" title="Mês anterior">◀</button><b>${nomeDe(m)}</b><button class="ib" onclick="FN.${k}='${navDe(m,1)}';fnAtualizar()" title="Próximo mês">▶</button>${m!==mes?`<button class="ib small" onclick="FN.${k}='';fnAtualizar()" title="Voltar ao mês do topo">↺</button>`:''}</span>`;
   // recebido filtrado por centro de custo conta só a parte (%) daquele centro
   const val=l=>(+(l.STATUS==='QUITADO'?l.VALOR_PAGO:l.VALOR)||0)*(l.TIPO==='RECEBER'&&FN.dashCC?fnCCPeso(l,FN.dashCC):1);
   const soma=L=>(L||[]).reduce((s,l)=>s+val(l),0); FN.dashVal=val;
-  const totP=Object.values(pagar).reduce((s,L)=>s+soma(L),0), totPres=Object.entries(pagar).filter(([d])=>d>=hoje).reduce((s,[,L])=>s+soma(L),0), totPvenc=Object.entries(pagar).filter(([d])=>d<hoje).reduce((s,[,L])=>s+soma(L),0);
-  const totR=Object.values(receb).reduce((s,L)=>s+soma(L),0);
-  const cal=(tipo,dados)=>{ const prim=new Date(A,M-1,1), ult=new Date(A,M,0).getDate(); const ini=prim.getDay(); const F=fnFeriados(A);
+  const totP=Object.values(pagar).reduce((s,L)=>s+soma(L),0), totPres=Object.entries(pagar).filter(([d])=>d>=hoje).reduce((s,[,L])=>s+soma(L),0), totPvenc=Object.entries(pagar).filter(([d])=>d<hoje).reduce((s,[,L])=>s+soma(L.filter(l=>!fnTipoCheque(l))),0), totChqVenc=Object.entries(pagar).filter(([d])=>d<hoje).reduce((s,[,L])=>s+soma(L.filter(l=>fnTipoCheque(l))),0);
+  const totR=Object.values(receb).reduce((s,L)=>s+soma(L),0), totRC=Object.values(recebC).reduce((s,L)=>s+soma(L),0);
+  const cal=(tipo,dados,mes)=>{ const [A,M]=mes.split('-').map(Number); const prim=new Date(A,M-1,1), ult=new Date(A,M,0).getDate(); const ini=prim.getDay(); const F=fnFeriados(A);
     let h='<div class="dc-sem">'+['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(x=>`<span>${x}</span>`).join('')+'</div><div class="dc-grid">';
     for(let i=0;i<ini;i++) h+='<div class="dc-d dc-vz"></div>';
-    for(let d=1;d<=ult;d++){ const iso=`${mes}-${String(d).padStart(2,'0')}`; const dt=new Date(A,M-1,d); const fds=dt.getDay()===0||dt.getDay()===6, fer=F[iso]; const L=dados[iso]; const v=soma(L);
-      const cls=['dc-d',fds||fer?'dc-fds':'',iso===hoje?'dc-hoje':'',tipo==='pagar'&&v&&iso<hoje?'dc-venc':'',v?'dc-tem':''].join(' ');
-      h+=`<div class="${cls}" ${v?`onclick="fnDashDia('${tipo}','${iso}')" title="Ver ${L.length} lançamento(s)"`:''}><div class="dc-n">${d}${fer?` <span class="dc-fer" title="${esc(fer)}">${esc(fer)}</span>`:''}</div>${v?`<div class="dc-v">${fR(v)}</div><div class="dc-q">${L.length} ${tipo==='pagar'?(L.length>1?'contas':'conta'):(L.length>1?'recebimentos':'recebimento')}</div>`:''}</div>`; }
+    for(let d=1;d<=ult;d++){ const iso=`${mes}-${String(d).padStart(2,'0')}`; const dt=new Date(A,M-1,d); const fds=dt.getDay()===0||dt.getDay()===6, fer=F[iso]; const L=dados[iso]||[];
+      // a pagar: cheques ("cheque" / "enviar cheque" na descrição ou observação) ficam fora do valor em aberto e aparecem embaixo, em amarelo
+      const Lc=tipo==='pagar'?L.filter(l=>fnTipoCheque(l)):[], vc=soma(Lc), v=soma(L)-vc, tem=L.length>0;
+      const cls=['dc-d',fds||fer?'dc-fds':'',iso===hoje?'dc-hoje':'',tipo==='pagar'&&v>0.004&&iso<hoje?'dc-venc':'',tem?'dc-tem':''].join(' ');
+      h+=`<div class="${cls}" ${tem?`onclick="fnDashDia('${tipo}','${iso}')" title="Ver ${L.length} lançamento(s)"`:''}><div class="dc-n">${d}${fer?` <span class="dc-fer" title="${esc(fer)}">${esc(fer)}</span>`:''}</div>${tem?`${v>0.004||!vc?`<div class="dc-v">${fR(v)}</div>`:''}${vc?`<div class="dc-vchq" title="Cheques / enviar cheques — fora do valor em aberto">🧾 ${fR(vc)}</div>`:''}<div class="dc-q">${L.length} ${tipo==='pagar'?(L.length>1?'contas':'conta'):(L.length>1?'recebimentos':'recebimento')}</div>`:''}</div>`; }
     return h+'</div>'; };
-  return `<div class="dc-top"><button class="btn ghost sm" onclick="FN.mesDash='${nav(-1)}';fnAtualizar()">◀</button><b class="dc-mes">${nomeMes}</b><button class="btn ghost sm" onclick="FN.mesDash='${nav(1)}';fnAtualizar()">▶</button>${mes!==hoje.slice(0,7)?`<button class="btn ghost sm" onclick="FN.mesDash='';fnAtualizar()">mês atual</button>`:''}</div>
-  <div class="dc-kpis"><div class="dc-k bad"><span>A pagar no mês</span><b>${fR(totP)}</b></div><div class="dc-k"><span>A pagar de hoje até o fim do mês</span><b>${fR(totPres)}</b></div>${totPvenc?`<div class="dc-k bad"><span>Vencido e não pago</span><b>${fR(totPvenc)}</b></div>`:''}<div class="dc-k ok"><span>Recebido no mês${FN.dashCC?' · '+esc(FN.dashCC):''}</span><b>${fR(totR)}</b></div></div>
+  return `<div class="dc-top"><button class="btn ghost sm" onclick="FN.mesDash='${nav(-1)}';FN.mesPag='';FN.mesRec='';fnAtualizar()">◀</button><b class="dc-mes">${nomeMes}</b><button class="btn ghost sm" onclick="FN.mesDash='${nav(1)}';FN.mesPag='';FN.mesRec='';fnAtualizar()">▶</button>${mes!==hoje.slice(0,7)?`<button class="btn ghost sm" onclick="FN.mesDash='';FN.mesPag='';FN.mesRec='';fnAtualizar()">mês atual</button>`:''}</div>
+  <div class="dc-kpis"><div class="dc-k bad"><span>A pagar no mês</span><b>${fR(totP)}</b></div><div class="dc-k"><span>A pagar de hoje até o fim do mês</span><b>${fR(totPres)}</b></div>${totPvenc?`<div class="dc-k bad"><span>Vencido e não pago</span><b>${fR(totPvenc)}</b></div>`:''}${totChqVenc?`<div class="dc-k chq"><span>Cheques vencidos (fora do vencido)</span><b>${fR(totChqVenc)}</b></div>`:''}<div class="dc-k ok"><span>Recebido no mês${FN.dashCC?' · '+esc(FN.dashCC):''}</span><b>${fR(totR)}</b></div></div>
   ${fnSaldoUnificado()}
   ${fnAtrasados()}
-  <div class="dc-cols"><div class="card dc-card"><h3>📅 Calendário a pagar <span class="muted small">— contas em aberto; sábado, domingo e feriado caem no próximo dia útil</span></h3>${cal('pagar',pagar)}</div>
-  <div class="card dc-card"><div class="dc-rh"><h3>💰 Calendário recebido <span class="muted small">— valores recebidos em cada dia</span></h3><span class="sp"></span>
+  <div class="dc-cols"><div class="card dc-card"><div class="dc-ctop">${navCal('mesPag',mesP)}</div><h3>📅 Calendário a pagar <span class="muted small">— contas em aberto; sábado, domingo e feriado caem no próximo dia útil</span></h3>${cal('pagar',pagarC,mesP)}</div>
+  <div class="card dc-card"><div class="dc-ctop">${navCal('mesRec',mesR)}</div><div class="dc-rh"><h3>💰 Calendário recebido <span class="muted small">— valores recebidos em cada dia</span></h3><span class="sp"></span>
     <select onchange="FN.dashCC=this.value;fnAtualizar()" style="max-width:260px"><option value="">Todos os centros de custo (soma)</option>${fnCentros().map(c=>`<option value="${esc(c)}" ${up(c)===up(FN.dashCC||'')?'selected':''}>${esc(c)}</option>`).join('')}</select>
-    <div class="dc-k ok dc-k-in"><span>Total recebido no mês${FN.dashCC?' · '+esc(FN.dashCC):''}</span><b>${fR(totR)}</b></div></div>${cal('receb',receb)}</div></div>`;
+    <div class="dc-k ok dc-k-in"><span>Total recebido em ${nomeDe(mesR).split(' ')[0].toLowerCase()}${FN.dashCC?' · '+esc(FN.dashCC):''}</span><b>${fR(totRC)}</b></div></div>${cal('receb',recebC,mesR)}</div></div>`;
 }
 function fnDashDia(tipo,iso){ const L=(FN.dashDias[tipo]||{})[iso]||[]; const dt=new Date(iso+'T12:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'});
   const vv=l=>tipo==='pagar'?(+l.VALOR||0):(FN.dashVal?FN.dashVal(l):(+l.VALOR_PAGO||0)); const tot=L.reduce((s,l)=>s+vv(l),0);
@@ -3080,9 +3088,9 @@ function fnAtrasados(){
   if(!T.length) return `<div class="card dc-atr ok"><b>✓ Nenhum pagamento atrasado</b></div>`;
   const grp=k=>T.filter(x=>x.ch===k), sm=L=>L.reduce((s,x)=>s+(+x.l.VALOR||0),0); const CH=grp('cheque'), EN=grp('enviar');
   const L=FN.atrCh?T.filter(x=>x.ch===FN.atrCh):T;
-  const tot=sm(T); const dias=d=>Math.round((new Date(hoje+'T12:00')-new Date(d+'T12:00'))/864e5);
+  const NC=T.filter(x=>!x.ch); const tot=sm(NC); const dias=d=>Math.round((new Date(hoje+'T12:00')-new Date(d+'T12:00'))/864e5);
   const chip=(k,rot,G)=>`<button class="dc-chq${FN.atrCh===k?' on':''}" onclick="FN.atrCh=FN.atrCh==='${k}'?'':'${k}';fnAtualizar()" title="${FN.atrCh===k?'Mostrar todos os atrasados':'Mostrar só estes na lista'}">${rot} <b>${fR(sm(G))}</b> <span class="muted">· ${G.length}</span></button>`;
-  return `<div class="card dc-atr"><div class="dc-rh"><h3>⚠ Pagamentos atrasados <span class="muted small">— em aberto e já vencidos</span></h3><span class="sp"></span><b class="bad" style="font-size:18px">${T.length} · ${fR(tot)}</b></div>
+  return `<div class="card dc-atr"><div class="dc-rh"><h3>⚠ Pagamentos atrasados <span class="muted small">— em aberto e já vencidos</span></h3><span class="sp"></span><b class="bad" style="font-size:18px" title="Sem os cheques (que aparecem separados logo abaixo)">${NC.length} · ${fR(tot)}</b></div>
   <div class="dc-chqs">${chip('cheque','🧾 Cheques vencidos',CH)}${chip('enviar','✉️ Enviar cheques vencidos',EN)}${FN.atrCh?`<span class="small muted">mostrando só ${FN.atrCh==='enviar'?'"enviar cheques"':'cheques'} · <a href="#" onclick="event.preventDefault();FN.atrCh='';fnAtualizar()">ver todos</a></span>`:''}</div>
   <div class="tw sl-tab" style="max-height:${FN.atrTodos?'none':'260px'};overflow:auto"><table><thead><tr><th>Vencimento</th><th class="n">Atraso</th><th>Nome</th><th>Descrição</th><th>Categoria</th><th class="n">Valor</th><th></th></tr></thead><tbody>
   ${L.map(({l,d,ch})=>`<tr><td>${esc(l.VENCIMENTO)}</td><td class="n"><span class="tag t-bad">${dias(d)} dia(s)</span></td><td><b>${esc(l.NOME)}</b></td><td>${esc(l.DESCRICAO)}${ch?` <span class="tag ${ch==='enviar'?'t-warn':'t-mut'}">${ch==='enviar'?'enviar cheque':'cheque'}</span>`:''}</td><td>${esc(l.CATEGORIA)}</td><td class="n"><b class="bad">${fR(+l.VALOR||0)}</b></td>
