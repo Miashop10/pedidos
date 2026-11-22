@@ -198,6 +198,7 @@ body:not(.abas-ok) #nav button,body:not(.abas-ok) #btConfig{visibility:hidden}
 .fn-chk{width:24px;height:24px;border:2px solid #b9bec7;border-radius:6px;background:#fff;cursor:pointer;font-weight:900;font-size:15px;line-height:1;color:#fff;padding:0}.fn-chk:hover{border-color:#2e7d32}.fn-chk.on{background:#2e7d32;border-color:#2e7d32}
 tr.fn-bok td{background:#eef7ef}
 .lg-res{display:inline-block;background:#fff4e8;border:1px solid #f3c79b;border-radius:8px;padding:5px 10px;font-size:13.5px;white-space:nowrap}.lg-res b{color:#b45309;font-size:15px}.lg-res.ok{background:#eef7ef;border-color:#b9dcbd;color:var(--ok)}
+.dc-chqs{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0 10px}.dc-chq{background:#fff;border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:13px;cursor:pointer;font-family:inherit}.dc-chq b{color:var(--bad)}.dc-chq:hover,.dc-chq.on{border-color:var(--bad);background:#fdeeee}
 .dc-saldo{padding:14px 16px;margin-bottom:12px;border-left:5px solid var(--acc)}.dc-saldo-t{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-weight:700}.dc-saldo-t>b{font-size:26px}
 .dc-saldo-l{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}.dc-saldo-c{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:13px;cursor:pointer}.dc-saldo-c:hover{border-color:var(--acc)}
 .dc-atr{padding:12px;margin-bottom:12px;border-left:5px solid var(--bad)}.dc-atr.ok{border-left-color:var(--ok);color:var(--ok)}.dc-atr h3{margin:0;font-size:15px}
@@ -3071,15 +3072,21 @@ function fnBoletosExcel(){ const T=fin().lanc.filter(l=>l.TIPO==='PAGAR'&&soDig(
   const ws=XLSX.utils.json_to_sheet(T.map(l=>({'Data do lançamento':fnDataLanc(l),'Vencimento':l.VENCIMENTO,'Nome':l.NOME,'Valor':+l.VALOR||0,'Código de barras':fnFmtCB(l.COD_BARRAS)}))); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Boletos'); XLSX.writeFile(wb,'boletos-lancados.xlsx'); }
 
 // quadro do dashboard: todos os pagamentos em aberto já vencidos (vencimento ajustado ao dia útil anterior a hoje), de qualquer mês
+// cheque pela descrição/observação: "enviar cheque(s)" é um grupo, "cheque(s)" (sem o enviar) é outro — um não entra no outro
+function fnTipoCheque(l){ const t=semAcento([l.DESCRICAO,l.OBS].join(' ')).toLowerCase(); if(/enviar\s+(o\s+|os\s+)?cheq/.test(t)) return 'enviar'; if(/cheq/.test(t)) return 'cheque'; return ''; }
 function fnAtrasados(){
-  const hoje=hojeISO(); const L=fin().lanc.filter(l=>l.TIPO==='PAGAR'&&l.STATUS!=='QUITADO'&&isoBR(l.VENCIMENTO)&&fnDiaUtil(isoBR(l.VENCIMENTO))<hoje)
-    .map(l=>({l,d:fnDiaUtil(isoBR(l.VENCIMENTO))})).sort((a,b)=>a.d.localeCompare(b.d));
-  if(!L.length) return `<div class="card dc-atr ok"><b>✓ Nenhum pagamento atrasado</b></div>`;
-  const tot=L.reduce((s,x)=>s+(+x.l.VALOR||0),0); const dias=d=>Math.round((new Date(hoje+'T12:00')-new Date(d+'T12:00'))/864e5);
-  return `<div class="card dc-atr"><div class="dc-rh"><h3>⚠ Pagamentos atrasados <span class="muted small">— em aberto e já vencidos</span></h3><span class="sp"></span><b class="bad" style="font-size:18px">${L.length} · ${fR(tot)}</b></div>
+  const hoje=hojeISO(); const T=fin().lanc.filter(l=>l.TIPO==='PAGAR'&&l.STATUS!=='QUITADO'&&isoBR(l.VENCIMENTO)&&fnDiaUtil(isoBR(l.VENCIMENTO))<hoje)
+    .map(l=>({l,d:fnDiaUtil(isoBR(l.VENCIMENTO)),ch:fnTipoCheque(l)})).sort((a,b)=>a.d.localeCompare(b.d));
+  if(!T.length) return `<div class="card dc-atr ok"><b>✓ Nenhum pagamento atrasado</b></div>`;
+  const grp=k=>T.filter(x=>x.ch===k), sm=L=>L.reduce((s,x)=>s+(+x.l.VALOR||0),0); const CH=grp('cheque'), EN=grp('enviar');
+  const L=FN.atrCh?T.filter(x=>x.ch===FN.atrCh):T;
+  const tot=sm(T); const dias=d=>Math.round((new Date(hoje+'T12:00')-new Date(d+'T12:00'))/864e5);
+  const chip=(k,rot,G)=>`<button class="dc-chq${FN.atrCh===k?' on':''}" onclick="FN.atrCh=FN.atrCh==='${k}'?'':'${k}';fnAtualizar()" title="${FN.atrCh===k?'Mostrar todos os atrasados':'Mostrar só estes na lista'}">${rot} <b>${fR(sm(G))}</b> <span class="muted">· ${G.length}</span></button>`;
+  return `<div class="card dc-atr"><div class="dc-rh"><h3>⚠ Pagamentos atrasados <span class="muted small">— em aberto e já vencidos</span></h3><span class="sp"></span><b class="bad" style="font-size:18px">${T.length} · ${fR(tot)}</b></div>
+  <div class="dc-chqs">${chip('cheque','🧾 Cheques vencidos',CH)}${chip('enviar','✉️ Enviar cheques vencidos',EN)}${FN.atrCh?`<span class="small muted">mostrando só ${FN.atrCh==='enviar'?'"enviar cheques"':'cheques'} · <a href="#" onclick="event.preventDefault();FN.atrCh='';fnAtualizar()">ver todos</a></span>`:''}</div>
   <div class="tw sl-tab" style="max-height:${FN.atrTodos?'none':'260px'};overflow:auto"><table><thead><tr><th>Vencimento</th><th class="n">Atraso</th><th>Nome</th><th>Descrição</th><th>Categoria</th><th class="n">Valor</th><th></th></tr></thead><tbody>
-  ${L.map(({l,d})=>`<tr><td>${esc(l.VENCIMENTO)}</td><td class="n"><span class="tag t-bad">${dias(d)} dia(s)</span></td><td><b>${esc(l.NOME)}</b></td><td>${esc(l.DESCRICAO)}</td><td>${esc(l.CATEGORIA)}</td><td class="n"><b class="bad">${fR(+l.VALOR||0)}</b></td>
-    <td class="c" style="white-space:nowrap">${l.COD_BARRAS?`<button class="ib" title="Copiar código de barras" onclick="fnCopiarCB('${esc(l.COD_BARRAS)}')">📋</button>`:''}<button class="ib" title="Abrir lançamento" onclick="fnAbrirLanc('${esc(l.ID)}')">✎</button></td></tr>`).join('')}</tbody></table></div></div>`;
+  ${L.map(({l,d,ch})=>`<tr><td>${esc(l.VENCIMENTO)}</td><td class="n"><span class="tag t-bad">${dias(d)} dia(s)</span></td><td><b>${esc(l.NOME)}</b></td><td>${esc(l.DESCRICAO)}${ch?` <span class="tag ${ch==='enviar'?'t-warn':'t-mut'}">${ch==='enviar'?'enviar cheque':'cheque'}</span>`:''}</td><td>${esc(l.CATEGORIA)}</td><td class="n"><b class="bad">${fR(+l.VALOR||0)}</b></td>
+    <td class="c" style="white-space:nowrap">${l.COD_BARRAS?`<button class="ib" title="Copiar código de barras" onclick="fnCopiarCB('${esc(l.COD_BARRAS)}')">📋</button>`:''}<button class="ib" title="Abrir lançamento" onclick="fnAbrirLanc('${esc(l.ID)}')">✎</button></td></tr>`).join('')||'<tr><td colspan="7" class="muted">Nenhum desse tipo.</td></tr>'}</tbody></table></div></div>`;
 }
 
 /* ---------- Lucro por loja: RESULTADO OPERACIONAL (A−B−C−D=G) de cada centro de custo, mês a mês ---------- */
