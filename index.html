@@ -2352,20 +2352,20 @@ async function fnSalvarLancDr(){
   const B=(FN.dr.boletos||[]); const todos=B.length>1&&(document.getElementById('fmBolTodos')||{}).checked;
   if(todos){
       const lista=B.map((b,i)=>Object.assign({},d,{linha:i+1,vencimento:b.venc,valor:b.valor,descricao:d.descricao||'',codBarras:b.linha||''}));
-      const tmps=lista.map((x,i)=>'tmp'+Date.now()+'-'+i); const arq=FN.dr.bolArq||'boleto.pdf';
+      const impId=fnIdCli('ILC'), tmps=lista.map((x,i)=>impId+'-'+(i+1)); const arq=FN.dr.bolArq||'boleto.pdf'; // códigos definitivos já no navegador
       fnFecharLanc();
-      fnBg('finImportarLanc',{arquivoNome:arq,lista},{rotulo:`${lista.length} parcela(s) do boleto: ${d.nome}`,local:()=>{ lista.forEach((x,i)=>fin().lanc.push({ID:tmps[i],TIPO:x.tipo,STATUS:'ABERTO',VENCIMENTO:x.vencimento,NOME:x.nome,DESCRICAO:x.descricao,NOTA_FISCAL:x.notaFiscal,CATEGORIA:x.categoria,CENTRO_CUSTO:x.centroCusto,FORMA_PAGAMENTO:x.formaPagamento,OBS:x.obs,COD_BARRAS:x.codBarras,VALOR:x.valor})); },
-        ok:r=>{ const t=new Set(tmps); fin().lanc=fin().lanc.filter(l=>!t.has(l.ID)); toast(`✓ ${r.importados} parcela(s) gravada(s)`,4000); }, erro:()=>{ const t=new Set(tmps); fin().lanc=fin().lanc.filter(l=>!t.has(l.ID)); }});
+      fnBg('finImportarLanc',{arquivoNome:arq,lista,impId},{rotulo:`${lista.length} parcela(s) do boleto: ${d.nome}`,local:()=>{ lista.forEach((x,i)=>fin().lanc.push({ID:tmps[i],TIPO:x.tipo,STATUS:'ABERTO',VENCIMENTO:x.vencimento,NOME:x.nome,DESCRICAO:x.descricao,NOTA_FISCAL:x.notaFiscal,CATEGORIA:x.categoria,CENTRO_CUSTO:x.centroCusto,FORMA_PAGAMENTO:x.formaPagamento,OBS:x.obs,COD_BARRAS:x.codBarras,VALOR:x.valor})); },
+        ok:r=>{ if(!r.jaGravado) toast(`✓ ${r.importados} parcela(s) gravada(s)`,4000); }, erro:()=>{ const t=new Set(tmps); fin().lanc=fin().lanc.filter(l=>!t.has(l.ID)); }});
       toast(`${lista.length} parcela(s) agendada(s) — gravando no Google`,4000); return; }
   if(B.length===1&&!d.codBarras&&B[0].linha) d.codBarras=B[0].linha;
   if(!exId){ // grava em segundo plano: fecha o painel na hora
     if(id){ d.id=id; const l=fnLanc(id); if(l&&l.STATUS==='QUITADO'){ d.quitado=true; d.dataPagamento=l.DATA_PAGAMENTO; d.valorPago=l.VALOR_PAGO; d.contaId=l.CONTA_ID; } }
     const reg={TIPO:tipo,VENCIMENTO:d.vencimento,NOME:d.nome,DESCRICAO:d.descricao,NOTA_FISCAL:d.notaFiscal,CATEGORIA:d.categoria,CENTRO_CUSTO:d.centroCusto,FORMA_PAGAMENTO:d.formaPagamento,OBS:d.obs,COD_BARRAS:d.codBarras,VALOR:d.valor};
     const cont=!id&&FN.continuar; if(cont) fnAbrirLanc(null,tipo); else fnFecharLanc();
-    const tmp='tmp'+Date.now()+Math.random().toString(36).slice(2,6);
+    const tmp=id?'':fnIdCli(tipo==='RECEBER'?'RCC':'PGC'); if(!id) d.idNovo=tmp; // código definitivo já no navegador: dá para editar/baixar antes de chegar na nuvem
     fnBg('finSalvarLanc',d,{rotulo:`${id?'Editar':'Agendar'} ${tipo==='RECEBER'?'recebimento':'pagamento'}: ${d.nome} · ${fR(d.valor)} · venc. ${d.vencimento}`,local:()=>{ if(id) Object.assign(fnLanc(id)||{},reg); else fin().lanc.push(Object.assign({ID:tmp,STATUS:'ABERTO',CRIADO_EM:''},reg)); },
-      ok:()=>{ const F=fin(); F.lanc=F.lanc.filter(x=>x.ID!==tmp); if(aliases.length) api('finSalvarAliasCC',{lista:aliases}).catch(()=>{}); },
-      erro:()=>{ const F=fin(); F.lanc=F.lanc.filter(x=>x.ID!==tmp); }});
+      ok:()=>{ if(aliases.length) api('finSalvarAliasCC',{lista:aliases}).catch(()=>{}); },
+      erro:()=>{ if(tmp){ const F=fin(); F.lanc=F.lanc.filter(x=>x.ID!==tmp); } }});
     toast(id?'Lançamento salvo':(tipo==='RECEBER'?'Recebimento':'Pagamento')+' agendado ✓'); return;
   }
   try{
@@ -2932,12 +2932,15 @@ const filaPassageiro=e=>!e.servidor||/trava|lock|tempo|timeout|too many|Service|
 // um envio por vez (vários ao mesmo tempo disputavam a trava do Google e davam "tempo limite do bloqueio")
 let FN_CADEIA=Promise.resolve();
 const ehTrava=e=>/bloqueio|lock|trava/i.test((e&&e.message)||'');
-async function apiPersistente(acao,dados){ // se o Google estiver ocupado com outro envio, espera e tenta de novo
-  for(let t=0;;t++){ try{ return await api(acao,dados); }catch(e){ if(t<3&&ehTrava(e)){ await new Promise(r=>setTimeout(r,4000*(t+1))); continue; } throw e; } } }
+async function apiPersistente(acao,dados){ // Google ocupado / internet oscilando: espera e tenta de novo sozinho (5 tentativas, ~1 min) antes de deixar como pendente
+  for(let t=0;;t++){ try{ return await api(acao,dados); }catch(e){ if(t<4&&filaPassageiro(e)){ await new Promise(r=>setTimeout(r,[3000,6000,12000,20000][t])); continue; } throw e; } } }
+const fnIdCli=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 function fnNaFila(fn){ const p=FN_CADEIA.then(fn,fn); FN_CADEIA=p.catch(()=>{}); return p; }
 function fnBg(acao,dados,{local,ok,erro,rotulo}={}){
   if(local) try{ local(); }catch(e){}
   if(S.view==='financeiro') fnAtualizar();
+  // se já há envios pendentes, este entra no fim da fila (a ordem importa: criar antes de editar)
+  if(filaLer().some(x=>!x.env&&!x.recusado)){ const it=filaAdd(acao,dados,rotulo); filaErro(it.cli,'aguardando os anteriores'); const F=filaLer(); const x=F.find(y=>y.cli===it.cli); if(x) x.tent=0; filaGravar(F); setTimeout(()=>filaEnviar(false),50); return Promise.resolve(null); }
   const item=filaAdd(acao,dados,rotulo); S.finPend=(S.finPend||0)+1; fnPendAtualizar();
   return fnNaFila(()=>apiPersistente(acao,Object.assign({},dados,{_cli:item.cli}))).then(r=>{ filaTirar(item.cli); S.finFresco=false; if(ok) ok(r); fnRedesenharSeguro(); return r; })
     .catch(async e=>{
@@ -2975,20 +2978,22 @@ function filaErro(cli,msg){ const F=filaLer(); const x=F.find(y=>y.cli===cli); i
 function filaBadge(){ const b=document.getElementById('filaBadge'); if(!b) return; const F=filaLer().filter(x=>!x.env); b.classList.toggle('hide',!F.length); b.textContent=`⚠ ${F.length} não enviado(s) para a nuvem`; }
 let FILA_ENVIANDO=false;
 async function filaEnviar(manual){
-  if(FILA_ENVIANDO) return; const F=filaLer().filter(x=>!x.env); if(!F.length){ if(manual) toast('Nada pendente — tudo já está na nuvem ✓',4000); return; }
+  if(FILA_ENVIANDO) return; const F=filaLer().filter(x=>!x.env&&(manual||!x.recusado)); if(!F.length){ if(manual) toast('Nada pendente — tudo já está na nuvem ✓',4000); return; }
   FILA_ENVIANDO=true; let ok=0, falhou=0; if(manual) toast(`Enviando ${F.length} pendente(s)… um por vez`,4000);
   for(const it of F){ // na ordem em que foram feitos, um por vez (na mesma fila dos salvamentos da tela)
     try{ await fnNaFila(()=>apiPersistente(it.acao,Object.assign({},it.dados,{_cli:it.cli}))); filaTirar(it.cli); ok++; if(S.view==='financeiro'&&FN.sec==='config'&&FN.sub.config==='nuvem') fnRedesenharSeguro(); }
     catch(e){ if(filaPassageiro(e)){ filaErro(it.cli,e.message); falhou++; break; } else { const G=filaLer(); const x=G.find(y=>y.cli===it.cli); if(x){ x.erro='Recusado: '+e.message; x.recusado=true; x.env=false; } filaGravar(G); falhou++; } }
   }
   FILA_ENVIANDO=false;
+  if(ok&&!falhou&&filaLer().some(x=>!x.env&&!x.recusado)) return filaEnviar(manual); // chegaram outros enquanto enviava: manda já
   if(ok){ try{ await carregar(true); }catch(e){} }
   if(manual||ok) toast(ok&&!falhou?`✓ ${ok} envio(s) gravado(s) na nuvem`:`${ok} enviado(s) · ${falhou} com problema — veja a lista`,6000);
   if(S.view==='financeiro') fnRedesenharSeguro();
 }
+function fnFilaReenviar(cli){ const F=filaLer(); const x=F.find(y=>y.cli===cli); if(x){ x.recusado=false; x.erro=''; } filaGravar(F); filaEnviar(true).then(()=>fnAtualizar()); }
 function filaIniciar(){ // ao abrir: o que ficou "enviando" de uma sessão anterior volta para pendente
   const F=filaLer(); F.forEach(x=>{ if(x.env){ x.env=false; x.erro=x.erro||'Sessão anterior fechada antes da confirmação'; } }); filaGravar(F);
-  filaEnviar(false); setInterval(()=>filaEnviar(false),60000); window.addEventListener('online',()=>filaEnviar(false)); }
+  filaEnviar(false); setInterval(()=>{ if(filaLer().some(x=>!x.env&&!x.recusado)) filaEnviar(false); },20000); window.addEventListener('online',()=>filaEnviar(false)); }
 function fnNuvemTela(){
   const F=filaLer();
   return `<div class="card" style="padding:14px;margin-bottom:12px"><div class="row" style="align-items:center"><div><b style="font-size:16px">☁ Envio para a nuvem</b>
@@ -2996,8 +3001,8 @@ function fnNuvemTela(){
     <span class="sp"></span><button class="btn" onclick="filaEnviar(true).then(()=>fnAtualizar())">☁ Enviar tudo para a nuvem agora</button>
     <button class="btn ghost sm" onclick="carregar(true).then(()=>{ toast('Dados recarregados da nuvem ✓'); fnAtualizar(); })">↻ Recarregar dados da nuvem</button></div></div>
   ${F.length?`<div class="tw sl-tab"><table><thead><tr><th>Feito em</th><th>O quê</th><th class="n">Tentativas</th><th>Situação</th><th></th></tr></thead><tbody>
-    ${F.map(x=>`<tr><td>${esc(x.em)}</td><td style="white-space:normal">${esc(x.rotulo)}</td><td class="n">${x.tent||0}</td><td style="white-space:normal">${x.env?'<span class="tag t-acc">enviando…</span>':x.recusado?`<span class="tag t-bad">${esc(x.erro)}</span>`:`<span class="tag t-warn">pendente</span> <span class="muted small">${esc(x.erro||'')}</span>`}</td>
-      <td class="c"><button class="ib del" title="Descartar este envio (não será gravado)" onclick="if(confirm('Descartar este envio? Ele NÃO será gravado na nuvem.')){ filaTirar('${esc(x.cli)}'); fnAtualizar(); }">Descartar</button></td></tr>`).join('')}</tbody></table></div>`
+    ${F.map(x=>`<tr><td>${esc(x.em)}</td><td style="white-space:normal">${esc(x.rotulo)}</td><td class="n">${x.tent||0}</td><td style="white-space:normal">${x.env?'<span class="tag t-acc">enviando…</span>':x.recusado?`<span class="tag t-bad">${esc(x.erro)}</span>${/^tmp/.test(String((x.dados||{}).id||''))?'<div class="small muted" style="margin-top:3px">Alteração feita num lançamento que ainda não tinha chegado na nuvem (versão antiga do sistema). Confira o lançamento na lista, refaça a alteração se precisar e descarte esta linha.</div>':''}`:`<span class="tag t-warn">pendente</span> <span class="muted small">${esc(x.erro||'')}</span>`}</td>
+      <td class="c" style="white-space:nowrap">${x.recusado?`<button class="ib" title="Enviar de novo" onclick="fnFilaReenviar('${esc(x.cli)}')">↻ Tentar de novo</button> `:''}<button class="ib del" title="Descartar este envio (não será gravado)" onclick="if(confirm('Descartar este envio? Ele NÃO será gravado na nuvem.')){ filaTirar('${esc(x.cli)}'); fnAtualizar(); }">Descartar</button></td></tr>`).join('')}</tbody></table></div>`
   :'<div class="card muted" style="padding:14px">✓ Tudo já está na nuvem. Nenhum envio pendente neste computador.</div>'}`;
 }
 
