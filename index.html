@@ -199,6 +199,24 @@ body:not(.abas-ok) #nav button,body:not(.abas-ok) #btConfig{visibility:hidden}
 tr.fn-bok td{background:#eef7ef}
 .lg-res{display:inline-block;background:#fff4e8;border:1px solid #f3c79b;border-radius:8px;padding:5px 10px;font-size:13.5px;white-space:nowrap}.lg-res b{color:#b45309;font-size:15px}.lg-res.ok{background:#eef7ef;border-color:#b9dcbd;color:var(--ok)}
 .dc-vchq{font-size:11.5px;font-weight:800;color:#a16207;background:#fef3c7;border-radius:4px;padding:0 4px;margin-top:2px;white-space:nowrap}.dc-k.chq b{color:#a16207}.dc-k.chq{background:#fffbeb;border-color:#fcd34d}
+.cc-list{display:flex;flex-direction:column;gap:12px;margin-top:10px}
+.cc-card{display:grid;grid-template-columns:minmax(230px,30%) 1fr auto;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;align-items:stretch}
+.cc-card.cc-sel{border-color:var(--acc);box-shadow:0 0 0 2px #ffe3c7}
+.cc-l{padding:14px 16px;position:relative;display:flex;flex-direction:column;gap:10px;border-right:1px solid var(--line)}
+.cc-ck{position:absolute;left:6px;top:6px}
+.cc-top{display:flex;justify-content:space-between;gap:10px;align-items:baseline;padding-left:12px}.cc-dt{font-weight:700;font-size:15px}.cc-v{font-weight:800;font-size:17px;white-space:nowrap}
+.cc-desc{font-size:13.5px;flex:1}.cc-bot{display:flex;justify-content:space-between}
+.cc-r{background:#f6f6f4;padding:10px 14px 12px}.cc-r-ok{display:flex;align-items:center;justify-content:space-between;gap:10px;grid-column:2/4}
+.cc-tabs{display:flex;gap:2px;margin-bottom:-1px}.cc-tab{border:0;background:none;padding:7px 14px;font:inherit;font-size:13.5px;color:var(--mut);cursor:pointer;border-radius:7px 7px 0 0}.cc-tab.on{background:#fff;color:var(--ink);font-weight:700}
+.cc-corpo{background:#fff;border-radius:0 8px 8px 8px;padding:10px 12px;min-height:74px}
+.cc-form{display:grid;grid-template-columns:1fr 1.4fr;gap:8px}.cc-form>*{min-width:0}.cc-form .cc-desc-in{grid-column:1}.cc-form select,.cc-form input{width:100%}
+.cc-form{grid-template-columns:1fr 1fr 1fr}.cc-form select{grid-column:1}.cc-form .cc-nome{grid-column:2/4}
+.cc-det{display:inline-block;margin-top:8px}
+.cc-sugs{display:flex;flex-direction:column;gap:6px}.cc-sug{display:flex;gap:8px;align-items:flex-start;padding:6px 8px;border:1px solid var(--line);border-radius:7px;cursor:pointer;font-size:13.5px}.cc-sug span{flex:1}.cc-sug:has(input:checked){border-color:var(--ok);background:var(--ok-soft)}.cc-sv{white-space:nowrap}
+.cc-vazio{padding:8px 0}
+.cc-ok{align-self:center;margin:0 14px;min-width:64px;min-height:64px;font-size:16px;font-weight:800;justify-content:center}
+.cc-feito{opacity:.85}.cc-feito .cc-l{border-right:0}
+@media(max-width:900px){.cc-card{grid-template-columns:1fr}.cc-l{border-right:0;border-bottom:1px solid var(--line)}.cc-ok{margin:10px;min-height:44px}.cc-r-ok{grid-column:auto}}
 .dc-ctop{display:flex;justify-content:flex-start;margin:-4px 0 4px}.dc-cnav{display:inline-flex;align-items:center;gap:4px;font-size:12.5px;background:var(--soft);border:1px solid var(--line);border-radius:7px;padding:1px 4px}.dc-cnav b{min-width:120px;text-align:center}.dc-cnav .ib{padding:0 6px;font-size:11px}
 .dc-chqs{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0 10px}.dc-chq{background:#fff;border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:13px;cursor:pointer;font-family:inherit}.dc-chq b{color:var(--bad)}.dc-chq:hover,.dc-chq.on{border-color:var(--bad);background:#fdeeee}
 .dc-saldo{padding:14px 16px;margin-bottom:12px;border-left:5px solid var(--acc)}.dc-saldo-t{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-weight:700}.dc-saldo-t>b{font-size:26px}
@@ -2084,7 +2102,7 @@ function fnConciliacao(){
     if(CF.sug==='com'&&!FN.concPar[e.ID]) return false; if(CF.sug==='sem'&&(e.LANC_ID||FN.concPar[e.ID])) return false;
     return !q||semAcento([e.DESCRICAO,e.DOCUMENTO,e.DATA,fN(Math.abs(+e.VALOR),2)].join(' ')).includes(q); });
   const vis=new Set(LL.filter(e=>!e.LANC_ID).map(e=>e.ID)); [...FN.concSel].forEach(id=>{ if(!vis.has(id)) FN.concSel.delete(id); });
-  const nSel=FN.concSel.size, nSelSug=[...FN.concSel].filter(id=>FN.concPar[id]).length, nPend=vis.size; const limC=FN.lim||300;
+  const nSel=FN.concSel.size, nSelSug=[...FN.concSel].filter(id=>FN.concPar[id]).length, nPend=vis.size; const limC=FN.lim||100;
   const totF=LL.reduce((s,e)=>s+(+e.VALOR||0),0);
   return `<div class="sl-filtros">
     <select style="max-width:220px" onchange="FN.conta=this.value;fnAtualizar()">${C.map(x=>`<option value="${esc(x.ID)}" ${x.ID===FN.conta?'selected':''}>${esc(x.NOME)}</option>`).join('')}</select>
@@ -2101,19 +2119,12 @@ function fnConciliacao(){
     <span class="sp"></span>${nSel?`<span class="small"><b>${nSel}</b> marcada(s)</span>`:''}
     <button class="btn" ${nSelSug?'':'disabled'} onclick="fnConciliarMarcados()">✓ Conciliar lançamentos marcados${nSelSug?' ('+nSelSug+')':''}</button>
     <button class="btn ghost sm" ${nSel?'':'disabled'} onclick="fnIgnorarMarcados()" title="Sem lançamento (ex.: transferência entre contas)">Ignorar marcados</button></div>`:''}
-  <div class="tw sl-tab"><table class="fn-conc"><thead><tr><th style="width:28px"></th><th>Data</th><th>Descrição no extrato</th><th class="n">Valor</th><th>Conciliação</th></tr></thead><tbody>
-  ${LL.slice(0,limC).map(e=>{ const lk=e.LANC_ID; const las=lk&&lk!=='IGNORADO'?String(lk).split(',').map(fnLanc):[];
-    let acao;
-    if(lk==='IGNORADO') acao=`<span class="tag t-mut">Ignorado (sem lançamento)</span> <button class="ib" onclick="fnDesconciliar('${esc(e.ID)}')">desfazer</button>`;
-    else if(lk) acao=`<span class="tag t-ok">✓ Conciliado</span> ${las.map(la=>`<b>${esc(la?la.NOME:'(lançamento apagado)')}</b>${la&&las.length>1?' '+fR(+la.VALOR):''}${la&&la.CATEGORIA?' <span class="muted small">· '+esc(la.CATEGORIA)+'</span>':''}${la&&la.NOTA_FISCAL?' <span class="muted small">· NF '+esc(la.NOTA_FISCAL)+'</span>':''}`).join(' <span class="muted">+</span> ')} <button class="ib" onclick="fnDesconciliar('${esc(e.ID)}')">desfazer</button>`;
-    else { const sg=fnSugestoes(e);
-      acao=(sg.length?sg.slice(0,3).map(l=>`<button class="fn-sug${FN.concPar[e.ID]===l.ID?' fn-sug-par':''}" onclick="fnConciliar('${esc(e.ID)}','${esc(l.ID)}')" title="Conciliar com este lançamento"><span class="fn-sug-k">Sugestão</span> <b>${esc(l.NOME)}</b>${l.NOTA_FISCAL?' · NF '+esc(l.NOTA_FISCAL):''} · venc. ${esc(l.VENCIMENTO)} · ${fR(+l.VALOR)} <span class="fn-sug-ok">✓ Conciliar</span></button>`).join(''):'<span class="muted small">Sem lançamento com mesmo valor e vencimento.</span>')
-        +` <span class="fn-acts"><button class="ib" onclick="fnBuscarLanc('${esc(e.ID)}')">🔍 Buscar lançamento(s)</button><button class="ib" onclick="fnCriarDoExtrato('${esc(e.ID)}')">+ Criar lançamento</button><button class="ib" onclick="fnIgnorar('${esc(e.ID)}')" title="Sem lançamento (ex.: transferência entre contas)">Ignorar</button></span>`; }
-    return `<tr class="${lk?'fn-ok':''}${FN.concSel.has(e.ID)?' fn-sel':''}"><td class="c">${!lk?`<input type="checkbox" class="fn-cck" ${FN.concSel.has(e.ID)?'checked':''} onchange="fnConcMarcar('${esc(e.ID)}',this.checked)">`:''}</td><td>${esc(e.DATA)}</td><td style="white-space:normal;min-width:200px">${esc(e.DESCRICAO)}${e.DOCUMENTO?' <span class="muted small">· doc '+esc(e.DOCUMENTO)+'</span>':''}</td><td class="n">${fnVal(+e.VALOR)}</td><td style="white-space:normal">${acao}</td></tr>`; }).join('')
-    ||`<tr><td colspan="5" class="muted">${E.length?(FN.concFiltro==='pend'&&!pend.length?'Tudo conciliado nesta conta. ✓':'Nada com esses filtros.'):'Nenhum extrato importado nesta conta. Use "📋 Colar extrato" ou "⬆ Importar extrato (Excel)".'}</td></tr>`}
-  </tbody>${LL.length>limC?`<tfoot><tr><td colspan="5" class="c" style="background:var(--card);font-weight:400">Mostrando ${limC} de ${LL.length} · <button class="btn ghost sm" onclick="FN.lim=1e9;fnAtualizar()">Mostrar todas</button></td></tr></tfoot>`:''}</table></div>`;
+  ${fnConcListas()}
+  <div class="cc-list">${LL.slice(0,limC).map(fnConcCard).join('')||`<div class="card muted">${E.length?(FN.concFiltro==='pend'&&!pend.length?'Tudo conciliado nesta conta. ✓':'Nada com esses filtros.'):'Nenhum extrato importado nesta conta. Use "📋 Colar extrato" ou "⬆ Importar extrato (Excel)".'}</div>`}</div>
+  ${LL.length>limC?`<div class="c" style="margin:10px 0">Mostrando ${limC} de ${LL.length} · <button class="btn ghost sm" onclick="FN.lim=(FN.lim||100)+200;fnAtualizar()">Mostrar mais</button></div>`:''}`;
 }
-async function fnConciliar(exId,lancId){ try{ await api('finConciliar',{extratoId:exId,lancId}); fecharModal(); toast('Conciliado ✓'); await fnRecarregar(); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
+function fnConciliar(exId,lancId){ const e=fin().extrato.find(x=>x.ID===exId); fecharModal();
+  fnBg('finConciliar',{extratoId:exId,lancId},{rotulo:'Conciliar extrato',local:()=>{ if(e) e.LANC_ID=lancId; const l=fnLanc(lancId); if(l){ l.STATUS='QUITADO'; l.DATA_PAGAMENTO=e&&e.DATA; l.VALOR_PAGO=+l.VALOR; l.EXTRATO_ID=exId; } }}); toast('Conciliado ✓ — gravando no Google',2500); fnAtualizar(); }
 async function fnDesconciliar(exId){ if(!confirm('Desfazer esta conciliação? O lançamento volta a ficar em aberto.')) return; try{ await api('finDesconciliar',{extratoId:exId}); toast('Conciliação desfeita'); await fnRecarregar(); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
 async function fnIgnorar(exId){ try{ await api('finConciliar',{extratoId:exId,ignorar:true}); toast('Marcado como sem lançamento'); await fnRecarregar(); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
 function fnBuscarLanc(exId){
@@ -3066,7 +3077,8 @@ function fnMarcarBanco(id,on){ const hoje=hojeBR();
   fnBg('finMarcarBanco',{id,ok:on},{rotulo:`${on?'Marcar':'Desmarcar'} boleto lançado no banco`,local:()=>{ const l=fnLanc(id); if(l) l.BANCO_OK=on?hoje:''; }}); }
 
 /* ---------- conciliação em lote ---------- */
-function fnConcMarcar(id,on){ on?FN.concSel.add(id):FN.concSel.delete(id); fnAtualizar(); }
+function fnConcMarcar(id,on){ on?FN.concSel.add(id):FN.concSel.delete(id); const c=document.getElementById('cc_'+id); if(c) c.classList.toggle('cc-sel',on);
+  const bar=document.getElementById('fnConcBar'); if(bar){ const y=window.scrollY; fnAtualizar(); window.scrollTo(0,y); } }
 function fnConcTodos(on){ FN.concSel=new Set(on?[...document.querySelectorAll('.fn-cck')].map(c=>c.getAttribute('onchange').match(/'([^']+)'/)[1]):[]); if(on&&FN.lim<1e9){ const E=fin().extrato; /* inclui as não desenhadas */ } fnAtualizar(); }
 function fnConcSoSug(){ FN.concSel=new Set([...document.querySelectorAll('.fn-cck')].map(c=>c.getAttribute('onchange').match(/'([^']+)'/)[1]).filter(id=>FN.concPar[id])); fnAtualizar(); }
 function fnIgnorarMarcados(){ const ids=[...FN.concSel]; if(!ids.length||!confirm(`Marcar ${ids.length} linha(s) do extrato como "sem lançamento" (ignorar)?`)) return; FN.concSel=new Set();
@@ -3465,6 +3477,61 @@ async function dnEnviarLog(lancId,comMapa){
 }
 
 iniciar();
+
+/* ---------- conciliação em cartões: extrato à esquerda, sugestão / nova transação à direita ---------- */
+// listas para autocompletar (nomes, categorias por tipo, centros) — uma vez por tela, não em cada cartão
+function fnConcListas(){
+  const F=fin(); const k=F.lanc.length+'|'+F.categorias.length+'|'+F.centros.length;
+  if(FN._concK!==k){ const v=new Set(), nomes=[]; for(let i=F.lanc.length-1;i>=0&&nomes.length<4000;i--){ const n=String(F.lanc[i].NOME||'').trim(), u=up(n); if(n&&!v.has(u)){ v.add(u); nomes.push(n); } }
+    FN._concK=k; FN._concDL=`<datalist id="dlCcNome">${nomes.sort((a,b)=>a.localeCompare(b,'pt-BR')).map(n=>`<option value="${esc(n)}">`).join('')}</datalist>`
+      +['PAGAR','RECEBER'].map(t=>`<datalist id="dlCcCat${t}">${fnCats(t).map(n=>`<option value="${esc(n)}">`).join('')}</datalist>`).join('')
+      +`<datalist id="dlCcCC">${fnCentros().map(n=>`<option value="${esc(n)}">`).join('')}</datalist>`; }
+  return FN._concDL;
+}
+function fnConcCard(e){
+  const id=esc(e.ID), v=+e.VALOR||0, ent=v>=0, lk=e.LANC_ID;
+  const esq=`<div class="cc-l">${!lk?`<input type="checkbox" class="fn-cck cc-ck" ${FN.concSel.has(e.ID)?'checked':''} onchange="fnConcMarcar('${id}',this.checked)" title="Marcar para conciliar/ignorar em lote">`:''}
+    <div class="cc-top"><span class="cc-dt">📅 ${esc(e.DATA)}</span><span class="cc-v ${ent?'ok':'bad'}">${ent?'↑':'↓'} ${fN(Math.abs(v),2)}</span></div>
+    <div class="cc-desc">${esc(e.DESCRICAO)}${e.DOCUMENTO?`<div class="muted small">doc ${esc(e.DOCUMENTO)}</div>`:''}</div>
+    ${!lk?`<div class="cc-bot"><span></span><button class="ib" title="Ignorar: linha sem lançamento (ex.: transferência entre contas, aplicação)" onclick="fnConcIgnorar('${id}')">🗑️ Ignorar</button></div>`:''}</div>`;
+  if(lk){ const las=lk!=='IGNORADO'&&lk!=='…'?String(lk).split(',').map(fnLanc):[];
+    const txt=lk==='…'?'<span class="muted">gravando…</span>':lk==='IGNORADO'?'<span class="tag t-mut">Ignorado (sem lançamento)</span>':`<span class="tag t-ok">✓ Conciliado</span> ${las.map(la=>`<b>${esc(la?la.NOME:'(lançamento apagado)')}</b>${la&&la.CATEGORIA?' <span class="muted small">· '+esc(la.CATEGORIA)+'</span>':''}${la&&las.length>1?' '+fR(+la.VALOR):''}`).join(' <span class="muted">+</span> ')}`;
+    return `<div class="cc-card cc-feito">${esq}<div class="cc-r cc-r-ok"><div>${txt}</div>${lk!=='…'?`<button class="btn ghost sm" onclick="fnDesconciliar('${id}')">desfazer</button>`:''}</div></div>`; }
+  const sg=fnSugestoes(e); FN.concTab=FN.concTab||{}; const tab=FN.concTab[e.ID]||(sg.length?'sug':'nova'); const tipo=ent?'RECEBER':'PAGAR';
+  const tabs=[['sug',`Sugestão${sg.length?' ('+sg.length+')':''}`],['nova','Nova transação'],['busca','Buscar / Criar vários']].map(([k,t])=>`<button class="cc-tab${tab===k?' on':''}" onclick="${k==='busca'?`fnBuscarLanc('${id}')`:`FN.concTab['${id}']='${k}';fnConcRedesenhar('${id}')`}">${t}</button>`).join('');
+  let corpo;
+  if(tab==='sug') corpo=sg.length?`<div class="cc-sugs">${sg.slice(0,4).map((l,i)=>`<label class="cc-sug"><input type="radio" name="ccs_${id}" value="${esc(l.ID)}" ${i===0?'checked':''}><span><b>${esc(l.NOME)}</b>${l.DESCRICAO?' · '+esc(l.DESCRICAO):''}${l.NOTA_FISCAL?' · NF '+esc(l.NOTA_FISCAL):''}<div class="muted small">venc. ${esc(l.VENCIMENTO)} · ${esc(l.CATEGORIA||'sem categoria')}${l.CENTRO_CUSTO?' · '+esc(l.CENTRO_CUSTO):''}</div></span><b class="cc-sv">${fR(+l.VALOR)}</b></label>`).join('')}</div>`
+    :`<div class="muted small cc-vazio">Nenhum lançamento em aberto com o mesmo valor e vencimento. Use <a href="#" onclick="event.preventDefault();FN.concTab['${id}']='nova';fnConcRedesenhar('${id}')">Nova transação</a> ou <a href="#" onclick="event.preventDefault();fnBuscarLanc('${id}')">Buscar / Criar vários</a>.</div>`;
+  else corpo=`<div class="cc-form">
+      <select disabled><option>${ent?'Recebimento':'Pagamento'}</option></select>
+      <input class="cc-nome" list="dlCcNome" placeholder="Nome" onchange="fnConcNome(this)">
+      <input class="cc-desc-in" value="${esc(e.DESCRICAO)}" placeholder="Descrição">
+      <input class="cc-cat" list="dlCcCat${tipo}" placeholder="Categoria">
+      <input class="cc-cc" list="dlCcCC" placeholder="Centro de custo">
+    </div><a href="#" class="small cc-det" onclick="event.preventDefault();fnCriarDoExtrato('${id}')">✎ Criar agendamento detalhado</a>`;
+  return `<div class="cc-card${FN.concSel.has(e.ID)?' cc-sel':''}" id="cc_${id}">${esq}<div class="cc-r"><div class="cc-tabs">${tabs}</div><div class="cc-corpo">${corpo}</div></div>
+    <button class="btn cc-ok" ${tab==='sug'&&!sg.length?'disabled':''} onclick="fnConcOK('${id}')">OK</button></div>`;
+}
+function fnConcRedesenhar(exId){ const e=fin().extrato.find(x=>x.ID===exId), el=document.getElementById('cc_'+exId); if(e&&el) el.outerHTML=fnConcCard(e); }
+// nome escolhido: completa categoria e centro de custo com os do último lançamento desse nome
+function fnConcNome(inp){ const card=inp.closest('.cc-card'); const n=up(inp.value.trim()); if(!n) return; const L=fin().lanc; let ult=null;
+  for(let i=L.length-1;i>=0;i--) if(up(String(L[i].NOME||'').trim())===n){ ult=L[i]; break; } if(!ult) return;
+  const cat=card.querySelector('.cc-cat'), cc=card.querySelector('.cc-cc'); if(cat&&!cat.value&&ult.CATEGORIA) cat.value=ult.CATEGORIA; if(cc&&!cc.value&&ult.CENTRO_CUSTO&&fnCCParse(ult.CENTRO_CUSTO).length===1) cc.value=fnCCParse(ult.CENTRO_CUSTO)[0].nome; }
+function fnConcOK(exId){
+  const e=fin().extrato.find(x=>x.ID===exId); const card=document.getElementById('cc_'+exId); if(!e||!card) return; const tab=(FN.concTab||{})[exId]||(fnSugestoes(e).length?'sug':'nova');
+  if(tab==='sug'){ const r=card.querySelector('input[type=radio]:checked'); if(!r) return; const lancId=r.value;
+    fnBg('finConciliar',{extratoId:exId,lancId},{rotulo:'Conciliar extrato',local:()=>{ e.LANC_ID=lancId; const l=fnLanc(lancId); if(l){ l.STATUS='QUITADO'; l.DATA_PAGAMENTO=e.DATA; l.VALOR_PAGO=+l.VALOR; l.EXTRATO_ID=exId; } }});
+  } else {
+    const nome=card.querySelector('.cc-nome').value.trim(), desc=card.querySelector('.cc-desc-in').value.trim(), cat=card.querySelector('.cc-cat').value.trim(), cc=card.querySelector('.cc-cc').value.trim();
+    if(!nome){ toast('Preencha o nome'); card.querySelector('.cc-nome').focus(); return; }
+    if(cc&&!fnCentros().some(n=>up(n)===up(cc))&&!S.master){ toast('Centro de custo não cadastrado'); return; }
+    fnBg('finConciliar',{extratoId:exId,novo:{nome,descricao:desc,categoria:cat,centroCusto:cc,vencimento:e.DATA,formaPagamento:'CONTA CORRENTE'}},{rotulo:'Criar lançamento e conciliar',local:()=>{ e.LANC_ID='…'; },ok:()=>fnConcRedesenhar(exId),erro:()=>{ if(e.LANC_ID==='…') e.LANC_ID=''; fnConcRedesenhar(exId); }});
+  }
+  if(FN.concSel) FN.concSel.delete(exId); fnConcRedesenhar(exId); toast('Conciliado ✓ — gravando no Google',2500);
+}
+function fnConcIgnorar(exId){ const e=fin().extrato.find(x=>x.ID===exId); if(!e) return;
+  fnBg('finConciliar',{extratoId:exId,ignorar:true},{rotulo:'Ignorar linha do extrato',local:()=>{ e.LANC_ID='IGNORADO'; }}); fnConcRedesenhar(exId); }
+
 </script>
 </body>
 </html>
