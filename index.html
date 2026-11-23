@@ -1275,8 +1275,8 @@ function vLogistica(){
     ${f('Valor NF',`<input id="lgValor" inputmode="decimal" value="${r.VALOR_NF!==undefined&&r.VALOR_NF!==''?fN(+r.VALOR_NF,2):''}" placeholder="0,00" oninput="lgPrevCalc()">`,'w-val')}
     ${f('Cálculo',`<input id="lgCalc" list="lgCalcLista" value="${esc(r.CALCULO||'NC')}" autocomplete="off" title="NC, BONIF ou X + qualquer número (X2, X4, X7,5…)" oninput="lgPrevCalc()" onfocus="this.select()" onblur="const c=calcNorm(this.value); if(c) this.value=c; lgPrevCalc()"><datalist id="lgCalcLista">${CALCULOS.map(([c])=>`<option value="${c}">`).join('')}</datalist>`,'w-calc')}
     ${f('Calculado',`<div id="lgCalcVal" class="lg-calc">—</div>`,'w-val')}
-    ${f('Bol. especial',okBtn('lgBolEsp',isOK(r.BOLETO_PARTE_ESPECIAL),'OK'),'w-ok')}
     ${f('Bol. NF',okBtn('lgBolNF',isOK(r.BOLETOS_PARTE_NF),'OK'),'w-ok')}
+    ${f('Bol. especial',okBtn('lgBolEsp',isOK(r.BOLETO_PARTE_ESPECIAL),'OK'),'w-ok')}
     ${f('Obs',`<input id="lgObs" value="${esc(r.OBS||'')}" placeholder="Observações…">`,'w-obs')}
     <div class="sf w-act">${ed?'<button class="btn ghost sm" onclick="LG.edit=null;render()">cancelar</button>':''}<button class="btn" id="lgSalvar" onclick="lgSalvar()">${ed?'Salvar':'+ Adicionar'}</button></div>
   </div>
@@ -1329,8 +1329,8 @@ function lgLinha(r){ // cada célula é um campo: clique, digite e saia (Enter/T
     <td class="n w-v">${inp('VALOR_NF',fN(+r.VALOR_NF,2),'inputmode="decimal" style="text-align:right"')}</td>
     <td class="c w-c">${inp('CALCULO',r.CALCULO||'NC','list="lgCalcLista" style="text-align:center" title="NC, BONIF ou X + número"')}</td>
     <td class="n" title="${+r.VALOR_PARTE_ESPECIAL?'Parte especial: '+fR(+r.VALOR_PARTE_ESPECIAL):''}"><b>${fR(+r.VALOR_CALCULADO)}</b></td>
-    ${lgCalcDe(r)==='BONIF'?'<td class="c" colspan="2"><span class="tag t-ok" title="Bonificado pelo fornecedor: sem boletos">BONIFICADO</span></td>':`<td class="c">${lgCalcDe(r)==='NC'&&!isOK(r.BOLETO_PARTE_ESPECIAL)?'<span class="muted small">—</span>':chip('BOLETO_PARTE_ESPECIAL',isOK(r.BOLETO_PARTE_ESPECIAL),'OK','')}</td>
-    <td class="c">${chip('BOLETOS_PARTE_NF',isOK(r.BOLETOS_PARTE_NF),'OK','')}</td>`}
+    ${lgCalcDe(r)==='BONIF'?'<td class="c" colspan="2"><span class="tag t-ok" title="Bonificado pelo fornecedor: sem boletos">BONIFICADO</span></td>':`<td class="c">${chip('BOLETOS_PARTE_NF',isOK(r.BOLETOS_PARTE_NF),'OK','')}</td>
+    <td class="c">${lgCalcDe(r)==='NC'&&!isOK(r.BOLETO_PARTE_ESPECIAL)?'<span class="muted small">—</span>':chip('BOLETO_PARTE_ESPECIAL',isOK(r.BOLETO_PARTE_ESPECIAL),'OK','')}</td>`}
     <td class="lg-obs">${inp('OBS',r.OBS||'','placeholder="—" title="'+esc(r.OBS||'')+'"')}</td>
     <td class="c" style="white-space:nowrap">${rtBotao(r)}<button class="ib del" title="Excluir lançamento" onclick="lgExcluir(this.closest('tr').dataset.id)">✕</button></td></tr>`;
 }
@@ -1342,7 +1342,7 @@ const LG_LIM=150; // linhas desenhadas de início (o resto aparece em "Mostrar m
 function lgTabela(){
   const L=lgFiltrados();
   const th=(k,l,c)=>`<th class="${c||''}" onclick="lgOrdenar('${k}')">${l}${LG.sort.k===k?(LG.sort.d>0?' ▲':' ▼'):''}</th>`;
-  return `<thead><tr>${th('forn','Fornecedor')}${th('fil','Filial')}${th('chegada','Chegada')}${th('nf','NF')}${th('lanc','Lançamento')}${th('vnf','Valor NF','n')}${th('calc','Cálc.','c')}${th('vcalc','Calculado','n')}${th('besp','Bol. especial','c')}${th('bnf','Bol. NF','c')}${th('obs','Obs')}<th></th></tr></thead>
+  return `<thead><tr>${th('forn','Fornecedor')}${th('fil','Filial')}${th('chegada','Chegada')}${th('nf','NF')}${th('lanc','Lançamento')}${th('vnf','Valor NF','n')}${th('calc','Cálc.','c')}${th('vcalc','Calculado','n')}${th('bnf','Bol. NF','c')}${th('besp','Bol. especial','c')}${th('obs','Obs')}<th></th></tr></thead>
   <tbody>${L.slice(0,LG.lim||LG_LIM).map(lgLinha).join('')
     ||`<tr><td colspan="12" class="muted">${(S.dados.logistica||[]).length?'Nenhum lançamento encontrado.':'Nenhum lançamento ainda. Preencha a linha acima.'}</td></tr>`}</tbody>
   <tfoot>${L.length>(LG.lim||LG_LIM)?`<tr class="lg-mais"><td colspan="12" class="c">Mostrando ${LG.lim||LG_LIM} de ${L.length} · <button class="btn ghost sm" onclick="LG.lim=(LG.lim||LG_LIM)+500;lgAtualizar()">Mostrar mais 500</button> <button class="btn ghost sm" onclick="LG.lim=1e9;lgAtualizar()">Mostrar todos</button> <span class="muted small">(a busca procura em todos)</span></td></tr>`:''}${lgRodape(L)}</tfoot>`;
@@ -1409,7 +1409,7 @@ async function lgAlternar(id,campo){ // marca/desmarca Recebido ou boletos diret
   catch(e){ r[campo]=antes; lgAtualizar(); toast('Erro: '+e.message,6000); }
 }
 function lgExportar(){
-  const rows=lgFiltrados().map(r=>({'Fornecedor':r.FORNECEDOR,'Filial':r.FILIAL,'Data chegada':r.DATA_CHEGADA,'Nota fiscal':r.NOTA_FISCAL,'Data lançamento':r.DATA_LANCAMENTO,'Valor da NF':+r.VALOR_NF,'Cálculo':r.CALCULO,'Fator':+r.FATOR,'Valor calculado':+r.VALOR_CALCULADO,'Parte especial':+r.VALOR_PARTE_ESPECIAL,'Boleto parte especial':isOK(r.BOLETO_PARTE_ESPECIAL)?'OK':'','Boletos parte NF':isOK(r.BOLETOS_PARTE_NF)?'OK':'','Obs':r.OBS||''}));
+  const rows=lgFiltrados().map(r=>({'Fornecedor':r.FORNECEDOR,'Filial':r.FILIAL,'Data chegada':r.DATA_CHEGADA,'Nota fiscal':r.NOTA_FISCAL,'Data lançamento':r.DATA_LANCAMENTO,'Valor da NF':+r.VALOR_NF,'Cálculo':r.CALCULO,'Fator':+r.FATOR,'Valor calculado':+r.VALOR_CALCULADO,'Parte especial':+r.VALOR_PARTE_ESPECIAL,'Boletos parte NF':isOK(r.BOLETOS_PARTE_NF)?'OK':'','Boleto parte especial':isOK(r.BOLETO_PARTE_ESPECIAL)?'OK':'','Obs':r.OBS||''}));
   const ws=XLSX.utils.json_to_sheet(rows); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Logística'); XLSX.writeFile(wb,'controle-logistica-'+hojeBR().replace(/\//g,'-')+'.xlsx');
 }
 
@@ -1536,9 +1536,9 @@ function lgModalImport(nome){
     ${L.some(x=>x.dup)?`<label class="check small"><input type="checkbox" ${LG_IMP.pularDup?'checked':''} onchange="LG_IMP.pularDup=this.checked;lgModalImport('${esc(nome).replace(/'/g,"\\'")}')"> pular NFs já lançadas (${L.filter(x=>x.dup).length})</label>`:''}
     <span class="sp"></span><button class="btn" id="lgImpBt" onclick="lgConfirmarImport()" ${ok.length?'':'disabled'}>Importar ${ok.length} lançamento(s)</button>
   </div>
-  <div class="tw sl-tab" style="max-height:62vh"><table><thead><tr><th>Lin.</th><th>Fornecedor</th><th>Filial</th><th>Chegada</th><th>NF</th><th>Lançamento</th><th class="n">Valor NF</th><th class="c">Cálc.</th><th class="n">Calculado</th><th class="c">Bol. esp.</th><th class="c">Bol. NF</th><th>Obs</th><th>Situação</th></tr></thead><tbody>
+  <div class="tw sl-tab" style="max-height:62vh"><table><thead><tr><th>Lin.</th><th>Fornecedor</th><th>Filial</th><th>Chegada</th><th>NF</th><th>Lançamento</th><th class="n">Valor NF</th><th class="c">Cálc.</th><th class="n">Calculado</th><th class="c">Bol. NF</th><th class="c">Bol. esp.</th><th>Obs</th><th>Situação</th></tr></thead><tbody>
   ${L.map(({d,erros,dup})=>`<tr class="${erros.length?'':verde(d)?'lg-ok':''}" style="${erros.length||(dup&&LG_IMP.pularDup)?'opacity:.55':''}"><td class="muted">${d.linha}</td><td><b>${esc(d.fornecedor)||'—'}</b></td><td>${esc(d.filial)}</td><td>${esc(d.dataChegada)}</td><td>${esc(d.notaFiscal)}</td><td>${esc(d.dataLancamento)}</td>
-    <td class="n">${fR(d.valorNF)}</td><td class="c">${esc(d.calculo)}</td><td class="n"><b>${fR(d.valorNF*fatorDe(d.calculo))}</b></td><td class="c">${d.calculo==='BONIF'||d.boletoEspecial?'OK':'—'}</td><td class="c">${d.calculo==='BONIF'||d.boletosNF?'OK':'—'}</td><td class="ell" title="${esc(d.obs)}">${esc(d.obs)}</td>
+    <td class="n">${fR(d.valorNF)}</td><td class="c">${esc(d.calculo)}</td><td class="n"><b>${fR(d.valorNF*fatorDe(d.calculo))}</b></td><td class="c">${d.calculo==='BONIF'||d.boletosNF?'OK':'—'}</td><td class="c">${d.calculo==='BONIF'||d.boletoEspecial?'OK':'—'}</td><td class="ell" title="${esc(d.obs)}">${esc(d.obs)}</td>
     <td>${erros.length?`<span class="tag t-bad">${esc(erros.join(', '))}</span>`:dup?'<span class="tag t-warn">NF já lançada</span>':'<span class="tag t-ok">ok</span>'}</td></tr>`).join('')}
   </tbody></table></div>`);
 }
@@ -2091,7 +2091,11 @@ async function fnExcluirImport(id){ const i=fin().importacoes.find(x=>x.ID===id)
 // sugestão: lançamento em aberto do mesmo tipo com valor igual (dif. até R$ 0,01) e vencimento na data do extrato
 function fnSugestoes(e){ const tipo=(+e.VALOR)>=0?'RECEBER':'PAGAR', v=Math.abs(+e.VALOR);
   // lançamento com conta de recebimento/pagamento definida só é sugerido para o extrato dessa conta (os da mesma conta vêm primeiro)
-  return fin().lanc.filter(l=>l.STATUS!=='QUITADO'&&l.TIPO===tipo&&Math.abs((+l.VALOR)-v)<=0.011&&String(l.VENCIMENTO)===String(e.DATA)&&(!l.CONTA_ID||String(l.CONTA_ID)===String(e.CONTA_ID)))
+  // índice tipo|data|valor (antes cada linha do extrato percorria os 160 mil+ lançamentos: a tela travava a cada OK)
+  const F=fin(), k=F.lanc.length+'|'+(S.finGen||0); if(!FN._sugIdx||FN._sugK!==k){ const ix=new Map(); F.lanc.forEach(l=>{ if(l.STATUS==='QUITADO') return; const c=l.TIPO+'|'+l.VENCIMENTO+'|'+Math.round(Math.abs(+l.VALOR)*100); let a=ix.get(c); if(!a) ix.set(c,a=[]); a.push(l); }); FN._sugIdx=ix; FN._sugK=k; }
+  // só o valor EXATO (centavo por centavo): 24,98 não sugere 24,97 nem 24,99
+  const c0=Math.round(v*100), out=(FN._sugIdx.get(tipo+'|'+e.DATA+'|'+c0)||[]).slice();
+  return out.filter(l=>l.STATUS!=='QUITADO'&&Math.round(Math.abs(+l.VALOR)*100)===c0&&(!l.CONTA_ID||String(l.CONTA_ID)===String(e.CONTA_ID)))
     .sort((a,b)=>(b.CONTA_ID?1:0)-(a.CONTA_ID?1:0)); }
 // campo "conta de recebimento" das importações (lembra a última escolhida neste computador)
 function fnContaSel(id){ const C=fin().contas, ult=LS.get('mc_contaRec')||''; return `<label class="small" style="display:inline-flex;align-items:center;gap:6px"><b>Conta de recebimento</b>
@@ -2133,7 +2137,7 @@ function fnConciliacao(){
   ${LL.length>limC?`<div class="c" style="margin:10px 0">Mostrando ${limC} de ${LL.length} · <button class="btn ghost sm" onclick="FN.lim=(FN.lim||100)+200;fnAtualizar()">Mostrar mais</button></div>`:''}`;
 }
 function fnConciliar(exId,lancId){ const e=fin().extrato.find(x=>x.ID===exId); fecharModal();
-  fnBg('finConciliar',{extratoId:exId,lancId},{rotulo:'Conciliar extrato',local:()=>{ if(e) e.LANC_ID=lancId; const l=fnLanc(lancId); if(l){ l.STATUS='QUITADO'; l.DATA_PAGAMENTO=e&&e.DATA; l.VALOR_PAGO=+l.VALOR; l.EXTRATO_ID=exId; } }}); toast('Conciliado ✓ — gravando no Google',2500); fnAtualizar(); }
+  fnConcEnfileirar({extratoId:exId,lancId},'Conciliar extrato',()=>{ if(e) e.LANC_ID=lancId; const l=fnLanc(lancId); if(l){ l.STATUS='QUITADO'; l.DATA_PAGAMENTO=e&&e.DATA; l.VALOR_PAGO=e?Math.abs(+e.VALOR):+l.VALOR; if(e) l.CONTA_ID=e.CONTA_ID; l.EXTRATO_ID=exId; } }); toast('Conciliado ✓ — gravando no Google',2500); if(document.getElementById('cc_'+exId)) fnConcRedesenhar(exId); else fnAtualizar(); }
 async function fnDesconciliar(exId){ if(!confirm('Desfazer esta conciliação? O lançamento volta a ficar em aberto.')) return; try{ await api('finDesconciliar',{extratoId:exId}); toast('Conciliação desfeita'); await fnRecarregar(); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
 async function fnIgnorar(exId){ try{ await api('finConciliar',{extratoId:exId,ignorar:true}); toast('Marcado como sem lançamento'); await fnRecarregar(); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
 function fnBuscarLanc(exId){
@@ -2945,17 +2949,38 @@ async function apiPersistente(acao,dados){ // Google ocupado / internet osciland
   for(let t=0;;t++){ try{ return await api(acao,dados); }catch(e){ if(t<4&&filaPassageiro(e)){ await new Promise(r=>setTimeout(r,[3000,6000,12000,20000][t])); continue; } throw e; } } }
 const fnIdCli=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 function fnNaFila(fn){ const p=FN_CADEIA.then(fn,fn); FN_CADEIA=p.catch(()=>{}); return p; }
-function fnBg(acao,dados,{local,ok,erro,rotulo}={}){
+function fnBg(acao,dados,{local,ok,erro,rotulo,leve}={}){
   if(local) try{ local(); }catch(e){}
-  if(S.view==='financeiro') fnAtualizar();
+  if(S.view==='financeiro'&&!leve) fnAtualizar();
   // se já há envios pendentes, este entra no fim da fila (a ordem importa: criar antes de editar)
   if(filaLer().some(x=>!x.env&&!x.recusado)){ const it=filaAdd(acao,dados,rotulo); filaErro(it.cli,'aguardando os anteriores'); const F=filaLer(); const x=F.find(y=>y.cli===it.cli); if(x) x.tent=0; filaGravar(F); setTimeout(()=>filaEnviar(false),50); return Promise.resolve(null); }
   const item=filaAdd(acao,dados,rotulo); S.finPend=(S.finPend||0)+1; fnPendAtualizar();
-  return fnNaFila(()=>apiPersistente(acao,Object.assign({},dados,{_cli:item.cli}))).then(r=>{ filaTirar(item.cli); S.finFresco=false; if(ok) ok(r); fnRedesenharSeguro(); return r; })
+  return fnNaFila(()=>apiPersistente(acao,Object.assign({},dados,{_cli:item.cli}))).then(r=>{ filaTirar(item.cli); S.finFresco=false; if(ok) ok(r); if(!leve) fnRedesenharSeguro(); return r; })
     .catch(async e=>{
       if(filaPassageiro(e)){ filaErro(item.cli,e.message); toast('⚠ Não chegou na nuvem ('+e.message+'). Ficou guardado neste computador e será reenviado — veja Configurações → Envio para a nuvem',9000); }
       else { filaTirar(item.cli); toast('⚠ Não salvou: '+e.message+' — recarregando os dados',8000); if(erro) erro(e); try{ await carregar(true); fnRedesenharSeguro(); }catch(x){} } })
     .finally(()=>{ S.finPend--; fnPendAtualizar(); });
+}
+
+/* ---------- conciliações: vários OK seguidos viram UM envio (finConciliarLote) — a tela não espera o Google ---------- */
+const concSimples=it=>it&&it.acao==='finConciliar'&&it.dados&&!it.dados.novo&&!(it.dados.lancIds&&it.dados.lancIds.length>1)&&!!(it.dados.lancId||it.dados.ignorar);
+const concPar=d=>d.ignorar?{extratoId:d.extratoId,ignorar:true}:{extratoId:d.extratoId,lancId:d.lancId};
+function concEnviarLote(itens){ return fnNaFila(()=>apiPersistente('finConciliarLote',{pares:itens.map(it=>concPar(it.dados)),_cli:'L'+itens[0].cli+'x'+itens.length})); }
+function concErros(r){ const er=((r&&r.erros)||[]).filter(x=>!/já conciliado/.test(x)); if(er.length){ toast('⚠ '+er.length+' conciliação(ões) não gravada(s): '+er.slice(0,3).join('; ')+' — recarregando',9000); carregar(true).then(()=>fnRedesenharSeguro()).catch(()=>{}); } }
+const CONC_BUF=[]; let CONC_T=null;
+function fnConcEnfileirar(dados,rotulo,local){
+  if(local) try{ local(); }catch(e){}
+  const item=filaAdd('finConciliar',dados,rotulo); S.finPend=(S.finPend||0)+1; fnPendAtualizar();
+  CONC_BUF.push(item); clearTimeout(CONC_T); CONC_T=setTimeout(fnConcDescarregar,600);
+}
+async function fnConcDescarregar(){
+  const B=CONC_BUF.splice(0); if(!B.length) return; const cl=new Set(B.map(b=>b.cli));
+  if(filaLer().some(x=>!x.env&&!x.recusado&&!cl.has(x.cli))){ B.forEach(b=>filaErro(b.cli,'aguardando os anteriores')); S.finPend-=B.length; fnPendAtualizar(); setTimeout(()=>filaEnviar(false),50); return; }
+  try{ for(let i=0;i<B.length;i+=60){ const P=B.slice(i,i+60); const r=await concEnviarLote(P); P.forEach(b=>filaTirar(b.cli)); concErros(r); } S.finFresco=false; }
+  catch(e){ const rest=B.filter(b=>filaLer().some(x=>x.cli===b.cli));
+    if(filaPassageiro(e)){ rest.forEach(b=>filaErro(b.cli,e.message)); toast('⚠ Conciliações não chegaram na nuvem ('+e.message+'). Ficaram guardadas neste computador e serão reenviadas sozinhas',9000); }
+    else { rest.forEach(b=>filaTirar(b.cli)); toast('⚠ Não salvou: '+e.message+' — recarregando os dados',8000); try{ await carregar(true); fnRedesenharSeguro(); }catch(x){} } }
+  finally{ S.finPend-=B.length; fnPendAtualizar(); }
 }
 
 /* ---------- código de barras (linha digitável) ---------- */
@@ -2981,7 +3006,8 @@ function fnCadastroFaltando(cat,cc){ if(S.master) return '';
 /* ---------- fila de envio para a nuvem (guardada neste computador até o Google confirmar) ---------- */
 function filaLer(){ try{ return JSON.parse(LS.get('mc_fila_'+(S.usuario||''))||'[]'); }catch(e){ return []; } }
 function filaGravar(F){ LS.set('mc_fila_'+(S.usuario||''),JSON.stringify(F)); filaBadge(); }
-function filaAdd(acao,dados,rotulo){ const F=filaLer(); const it={cli:Date.now().toString(36)+Math.random().toString(36).slice(2,8),acao,dados,rotulo:rotulo||acao,em:new Date().toLocaleString('pt-BR'),tent:0,erro:'',env:true}; F.push(it); filaGravar(F); return it; }
+const FILA_SES=Date.now().toString(36)+Math.random().toString(36).slice(2,6); // esta aba do navegador
+function filaAdd(acao,dados,rotulo){ const F=filaLer(); const it={ses:FILA_SES,cli:Date.now().toString(36)+Math.random().toString(36).slice(2,8),acao,dados,rotulo:rotulo||acao,em:new Date().toLocaleString('pt-BR'),tent:0,erro:'',env:true}; F.push(it); filaGravar(F); return it; }
 function filaTirar(cli){ filaGravar(filaLer().filter(x=>x.cli!==cli)); }
 function filaErro(cli,msg){ const F=filaLer(); const x=F.find(y=>y.cli===cli); if(x){ x.erro=msg; x.tent=(x.tent||0)+1; x.env=false; x.ult=new Date().toLocaleString('pt-BR'); } filaGravar(F); }
 function filaBadge(){ const b=document.getElementById('filaBadge'); if(!b) return; const F=filaLer().filter(x=>!x.env); b.classList.toggle('hide',!F.length); b.textContent=`⚠ ${F.length} não enviado(s) para a nuvem`; }
@@ -2989,9 +3015,11 @@ let FILA_ENVIANDO=false;
 async function filaEnviar(manual){
   if(FILA_ENVIANDO) return; const F=filaLer().filter(x=>!x.env&&(manual||!x.recusado)); if(!F.length){ if(manual) toast('Nada pendente — tudo já está na nuvem ✓',4000); return; }
   FILA_ENVIANDO=true; let ok=0, falhou=0; if(manual) toast(`Enviando ${F.length} pendente(s)… um por vez`,4000);
-  for(const it of F){ // na ordem em que foram feitos, um por vez (na mesma fila dos salvamentos da tela)
-    try{ await fnNaFila(()=>apiPersistente(it.acao,Object.assign({},it.dados,{_cli:it.cli}))); filaTirar(it.cli); ok++; if(S.view==='financeiro'&&FN.sec==='config'&&FN.sub.config==='nuvem') fnRedesenharSeguro(); }
-    catch(e){ if(filaPassageiro(e)){ filaErro(it.cli,e.message); falhou++; break; } else { const G=filaLer(); const x=G.find(y=>y.cli===it.cli); if(x){ x.erro='Recusado: '+e.message; x.recusado=true; x.env=false; } filaGravar(G); falhou++; } }
+  for(let i=0;i<F.length;i++){ // na ordem em que foram feitos, um por vez (na mesma fila dos salvamentos da tela); conciliações seguidas vão juntas
+    const it=F[i]; let grupo=[it]; if(concSimples(it)) while(grupo.length<60&&i+1<F.length&&concSimples(F[i+1])) grupo.push(F[++i]);
+    try{ if(grupo.length>1||concSimples(it)){ const r=await concEnviarLote(grupo); concErros(r); } else await fnNaFila(()=>apiPersistente(it.acao,Object.assign({},it.dados,{_cli:it.cli})));
+      grupo.forEach(g=>filaTirar(g.cli)); ok+=grupo.length; if(S.view==='financeiro'&&FN.sec==='config'&&FN.sub.config==='nuvem') fnRedesenharSeguro(); }
+    catch(e){ if(filaPassageiro(e)){ grupo.forEach(g=>filaErro(g.cli,e.message)); falhou+=grupo.length; break; } else { const G=filaLer(); grupo.forEach(g=>{ const x=G.find(y=>y.cli===g.cli); if(x){ x.erro='Recusado: '+e.message; x.recusado=true; x.env=false; } }); filaGravar(G); falhou+=grupo.length; } }
   }
   FILA_ENVIANDO=false;
   if(ok&&!falhou&&filaLer().some(x=>!x.env&&!x.recusado)) return filaEnviar(manual); // chegaram outros enquanto enviava: manda já
@@ -3001,7 +3029,7 @@ async function filaEnviar(manual){
 }
 function fnFilaReenviar(cli){ const F=filaLer(); const x=F.find(y=>y.cli===cli); if(x){ x.recusado=false; x.erro=''; } filaGravar(F); filaEnviar(true).then(()=>fnAtualizar()); }
 function filaIniciar(){ // ao abrir: o que ficou "enviando" de uma sessão anterior volta para pendente
-  const F=filaLer(); F.forEach(x=>{ if(x.env){ x.env=false; x.erro=x.erro||'Sessão anterior fechada antes da confirmação'; } }); filaGravar(F);
+  const F=filaLer(); F.forEach(x=>{ if(x.env&&x.ses!==FILA_SES){ x.env=false; x.erro=x.erro||'Sessão anterior fechada antes da confirmação'; } }); filaGravar(F);
   filaEnviar(false); setInterval(()=>{ if(filaLer().some(x=>!x.env&&!x.recusado)) filaEnviar(false); },20000); window.addEventListener('online',()=>filaEnviar(false)); }
 function fnNuvemTela(){
   const F=filaLer();
@@ -3542,17 +3570,17 @@ function fnConcNome(inp){ const card=inp.closest('.cc-card'); const n=up(inp.val
 function fnConcOK(exId){
   const e=fin().extrato.find(x=>x.ID===exId); const card=document.getElementById('cc_'+exId); if(!e||!card) return; const tab=(FN.concTab||{})[exId]||(fnSugestoes(e).length?'sug':'nova');
   if(tab==='sug'){ const r=card.querySelector('input[type=radio]:checked'); if(!r) return; const lancId=r.value;
-    fnBg('finConciliar',{extratoId:exId,lancId},{rotulo:'Conciliar extrato',local:()=>{ e.LANC_ID=lancId; const l=fnLanc(lancId); if(l){ l.STATUS='QUITADO'; l.DATA_PAGAMENTO=e.DATA; l.VALOR_PAGO=+l.VALOR; l.EXTRATO_ID=exId; } }});
+    fnConcEnfileirar({extratoId:exId,lancId},'Conciliar extrato',()=>{ e.LANC_ID=lancId; const l=fnLanc(lancId); if(l){ l.STATUS='QUITADO'; l.DATA_PAGAMENTO=e.DATA; l.VALOR_PAGO=Math.abs(+e.VALOR); l.CONTA_ID=e.CONTA_ID; l.EXTRATO_ID=exId; } });
   } else {
     const nome=card.querySelector('.cc-nome').value.trim(), desc=card.querySelector('.cc-desc-in').value.trim(), cat=card.querySelector('.cc-cat').value.trim(), cc=card.querySelector('.cc-cc').value.trim();
     if(!nome){ toast('Preencha o nome'); card.querySelector('.cc-nome').focus(); return; }
     if(cc&&!fnCentros().some(n=>up(n)===up(cc))&&!S.master){ toast('Centro de custo não cadastrado'); return; }
-    fnBg('finConciliar',{extratoId:exId,novo:{nome,descricao:desc,categoria:cat,centroCusto:cc,vencimento:e.DATA,formaPagamento:'CONTA CORRENTE'}},{rotulo:'Criar lançamento e conciliar',local:()=>{ e.LANC_ID='…'; },ok:()=>fnConcRedesenhar(exId),erro:()=>{ if(e.LANC_ID==='…') e.LANC_ID=''; fnConcRedesenhar(exId); }});
+    fnBg('finConciliar',{extratoId:exId,novo:{nome,descricao:desc,categoria:cat,centroCusto:cc,vencimento:e.DATA,formaPagamento:'CONTA CORRENTE'}},{rotulo:'Criar lançamento e conciliar',leve:true,local:()=>{ e.LANC_ID='…'; },ok:()=>fnConcRedesenhar(exId),erro:()=>{ if(e.LANC_ID==='…') e.LANC_ID=''; fnConcRedesenhar(exId); }});
   }
   if(FN.concSel) FN.concSel.delete(exId); fnConcRedesenhar(exId); toast('Conciliado ✓ — gravando no Google',2500);
 }
 function fnConcIgnorar(exId){ const e=fin().extrato.find(x=>x.ID===exId); if(!e) return;
-  fnBg('finConciliar',{extratoId:exId,ignorar:true},{rotulo:'Ignorar linha do extrato',local:()=>{ e.LANC_ID='IGNORADO'; }}); fnConcRedesenhar(exId); }
+  fnConcEnfileirar({extratoId:exId,ignorar:true},'Ignorar linha do extrato',()=>{ e.LANC_ID='IGNORADO'; }); fnConcRedesenhar(exId); }
 
 
 /* ---------- Importar antecipações (planilhas da registradora: Consolidado + Detalhado) ----------
