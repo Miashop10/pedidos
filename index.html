@@ -1892,7 +1892,7 @@ const FIN_SECOES = [['inicio','Dashboard inicial'],['contas','Contas e extratos'
 const FIN_SUBS = {
   inicio:[['dash','Dashboard inicial']],
   contas:[['conc','Conciliação bancária'],['contas','Contas bancárias'],['hist','Histórico de importações']],
-  receb:[['agendar','Agendar recebimento'],['importar','Importar lançamentos'],['antecip','Importar antecipações']],
+  receb:[['agendar','Agendar recebimento'],['importar','Importar lançamentos'],['antecip','Importar antecipações'],['cartao','Importar cartões']],
   pagar:[['agendar','Agendar pagamento'],['importar','Importar lançamentos'],['boletos','Histórico de boletos lançados']],
   rel:[['areceber','Contas a receber'],['apagar','Contas a pagar'],['recebidas','Contas recebidas'],['pagas','Contas pagas'],['dre','DRE Miashop'],['drep','DRE particular'],['lucro','Lucro por loja']],
   config:[['cats','Categorias'],['centros','Centros de custo'],['hist','Histórico de ações'],['nuvem','Envio para a nuvem']]
@@ -1917,7 +1917,7 @@ function vFinanceiro(){
   const sec=FN.sec, sub=FN.sub[sec]; if(FN.aberto===undefined) FN.aberto=sec;
   const titulo=(FIN_SUBS[sec].find(x=>x[0]===sub)||[])[1]||'';
   const acoes = sec==='contas'?`<button class="btn sec sm" onclick="fnModalConta()">+ Adicionar conta</button><button class="btn sec sm" onclick="fnColarExtrato()">📋 Colar extrato</button><button class="btn sm" onclick="fnEscolherExtrato()">⬆ Importar extrato (Excel)</button><input type="file" id="fnInExt" accept=".xlsx,.xls,.csv" class="hide" onchange="if(this.files[0]) fnLerExtrato(this.files[0]); this.value=''">`
-    : (sec==='receb'||sec==='pagar')&&sub!=='importar'&&sub!=='boletos'&&sub!=='antecip'?`<button class="btn sec sm" onclick="fnIr('${sec}','importar')">⬆ Importar lançamentos</button><button class="btn" onclick="fnAbrirLanc(null,'${sec==='receb'?'RECEBER':'PAGAR'}')">+ Agendar ${sec==='receb'?'recebimento':'pagamento'}</button>`
+    : (sec==='receb'||sec==='pagar')&&sub!=='importar'&&sub!=='boletos'&&sub!=='antecip'&&sub!=='cartao'?`<button class="btn sec sm" onclick="fnIr('${sec}','importar')">⬆ Importar lançamentos</button><button class="btn" onclick="fnAbrirLanc(null,'${sec==='receb'?'RECEBER':'PAGAR'}')">+ Agendar ${sec==='receb'?'recebimento':'pagamento'}</button>`
     : sec==='rel'&&(sub==='dre'||sub==='drep')?`<button class="btn sec sm" onclick="fnDREPdf(${sub==='drep'})">Exportar PDF</button>`
     : sec==='rel'&&sub==='lucro'?`<button class="btn sec sm" onclick="fnLucroExcel()">Exportar Excel</button><button class="btn sec sm" onclick="exportarPDF(fnLucroExcel,'Lucro por loja · '+FN.ano)">Exportar PDF</button>`
     : sec==='pagar'&&sub==='boletos'?`<button class="btn sec sm" onclick="exportarPDF(fnBoletosExcel,'Histórico de boletos lançados')">Exportar PDF</button>`
@@ -1940,6 +1940,7 @@ function fnCorpo(){
   if(sec==='contas') return sub==='conc'?fnConciliacao(): sub==='contas'?fnContas(): fnHistorico();
   if(sec==='pagar'&&sub==='boletos') return fnHistBoletos();
   if(sec==='receb'&&sub==='antecip') return fnAntecipTela();
+  if(sec==='receb'&&sub==='cartao') return fnCartaoTela();
   if(sec==='receb'||sec==='pagar') return sub==='importar'?fnImportarTela(): fnAgendar(sec==='receb'?'RECEBER':'PAGAR');
   if(sec==='config'&&sub==='nuvem') return fnNuvemTela();
   if(sec==='config'&&sub!=='hist'&&!S.master) return fnCadastroSoLeitura(sub);
@@ -2088,7 +2089,13 @@ async function fnExcluirImport(id){ const i=fin().importacoes.find(x=>x.ID===id)
 /* ---------- conciliação bancária ---------- */
 // sugestão: lançamento em aberto do mesmo tipo com valor igual (dif. até R$ 0,01) e vencimento na data do extrato
 function fnSugestoes(e){ const tipo=(+e.VALOR)>=0?'RECEBER':'PAGAR', v=Math.abs(+e.VALOR);
-  return fin().lanc.filter(l=>l.STATUS!=='QUITADO'&&l.TIPO===tipo&&Math.abs((+l.VALOR)-v)<=0.011&&String(l.VENCIMENTO)===String(e.DATA)); }
+  // lançamento com conta de recebimento/pagamento definida só é sugerido para o extrato dessa conta (os da mesma conta vêm primeiro)
+  return fin().lanc.filter(l=>l.STATUS!=='QUITADO'&&l.TIPO===tipo&&Math.abs((+l.VALOR)-v)<=0.011&&String(l.VENCIMENTO)===String(e.DATA)&&(!l.CONTA_ID||String(l.CONTA_ID)===String(e.CONTA_ID)))
+    .sort((a,b)=>(b.CONTA_ID?1:0)-(a.CONTA_ID?1:0)); }
+// campo "conta de recebimento" das importações (lembra a última escolhida neste computador)
+function fnContaSel(id){ const C=fin().contas, ult=LS.get('mc_contaRec')||''; return `<label class="small" style="display:inline-flex;align-items:center;gap:6px"><b>Conta de recebimento</b>
+  <select id="${id}" onchange="LS.set('mc_contaRec',this.value)"><option value="">— escolha a conta —</option>${C.map(c=>`<option value="${esc(c.ID)}" ${String(c.ID)===ult?'selected':''}>${esc(c.NOME)}${c.BANCO?' · '+esc(c.BANCO):''}</option>`).join('')}</select></label>`; }
+function fnContaLida(id){ const el=document.getElementById(id); const v=el?el.value:''; if(!v){ toast('Escolha a conta de recebimento',5000); if(el){ el.focus(); el.style.borderColor='var(--bad)'; } return null; } return v; }
 function fnConciliacao(){
   const C=fin().contas; if(!C.length) return '<div class="card muted">Cadastre uma conta bancária e importe o extrato em Excel para conciliar.</div>';
   if(!FN.conta||!fnConta(FN.conta)) FN.conta=C[0].ID;
@@ -2396,7 +2403,7 @@ function fnTabelaLanc(Ltodos,quitadas,sel){
   const hoje=hojeISO(); FN.sel=FN.sel||new Set(); const tot=Ltodos.reduce((s,l)=>s+(+(quitadas?l.VALOR_PAGO:l.VALOR)||0),0); const lim=FN.lim||FN_LIM; const L=Ltodos.slice(0,lim);
   return `<div class="tw sl-tab"><table><thead><tr>${sel?`<th class="c" style="width:30px"><input type="checkbox" title="Marcar/desmarcar todos os filtrados" ${Ltodos.length&&Ltodos.every(l=>FN.sel.has(l.ID))?'checked':''} onchange="fnSelTodos(this.checked)"></th>`:''}<th>${quitadas?'Pago/recebido em':'Vencimento'}</th>${quitadas?'<th>Vencimento</th>':''}<th>Nome</th><th>Descrição</th><th>NF</th><th>Categoria</th><th>Centro de custo</th><th class="n">Valor</th>${quitadas?'<th>Conta</th>':''}<th></th></tr></thead><tbody>
   ${L.map(l=>{ const venc=!quitadas&&fnVencido(l,hoje);
-    return `<tr class="${venc?'fn-venc':''}${sel&&FN.sel.has(l.ID)?' fn-sel':''}">${sel?`<td class="c"><input type="checkbox" class="fn-ck" data-id="${esc(l.ID)}" ${FN.sel.has(l.ID)?'checked':''} onchange="fnSelUm(this)"></td>`:''}<td>${esc(quitadas?l.DATA_PAGAMENTO:l.VENCIMENTO)}${venc?' <span class="tag t-bad">vencido</span>':''}</td>${quitadas?`<td class="muted">${esc(l.VENCIMENTO)}</td>`:''}<td><b>${esc(l.NOME)}</b>${/CART/i.test(l.FORMA_PAGAMENTO||'')?' <span class="tag t-warn" title="Cartão de crédito">💳 cartão</span>':''}</td><td style="white-space:normal">${esc(l.DESCRICAO)}${l.OBS?`<div class="muted small" title="Observações">📝 ${esc(l.OBS)}</div>`:''}</td><td>${esc(l.NOTA_FISCAL)}</td><td>${esc(l.CATEGORIA)||'<span class="muted">—</span>'}</td><td style="white-space:normal">${fnCCHtml(l.CENTRO_CUSTO)}</td>
+    return `<tr class="${venc?'fn-venc':''}${sel&&FN.sel.has(l.ID)?' fn-sel':''}">${sel?`<td class="c"><input type="checkbox" class="fn-ck" data-id="${esc(l.ID)}" ${FN.sel.has(l.ID)?'checked':''} onchange="fnSelUm(this)"></td>`:''}<td>${esc(quitadas?l.DATA_PAGAMENTO:l.VENCIMENTO)}${venc?' <span class="tag t-bad">vencido</span>':''}</td>${quitadas?`<td class="muted">${esc(l.VENCIMENTO)}</td>`:''}<td><b>${esc(l.NOME)}</b>${/CART/i.test(l.FORMA_PAGAMENTO||'')?' <span class="tag t-warn" title="Cartão de crédito">💳 cartão</span>':''}${!quitadas&&l.CONTA_ID&&fnConta(l.CONTA_ID)?`<div class="muted small" title="Conta de recebimento/pagamento prevista">🏦 ${esc(fnConta(l.CONTA_ID).NOME)}</div>`:''}</td><td style="white-space:normal">${esc(l.DESCRICAO)}${l.OBS?`<div class="muted small" title="Observações">📝 ${esc(l.OBS)}</div>`:''}</td><td>${esc(l.NOTA_FISCAL)}</td><td>${esc(l.CATEGORIA)||'<span class="muted">—</span>'}</td><td style="white-space:normal">${fnCCHtml(l.CENTRO_CUSTO)}</td>
     <td class="n"><b>${fR(+(quitadas?l.VALOR_PAGO:l.VALOR))}</b></td>${quitadas?`<td>${esc((fnConta(l.CONTA_ID)||{}).NOME||'—')}${l.EXTRATO_ID?' <span class="tag t-ok" title="Conciliado com o extrato">✓</span>':''}</td>`:''}
     <td class="c" style="white-space:nowrap">${l.COD_BARRAS?`<button class="ib" title="Copiar código de barras: ${esc(fnFmtCB(l.COD_BARRAS))}" onclick="fnCopiarCB('${esc(l.COD_BARRAS)}')">📋</button>`:''}${quitadas?`<button class="ib" onclick="fnEstornar('${esc(l.ID)}')">Estornar</button>`:(fnSoConciliacao(l)?`<button class="ib fn-soconc" title="Conta corrente: o pagamento só é baixado pela Conciliação bancária" onclick="fnIr('contas','conc')">🏦 Conciliação</button>`:`<button class="ib" onclick="fnModalBaixa('${esc(l.ID)}')">✓ ${l.TIPO==='RECEBER'?'Receber':'Pagar'}</button>`)}<button class="ib" onclick="fnModalLanc('${esc(l.ID)}')">✎</button><button class="ib del" onclick="fnExcluirLanc('${esc(l.ID)}')">✕</button></td></tr>`; }).join('')
     ||`<tr><td colspan="10" class="muted">Nenhum lançamento.</td></tr>`}</tbody>
@@ -3562,7 +3569,7 @@ function fnAntecipTela(){
     <div class="row" style="gap:12px">${box('con','1 · Negociações Consolidado','📄 clique ou solte o arquivo')}${box('det','2 · Negociações Detalhado','📄 clique ou solte o arquivo')}</div>
     ${AN.con||AN.det?`<div style="margin-top:8px"><button class="btn ghost sm" onclick="AN.con=AN.det=AN.linhas=null;fnAtualizar()">✕ Limpar arquivos</button></div>`:''}</div>
   ${L?`<div class="card" style="padding:12px;margin-top:12px"><div class="row" style="align-items:center;gap:10px;margin-bottom:8px"><b>${L.length} contrato(s)</b><span class="small muted">· ${L.filter(x=>!x.ok).length?`<span class="bad">${L.filter(x=>!x.ok).length} sem centro de custo — escolha abaixo</span>`:'todos com centro de custo ✓'}</span><span class="sp"></span>
-      <span class="small">Importar <b>${okN}</b> · total líquido <b class="ok">${fR(tot)}</b></span><button class="btn" ${okN?'':'disabled'} onclick="fnAntecipImportar()">⬆ Importar ${okN} recebimento(s)</button></div>
+      ${fnContaSel('anConta')}<span class="small">Importar <b>${okN}</b> · total líquido <b class="ok">${fR(tot)}</b></span><button class="btn" ${okN?'':'disabled'} onclick="fnAntecipImportar()">⬆ Importar ${okN} recebimento(s)</button></div>
     <div class="tw sl-tab"><table><thead><tr><th></th><th>Data</th><th>Contrato</th><th class="n">Bruto (consolidado)</th><th class="n">Bruto (detalhado)</th><th class="n">Líquido</th><th>CNPJ da loja</th><th>Centro de custo</th></tr></thead><tbody>
     ${L.map((x,i)=>`<tr class="${x.dup?'muted':''}"><td class="c"><input type="checkbox" ${x.marcado?'checked':''} ${x.ok?'':'disabled'} onchange="AN.linhas[${i}].marcado=this.checked;fnAtualizar()"></td><td>${esc(x.data)}</td><td class="small">${esc(x.contrato)}</td><td class="n">${fR(x.bruto)}</td>
       <td class="n">${x.brutoDet==null?'<span class="bad">não achei</span>':fR(x.brutoDet)+(Math.abs(x.brutoDet-x.bruto)<=0.011?' <span class="ok">✓</span>':' <span class="bad">≠</span>')}</td><td class="n"><b>${fR(x.liquido)}</b></td><td class="small">${esc(fnFmtCnpj(x.cnpj)||'—')}</td>
@@ -3602,9 +3609,9 @@ function fnAntecipCC(i,cc){ const x=AN.linhas[i]; x.cc=cc; x.ok=!!cc; x.marcado=
   if(cc&&x.cnpj) AN.linhas.forEach(y=>{ if(!y.cc&&y.cnpj===x.cnpj){ y.cc=cc; y.ok=true; y.marcado=!y.dup; y.ccManual=true; } });
   fnAtualizar(); }
 async function fnAntecipImportar(){
-  const L=AN.linhas.filter(x=>x.ok&&x.marcado); if(!L.length) return;
+  const L=AN.linhas.filter(x=>x.ok&&x.marcado); if(!L.length) return; const contaId=fnContaLida('anConta'); if(!contaId) return;
   if(!S.master&&!fin().categorias.some(c=>up(c.NOME)===up('Antecipações'))){ toast('A categoria "Antecipações" ainda não existe — peça ao usuário master para criar (Configurações → Categorias, tipo receita)',9000); return; }
-  const lista=L.map(x=>({tipo:'RECEBER',vencimento:x.data,nome:'Miashop',descricao:'Antecipações',categoria:'Antecipações',centroCusto:x.cc,valor:x.liquido,formaPagamento:'CONTA CORRENTE',obs:'Contrato registradora '+x.contrato}));
+  const lista=L.map(x=>({tipo:'RECEBER',vencimento:x.data,nome:'Miashop',descricao:'Antecipações',categoria:'Antecipações',centroCusto:x.cc,valor:x.liquido,formaPagamento:'CONTA CORRENTE',contaId,obs:'Contrato registradora '+x.contrato}));
   try{ const antes=fin().lanc.length; const r=await api('finImportarLanc',{arquivoNome:'Antecipações '+(AN.con.nome||''),lista});
     if(r.importados&&fin().lanc.length-antes<r.importados){ S.finVer='0'; carregar(true); } // a resposta não trouxe as linhas novas: busca tudo de novo
     // CNPJ escolhido à mão para um centro que ainda não tinha: grava no centro (para as próximas importações acharem sozinhas)
@@ -3613,6 +3620,67 @@ async function fnAntecipImportar(){
     toast(`✓ ${r.importados} recebimento(s) de antecipação importado(s)${r.erros&&r.erros.length?' · '+r.erros.length+' com erro: '+r.erros[0]:''}`,8000);
     AN.con=AN.det=AN.linhas=null; fnAtualizar(); }
   catch(e){ toast('Erro: '+e.message,8000); }
+}
+
+/* ---------- Importar recebíveis de cartão (planilha "Recebíveis Completos" da credenciadora) ----------
+   aba Resumo: CPF/CNPJ da loja (B) → centro de custo · DATA DE VENCIMENTO (D) → vencimento · VALOR LÍQUIDO (J) → valor
+   linhas "Subtotal" e "TOTAL" ficam de fora · nome MIASHOP, descrição e categoria CARTÃO DE CRÉDITO E DÉBITO */
+const CR={nome:'',linhas:null}; const CR_CAT='CARTÃO DE CRÉDITO E DÉBITO';
+function fnCartaoTela(){
+  const L=CR.linhas, sel=L?L.filter(x=>x.ok&&x.marcado):[], tot=sel.reduce((s,x)=>s+x.valor,0), ccs=fnCentros();
+  return `<div class="card" style="padding:14px">
+    <p class="small muted" style="margin:0 0 10px">Anexe ou arraste a planilha <b>Recebíveis Completos</b> da credenciadora. Cada linha de recebimento vira uma conta a receber com o <b>valor líquido</b> (coluna J), o <b>vencimento</b> (coluna D) e o <b>centro de custo</b> da loja pelo CPF/CNPJ (coluna B, conforme o CNPJ cadastrado em Configurações → Centros de custo). Nome <b>MIASHOP</b>, descrição e categoria <b>${CR_CAT}</b>. As linhas de Subtotal e TOTAL não entram.</p>
+    <label class="dn-drop${L?' has':''}" ondragover="event.preventDefault();this.classList.add('on')" ondragleave="this.classList.remove('on')" ondrop="event.preventDefault();this.classList.remove('on');fnCartaoArquivo(event.dataTransfer.files[0])">
+      <input type="file" accept=".xlsx,.xls,.csv" class="hide" onchange="fnCartaoArquivo(this.files[0]);this.value=''"><b>Recebíveis de cartão</b><div class="small" style="margin-top:4px">${L?'✔ '+esc(CR.nome)+' · '+L.length+' recebimento(s)':'📄 clique ou solte o arquivo aqui'}</div></label>
+    ${L?`<div style="margin-top:8px"><button class="btn ghost sm" onclick="CR.linhas=null;CR.nome='';fnAtualizar()">✕ Limpar arquivo</button></div>`:''}</div>
+  ${L?`<div class="card" style="padding:12px;margin-top:12px"><div class="row" style="align-items:center;gap:10px;margin-bottom:8px"><b>${L.length} recebimento(s)</b><span class="small muted">· ${L.filter(x=>!x.ok).length?`<span class="bad">${L.filter(x=>!x.ok).length} sem centro de custo — escolha abaixo</span>`:'todos com centro de custo ✓'}</span><span class="sp"></span>
+      ${fnContaSel('crConta')}<span class="small">Importar <b>${sel.length}</b> · total <b class="ok">${fR(tot)}</b></span><button class="btn" ${sel.length?'':'disabled'} onclick="fnCartaoImportar()">⬆ Importar ${sel.length} recebimento(s)</button></div>
+    <div class="tw sl-tab"><table><thead><tr><th></th><th>Vencimento</th><th>CPF / CNPJ</th><th>Bandeira / modalidade</th><th class="n">Valor líquido</th><th>Centro de custo</th></tr></thead><tbody>
+    ${L.map((x,i)=>`<tr class="${x.dup?'muted':''}"><td class="c"><input type="checkbox" ${x.marcado?'checked':''} ${x.ok?'':'disabled'} onchange="CR.linhas[${i}].marcado=this.checked;fnAtualizar()"></td><td>${esc(x.venc)}</td><td class="small">${esc(fnFmtCnpj(x.cnpj)||'—')}</td><td class="small">${esc(x.band)}</td><td class="n"><b>${fR(x.valor)}</b></td>
+      <td><select onchange="fnCartaoCC(${i},this.value)" ${x.cc?'':'style="border-color:var(--bad)"'}><option value="">— escolha —</option>${ccs.map(c=>`<option ${up(c)===up(x.cc||'')?'selected':''}>${esc(c)}</option>`).join('')}</select>${x.dup?' <span class="tag t-warn" title="Já existe conta a receber de cartão com o mesmo vencimento, valor e centro de custo">já importado?</span>':''}</td></tr>`).join('')}
+    </tbody></table></div></div>`:''}`;
+}
+function fnCartaoLer(rows){
+  const hi=rows.findIndex(r=>{ const h=r.map(c=>semAcento(c).trim()); return h.some(x=>x.startsWith('CPF / CNPJ')||x==='CPF/CNPJ')&&h.some(x=>x.startsWith('VALOR LIQUIDO'))&&h.some(x=>x.startsWith('DATA DE VENCIMENTO')); });
+  if(hi<0) throw new Error('não achei o cabeçalho (CPF / CNPJ, DATA DE VENCIMENTO, VALOR LÍQUIDO) — é a planilha Recebíveis Completos?');
+  const h=rows[hi].map(c=>semAcento(c).trim()), col=(t,pad)=>{ const i=h.findIndex(x=>x.startsWith(t)); return i>=0?i:pad; };
+  const cC=col('CPF / CNPJ',1), cD=col('DATA DE VENCIMENTO',3), cV=col('VALOR LIQUIDO',9), cB=col('BANDEIRA',4), cE=col('ESTABELECIMENTO',0);
+  const out=[];
+  for(const r of rows.slice(hi+1)){
+    const a=semAcento(r[0]).trim(); if(/^(SUBTOTAL|TOTAL)/.test(a)) continue; // totais ficam de fora
+    if(r.some(c=>semAcento(c).trim().startsWith('CPF / CNPJ'))) break; // começou outra tabela
+    const cnpj=soDig(r[cC]); if(cnpj.length!==14&&cnpj.length!==11) continue;
+    const venc=fnDataExtrato(r[cD]), v=typeof r[cV]==='number'?r[cV]:fnNumExtrato(r[cV]); if(!/\d{2}\/\d{2}\/\d{4}/.test(venc)||!v) continue;
+    out.push({cnpj,venc,valor:Math.round(v*100)/100,band:String(r[cB]||'').trim(),ec:String(r[cE]||'').trim()});
+  }
+  if(!out.length) throw new Error('nenhum recebimento encontrado na planilha');
+  return out;
+}
+async function fnCartaoArquivo(f){ if(!f) return;
+  try{ const rows=await dnLerPlanilha(f); const L=fnCartaoLer(rows); CR.nome=f.name;
+    const ccPorCnpj={}; fin().centros.forEach(c=>{ const d=soDig(c.CNPJ); if(d) ccPorCnpj[d]=c.NOME; });
+    // "já importado?": conta quantas contas a receber de cartão iguais (vencimento + valor + centro) já existem
+    const ja={}; fin().lanc.forEach(l=>{ if(l.TIPO==='RECEBER'&&up(l.CATEGORIA)===up(CR_CAT)){ const k=l.VENCIMENTO+'|'+(+l.VALOR).toFixed(2)+'|'+up(l.CENTRO_CUSTO); ja[k]=(ja[k]||0)+1; } });
+    CR.linhas=L.map(x=>{ const cc=ccPorCnpj[x.cnpj]||''; const k=x.venc+'|'+x.valor.toFixed(2)+'|'+up(cc); const dup=!!cc&&ja[k]>0; if(dup) ja[k]--;
+      return Object.assign(x,{cc,ok:!!cc,marcado:!!cc&&!dup,dup}); });
+    toast(`${L.length} recebimento(s) lido(s) — total ${fR(L.reduce((s,x)=>s+x.valor,0))}`,5000);
+  }catch(e){ toast(f.name+': '+e.message,8000); }
+  fnAtualizar(); }
+function fnCartaoCC(i,cc){ const x=CR.linhas[i]; x.cc=cc; x.ok=!!cc; x.marcado=!!cc&&!x.dup; x.ccManual=true;
+  if(cc&&x.cnpj) CR.linhas.forEach(y=>{ if(!y.cc&&y.cnpj===x.cnpj){ y.cc=cc; y.ok=true; y.marcado=!y.dup; y.ccManual=true; } }); // mesma loja nas outras linhas
+  fnAtualizar(); }
+async function fnCartaoImportar(){
+  const L=CR.linhas.filter(x=>x.ok&&x.marcado); if(!L.length) return; const contaId=fnContaLida('crConta'); if(!contaId) return;
+  if(!S.master&&!fin().categorias.some(c=>up(c.NOME)===up(CR_CAT))){ toast(`A categoria "${CR_CAT}" ainda não existe — peça ao usuário master para criar (Configurações → Categorias, tipo receita)`,9000); return; }
+  const lista=L.map(x=>({tipo:'RECEBER',vencimento:x.venc,nome:'MIASHOP',descricao:CR_CAT,categoria:CR_CAT,centroCusto:x.cc,valor:x.valor,formaPagamento:'CONTA CORRENTE',contaId,obs:[x.band,x.ec?'EC '+x.ec:''].filter(Boolean).join(' · ')}));
+  const bt=document.querySelector('[onclick="fnCartaoImportar()"]'); if(bt){ bt.disabled=true; bt.textContent='Importando…'; }
+  try{ const antes=fin().lanc.length; const r=await api('finImportarLanc',{arquivoNome:'Cartões '+(CR.nome||''),lista,impId:fnIdCli('ILC')});
+    if(r.importados&&fin().lanc.length-antes<r.importados){ S.finVer='0'; carregar(true); }
+    if(S.master){ const gr={}; L.filter(x=>x.ccManual&&x.cnpj).forEach(x=>{ const c=fin().centros.find(c=>up(c.NOME)===up(x.cc)); if(c&&!soDig(c.CNPJ)) gr[c.NOME]=x.cnpj; });
+      for(const [nome,cnpj] of Object.entries(gr)){ try{ await api('finSalvarCentro',{nome,antigo:nome,cnpj:fnFmtCnpj(cnpj)}); }catch(e){} } }
+    toast(`✓ ${r.importados} recebimento(s) de cartão importado(s) · ${fR(L.reduce((s,x)=>s+x.valor,0))}${r.erros&&r.erros.length?' · '+r.erros.length+' com erro: '+r.erros[0]:''}`,8000);
+    CR.linhas=null; CR.nome=''; fnAtualizar(); }
+  catch(e){ toast('Erro: '+e.message,8000); if(bt){ bt.disabled=false; } fnAtualizar(); }
 }
 
 </script>
