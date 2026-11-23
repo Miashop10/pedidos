@@ -1892,7 +1892,7 @@ const FIN_SECOES = [['inicio','Dashboard inicial'],['contas','Contas e extratos'
 const FIN_SUBS = {
   inicio:[['dash','Dashboard inicial']],
   contas:[['conc','Conciliação bancária'],['contas','Contas bancárias'],['hist','Histórico de importações']],
-  receb:[['agendar','Agendar recebimento'],['importar','Importar lançamentos']],
+  receb:[['agendar','Agendar recebimento'],['importar','Importar lançamentos'],['antecip','Importar antecipações']],
   pagar:[['agendar','Agendar pagamento'],['importar','Importar lançamentos'],['boletos','Histórico de boletos lançados']],
   rel:[['areceber','Contas a receber'],['apagar','Contas a pagar'],['recebidas','Contas recebidas'],['pagas','Contas pagas'],['dre','DRE Miashop'],['drep','DRE particular'],['lucro','Lucro por loja']],
   config:[['cats','Categorias'],['centros','Centros de custo'],['hist','Histórico de ações'],['nuvem','Envio para a nuvem']]
@@ -1917,7 +1917,7 @@ function vFinanceiro(){
   const sec=FN.sec, sub=FN.sub[sec]; if(FN.aberto===undefined) FN.aberto=sec;
   const titulo=(FIN_SUBS[sec].find(x=>x[0]===sub)||[])[1]||'';
   const acoes = sec==='contas'?`<button class="btn sec sm" onclick="fnModalConta()">+ Adicionar conta</button><button class="btn sec sm" onclick="fnColarExtrato()">📋 Colar extrato</button><button class="btn sm" onclick="fnEscolherExtrato()">⬆ Importar extrato (Excel)</button><input type="file" id="fnInExt" accept=".xlsx,.xls,.csv" class="hide" onchange="if(this.files[0]) fnLerExtrato(this.files[0]); this.value=''">`
-    : (sec==='receb'||sec==='pagar')&&sub!=='importar'&&sub!=='boletos'?`<button class="btn sec sm" onclick="fnIr('${sec}','importar')">⬆ Importar lançamentos</button><button class="btn" onclick="fnAbrirLanc(null,'${sec==='receb'?'RECEBER':'PAGAR'}')">+ Agendar ${sec==='receb'?'recebimento':'pagamento'}</button>`
+    : (sec==='receb'||sec==='pagar')&&sub!=='importar'&&sub!=='boletos'&&sub!=='antecip'?`<button class="btn sec sm" onclick="fnIr('${sec}','importar')">⬆ Importar lançamentos</button><button class="btn" onclick="fnAbrirLanc(null,'${sec==='receb'?'RECEBER':'PAGAR'}')">+ Agendar ${sec==='receb'?'recebimento':'pagamento'}</button>`
     : sec==='rel'&&(sub==='dre'||sub==='drep')?`<button class="btn sec sm" onclick="fnDREPdf(${sub==='drep'})">Exportar PDF</button>`
     : sec==='rel'&&sub==='lucro'?`<button class="btn sec sm" onclick="fnLucroExcel()">Exportar Excel</button><button class="btn sec sm" onclick="exportarPDF(fnLucroExcel,'Lucro por loja · '+FN.ano)">Exportar PDF</button>`
     : sec==='pagar'&&sub==='boletos'?`<button class="btn sec sm" onclick="exportarPDF(fnBoletosExcel,'Histórico de boletos lançados')">Exportar PDF</button>`
@@ -1939,6 +1939,7 @@ function fnCorpo(){
   if(sec==='inicio') return fnDashboard();
   if(sec==='contas') return sub==='conc'?fnConciliacao(): sub==='contas'?fnContas(): fnHistorico();
   if(sec==='pagar'&&sub==='boletos') return fnHistBoletos();
+  if(sec==='receb'&&sub==='antecip') return fnAntecipTela();
   if(sec==='receb'||sec==='pagar') return sub==='importar'?fnImportarTela(): fnAgendar(sec==='receb'?'RECEBER':'PAGAR');
   if(sec==='config'&&sub==='nuvem') return fnNuvemTela();
   if(sec==='config'&&sub!=='hist'&&!S.master) return fnCadastroSoLeitura(sub);
@@ -2354,7 +2355,7 @@ async function fnSalvarLancDr(){
       const tmps=lista.map((x,i)=>'tmp'+Date.now()+'-'+i); const arq=FN.dr.bolArq||'boleto.pdf';
       fnFecharLanc();
       fnBg('finImportarLanc',{arquivoNome:arq,lista},{rotulo:`${lista.length} parcela(s) do boleto: ${d.nome}`,local:()=>{ lista.forEach((x,i)=>fin().lanc.push({ID:tmps[i],TIPO:x.tipo,STATUS:'ABERTO',VENCIMENTO:x.vencimento,NOME:x.nome,DESCRICAO:x.descricao,NOTA_FISCAL:x.notaFiscal,CATEGORIA:x.categoria,CENTRO_CUSTO:x.centroCusto,FORMA_PAGAMENTO:x.formaPagamento,OBS:x.obs,COD_BARRAS:x.codBarras,VALOR:x.valor})); },
-        ok:r=>toast(`✓ ${r.importados} parcela(s) gravada(s)`,4000)});
+        ok:r=>{ const t=new Set(tmps); fin().lanc=fin().lanc.filter(l=>!t.has(l.ID)); toast(`✓ ${r.importados} parcela(s) gravada(s)`,4000); }, erro:()=>{ const t=new Set(tmps); fin().lanc=fin().lanc.filter(l=>!t.has(l.ID)); }});
       toast(`${lista.length} parcela(s) agendada(s) — gravando no Google`,4000); return; }
   if(B.length===1&&!d.codBarras&&B[0].linha) d.codBarras=B[0].linha;
   if(!exId){ // grava em segundo plano: fecha o painel na hora
@@ -2483,7 +2484,7 @@ function fnModalImpLanc(){
 async function fnConfirmarImpLanc(){
   const bt=document.getElementById('fnImpLBt'); bt.disabled=true; bt.textContent='Importando…';
   try{ const r=await api('finImportarLanc',{arquivoNome:FN.impL.arquivo.name,lista:FN.impL.linhas.filter(x=>!x.erros.length).map(x=>x.d)}); fecharModal();
-    const sit=FN.impL.sit; if(FN.impL.cola) FN.cola=null; FN.impL=null; FN.sec='rel'; FN.sub.rel=sit; FN.aberto='rel'; toast(`${r.importados} lançamento(s) importado(s)`+(r.erros.length?' · '+r.erros.length+' com erro':''),5000); await fnRecarregar(); render(); }
+    const sit=FN.impL.sit; if(FN.impL.cola) FN.cola=null; FN.impL=null; FN.sec='rel'; FN.sub.rel=sit; FN.aberto='rel'; toast(`${r.importados} lançamento(s) importado(s)`+(r.erros.length?' · '+r.erros.length+' com erro':''),5000); render(); }
   catch(e){ bt.disabled=false; bt.textContent='Importar'; toast('Erro: '+e.message,7000); }
 }
 
@@ -3531,6 +3532,74 @@ function fnConcOK(exId){
 }
 function fnConcIgnorar(exId){ const e=fin().extrato.find(x=>x.ID===exId); if(!e) return;
   fnBg('finConciliar',{extratoId:exId,ignorar:true},{rotulo:'Ignorar linha do extrato',local:()=>{ e.LANC_ID='IGNORADO'; }}); fnConcRedesenhar(exId); }
+
+
+/* ---------- Importar antecipações (planilhas da registradora: Consolidado + Detalhado) ----------
+   Consolidado: data da contratação (C), valor atual/bruto (H), valor LÍQUIDO negociado (O), contrato (R)
+   Detalhado: CNPJ da loja (B) e contrato (D) de cada UR; a linha "VALOR ATUAL DO CONTRATO" traz o bruto do contrato
+   → cada contrato vira uma conta a receber: data, valor líquido, centro de custo (pelo CNPJ da loja), descrição e categoria "Antecipações", nome "Miashop" */
+const AN={con:null,det:null,linhas:null};
+function fnAntecipTela(){
+  const box=(k,tit,dica)=>{ const a=AN[k]; return `<label class="dn-drop${a?' has':''}" style="flex:1 1 300px" ondragover="event.preventDefault();this.classList.add('on')" ondragleave="this.classList.remove('on')" ondrop="event.preventDefault();this.classList.remove('on');fnAntecipArquivos(event.dataTransfer.files)">
+    <input type="file" accept=".xlsx,.xls,.csv" multiple class="hide" onchange="fnAntecipArquivos(this.files);this.value=''"><b>${tit}</b><div class="small" style="margin-top:4px">${a?'✔ '+esc(a.nome)+` · ${k==='con'?a.rows.length+' contrato(s)':Object.keys(a.cnpj).length+' contrato(s)'}`:dica}</div></label>`; };
+  const L=AN.linhas; const okN=L?L.filter(x=>x.ok&&x.marcado).length:0, tot=L?L.filter(x=>x.ok&&x.marcado).reduce((s,x)=>s+x.liquido,0):0;
+  const ccs=fnCentros();
+  return `<div class="card" style="padding:14px">
+    <p class="small muted" style="margin:0 0 10px">Anexe ou arraste as <b>duas planilhas</b> da registradora (pode soltar as duas juntas): <b>Negociações Consolidado</b> (valor líquido e data) e <b>Negociações Detalhado</b> (CNPJ da loja de cada contrato). Cada contrato vira uma conta a receber com o <b>valor líquido</b>, a <b>data da contratação</b>, o <b>centro de custo</b> da loja (pelo CNPJ cadastrado em Configurações → Centros de custo), nome <b>Miashop</b> e descrição/categoria <b>Antecipações</b>.</p>
+    <div class="row" style="gap:12px">${box('con','1 · Negociações Consolidado','📄 clique ou solte o arquivo')}${box('det','2 · Negociações Detalhado','📄 clique ou solte o arquivo')}</div>
+    ${AN.con||AN.det?`<div style="margin-top:8px"><button class="btn ghost sm" onclick="AN.con=AN.det=AN.linhas=null;fnAtualizar()">✕ Limpar arquivos</button></div>`:''}</div>
+  ${L?`<div class="card" style="padding:12px;margin-top:12px"><div class="row" style="align-items:center;gap:10px;margin-bottom:8px"><b>${L.length} contrato(s)</b><span class="small muted">· ${L.filter(x=>!x.ok).length?`<span class="bad">${L.filter(x=>!x.ok).length} sem centro de custo — escolha abaixo</span>`:'todos com centro de custo ✓'}</span><span class="sp"></span>
+      <span class="small">Importar <b>${okN}</b> · total líquido <b class="ok">${fR(tot)}</b></span><button class="btn" ${okN?'':'disabled'} onclick="fnAntecipImportar()">⬆ Importar ${okN} recebimento(s)</button></div>
+    <div class="tw sl-tab"><table><thead><tr><th></th><th>Data</th><th>Contrato</th><th class="n">Bruto (consolidado)</th><th class="n">Bruto (detalhado)</th><th class="n">Líquido</th><th>CNPJ da loja</th><th>Centro de custo</th></tr></thead><tbody>
+    ${L.map((x,i)=>`<tr class="${x.dup?'muted':''}"><td class="c"><input type="checkbox" ${x.marcado?'checked':''} ${x.ok?'':'disabled'} onchange="AN.linhas[${i}].marcado=this.checked;fnAtualizar()"></td><td>${esc(x.data)}</td><td class="small">${esc(x.contrato)}</td><td class="n">${fR(x.bruto)}</td>
+      <td class="n">${x.brutoDet==null?'<span class="bad">não achei</span>':fR(x.brutoDet)+(Math.abs(x.brutoDet-x.bruto)<=0.011?' <span class="ok">✓</span>':' <span class="bad">≠</span>')}</td><td class="n"><b>${fR(x.liquido)}</b></td><td class="small">${esc(fnFmtCnpj(x.cnpj)||'—')}</td>
+      <td><select onchange="fnAntecipCC(${i},this.value)" ${x.cc?'':'style="border-color:var(--bad)"'}><option value="">— escolha —</option>${ccs.map(c=>`<option ${up(c)===up(x.cc||'')?'selected':''}>${esc(c)}</option>`).join('')}</select>${x.dup?' <span class="tag t-warn" title="Já existe conta a receber Antecipações com a mesma data, valor e centro">já importado?</span>':''}</td></tr>`).join('')}
+    </tbody></table></div></div>`:''}`;
+}
+async function fnAntecipArquivos(files){
+  for(const f of [...files]){ try{ const rows=await dnLerPlanilha(f); const H=rows.map(r=>r.map(c=>semAcento(c)).join('|'));
+      if(H.some(h=>h.includes('VALOR LIQUIDO NEGOCIADO'))) AN.con=fnAntecipCon(rows,f.name);
+      else if(H.some(h=>h.includes('VALOR DA UR'))) AN.det=fnAntecipDet(rows,f.name);
+      else toast(f.name+': não reconheci (esperava Negociações Consolidado ou Detalhado)',7000);
+    }catch(e){ toast(f.name+': '+e.message,7000); } }
+  fnAntecipCruzar(); fnAtualizar();
+}
+function fnAntecipCon(rows,nome){ const hi=rows.findIndex(r=>r.some(c=>semAcento(c).includes('VALOR LIQUIDO NEGOCIADO'))); const h=rows[hi].map(c=>semAcento(c).trim());
+  const col=t=>h.findIndex(x=>x===t||x.startsWith(t)); const cD=col('DATA DA CONTRATACAO'), cB=col('VALOR ATUAL'), cL=col('VALOR LIQUIDO NEGOCIADO'), cR=col('CONTRATO REGISTRADORA');
+  const out=[]; rows.slice(hi+1).forEach(r=>{ const d=fnDataExtrato(r[cD]); const l=fnNumExtrato(r[cL]); if(!/\d{2}\/\d{2}\/\d{4}/.test(d)||!l) return; out.push({data:d,bruto:fnNumExtrato(r[cB]),liquido:Math.round(l*100)/100,contrato:String(r[cR]||'').trim()}); });
+  return {nome,rows:out}; }
+function fnAntecipDet(rows,nome){ const hi=rows.findIndex(r=>r.some(c=>semAcento(c).includes('VALOR DA UR'))); const h=rows[hi].map(c=>semAcento(c).trim());
+  const col=t=>h.findIndex(x=>x===t||x.startsWith(t)); const cC=col('CPF / CNPJ'), cK=col('CONTRATO REGISTRADORA'), cV=col('VALOR DA UR');
+  const cnpj={}, bruto={}; let atual='';
+  rows.slice(hi+1).forEach(r=>{ const a=r.map(c=>semAcento(c)).join('|'); if(a.includes('VALOR ATUAL DO CONTRATO')){ const v=fnNumExtrato(r[cV]!==''&&r[cV]!=null?r[cV]:r.filter(x=>x!==''&&x!=null).slice(-1)[0]); if(atual) bruto[atual]=Math.round(v*100)/100; return; }
+    const k=String(r[cK]||'').trim(); if(!k) return; atual=k; if(r[cC]) cnpj[k]=soDig(r[cC]); });
+  return {nome,cnpj,bruto}; }
+function fnAntecipCruzar(){
+  if(!AN.con){ AN.linhas=null; return; } const D=AN.det||{cnpj:{},bruto:{}}; const usados=new Set();
+  const ccPorCnpj={}; fin().centros.forEach(c=>{ const d=soDig(c.CNPJ); if(d) ccPorCnpj[d]=c.NOME; });
+  AN.linhas=AN.con.rows.map(x=>{
+    let k=x.contrato&&D.cnpj[x.contrato]?x.contrato:''; // mesmo contrato nas duas planilhas
+    if(!k) k=Object.keys(D.bruto).find(c=>!usados.has(c)&&Math.abs(D.bruto[c]-x.bruto)<=0.011)||''; // senão: pelo valor bruto
+    if(k) usados.add(k); const cnpj=k?D.cnpj[k]||'':''; const cc=ccPorCnpj[cnpj]||'';
+    const dup=fin().lanc.some(l=>l.TIPO==='RECEBER'&&l.VENCIMENTO===x.data&&Math.abs((+l.VALOR)-x.liquido)<=0.011&&up(l.CATEGORIA)===up('Antecipações')&&(!cc||up(l.CENTRO_CUSTO)===up(cc)));
+    return Object.assign({},x,{chave:k,cnpj,cc,brutoDet:k?D.bruto[k]:null,ok:!!cc,marcado:!!cc&&!dup,dup}); });
+}
+function fnAntecipCC(i,cc){ const x=AN.linhas[i]; x.cc=cc; x.ok=!!cc; x.marcado=!!cc&&!x.dup; x.ccManual=true;
+  // mesma loja (CNPJ) nas outras linhas sem centro: usa o mesmo
+  if(cc&&x.cnpj) AN.linhas.forEach(y=>{ if(!y.cc&&y.cnpj===x.cnpj){ y.cc=cc; y.ok=true; y.marcado=!y.dup; y.ccManual=true; } });
+  fnAtualizar(); }
+async function fnAntecipImportar(){
+  const L=AN.linhas.filter(x=>x.ok&&x.marcado); if(!L.length) return;
+  if(!S.master&&!fin().categorias.some(c=>up(c.NOME)===up('Antecipações'))){ toast('A categoria "Antecipações" ainda não existe — peça ao usuário master para criar (Configurações → Categorias, tipo receita)',9000); return; }
+  const lista=L.map(x=>({tipo:'RECEBER',vencimento:x.data,nome:'Miashop',descricao:'Antecipações',categoria:'Antecipações',centroCusto:x.cc,valor:x.liquido,formaPagamento:'CONTA CORRENTE',obs:'Contrato registradora '+x.contrato}));
+  try{ const r=await api('finImportarLanc',{arquivoNome:'Antecipações '+(AN.con.nome||''),lista});
+    // CNPJ escolhido à mão para um centro que ainda não tinha: grava no centro (para as próximas importações acharem sozinhas)
+    if(S.master){ const gr={}; L.filter(x=>x.ccManual&&x.cnpj).forEach(x=>{ const c=fin().centros.find(c=>up(c.NOME)===up(x.cc)); if(c&&!soDig(c.CNPJ)) gr[c.NOME]=x.cnpj; });
+      for(const [nome,cnpj] of Object.entries(gr)){ try{ await api('finSalvarCentro',{nome,antigo:nome,cnpj:fnFmtCnpj(cnpj)}); }catch(e){} } }
+    toast(`✓ ${r.importados} recebimento(s) de antecipação importado(s)${r.erros&&r.erros.length?' · '+r.erros.length+' com erro: '+r.erros[0]:''}`,8000);
+    AN.con=AN.det=AN.linhas=null; fnAtualizar(); }
+  catch(e){ toast('Erro: '+e.message,8000); }
+}
 
 </script>
 </body>
