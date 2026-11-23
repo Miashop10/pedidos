@@ -1892,7 +1892,7 @@ const FIN_SECOES = [['inicio','Dashboard inicial'],['contas','Contas e extratos'
 const FIN_SUBS = {
   inicio:[['dash','Dashboard inicial']],
   contas:[['conc','Conciliação bancária'],['contas','Contas bancárias'],['hist','Histórico de importações']],
-  receb:[['agendar','Agendar recebimento'],['importar','Importar lançamentos'],['antecip','Importar antecipações'],['cartao','Importar cartões']],
+  receb:[['agendar','Agendar recebimento'],['importar','Importar lançamentos'],['antecip','Importar antecipações'],['cartao','Importar cartões'],['pix','Importar PIX']],
   pagar:[['agendar','Agendar pagamento'],['importar','Importar lançamentos'],['boletos','Histórico de boletos lançados']],
   rel:[['areceber','Contas a receber'],['apagar','Contas a pagar'],['recebidas','Contas recebidas'],['pagas','Contas pagas'],['dre','DRE Miashop'],['drep','DRE particular'],['lucro','Lucro por loja']],
   config:[['cats','Categorias'],['centros','Centros de custo'],['hist','Histórico de ações'],['nuvem','Envio para a nuvem']]
@@ -1917,7 +1917,7 @@ function vFinanceiro(){
   const sec=FN.sec, sub=FN.sub[sec]; if(FN.aberto===undefined) FN.aberto=sec;
   const titulo=(FIN_SUBS[sec].find(x=>x[0]===sub)||[])[1]||'';
   const acoes = sec==='contas'?`<button class="btn sec sm" onclick="fnModalConta()">+ Adicionar conta</button><button class="btn sec sm" onclick="fnColarExtrato()">📋 Colar extrato</button><button class="btn sm" onclick="fnEscolherExtrato()">⬆ Importar extrato (Excel)</button><input type="file" id="fnInExt" accept=".xlsx,.xls,.csv" class="hide" onchange="if(this.files[0]) fnLerExtrato(this.files[0]); this.value=''">`
-    : (sec==='receb'||sec==='pagar')&&sub!=='importar'&&sub!=='boletos'&&sub!=='antecip'&&sub!=='cartao'?`<button class="btn sec sm" onclick="fnIr('${sec}','importar')">⬆ Importar lançamentos</button><button class="btn" onclick="fnAbrirLanc(null,'${sec==='receb'?'RECEBER':'PAGAR'}')">+ Agendar ${sec==='receb'?'recebimento':'pagamento'}</button>`
+    : (sec==='receb'||sec==='pagar')&&sub!=='importar'&&sub!=='boletos'&&sub!=='antecip'&&sub!=='cartao'&&sub!=='pix'?`<button class="btn sec sm" onclick="fnIr('${sec}','importar')">⬆ Importar lançamentos</button><button class="btn" onclick="fnAbrirLanc(null,'${sec==='receb'?'RECEBER':'PAGAR'}')">+ Agendar ${sec==='receb'?'recebimento':'pagamento'}</button>`
     : sec==='rel'&&(sub==='dre'||sub==='drep')?`<button class="btn sec sm" onclick="fnDREPdf(${sub==='drep'})">Exportar PDF</button>`
     : sec==='rel'&&sub==='lucro'?`<button class="btn sec sm" onclick="fnLucroExcel()">Exportar Excel</button><button class="btn sec sm" onclick="exportarPDF(fnLucroExcel,'Lucro por loja · '+FN.ano)">Exportar PDF</button>`
     : sec==='pagar'&&sub==='boletos'?`<button class="btn sec sm" onclick="exportarPDF(fnBoletosExcel,'Histórico de boletos lançados')">Exportar PDF</button>`
@@ -1941,6 +1941,7 @@ function fnCorpo(){
   if(sec==='pagar'&&sub==='boletos') return fnHistBoletos();
   if(sec==='receb'&&sub==='antecip') return fnAntecipTela();
   if(sec==='receb'&&sub==='cartao') return fnCartaoTela();
+  if(sec==='receb'&&sub==='pix') return fnPixTela();
   if(sec==='receb'||sec==='pagar') return sub==='importar'?fnImportarTela(): fnAgendar(sec==='receb'?'RECEBER':'PAGAR');
   if(sec==='config'&&sub==='nuvem') return fnNuvemTela();
   if(sec==='config'&&sub!=='hist'&&!S.master) return fnCadastroSoLeitura(sub);
@@ -3622,65 +3623,82 @@ async function fnAntecipImportar(){
   catch(e){ toast('Erro: '+e.message,8000); }
 }
 
-/* ---------- Importar recebíveis de cartão (planilha "Recebíveis Completos" da credenciadora) ----------
-   aba Resumo: CPF/CNPJ da loja (B) → centro de custo · DATA DE VENCIMENTO (D) → vencimento · VALOR LÍQUIDO (J) → valor
-   linhas "Subtotal" e "TOTAL" ficam de fora · nome MIASHOP, descrição e categoria CARTÃO DE CRÉDITO E DÉBITO */
-const CR={nome:'',linhas:null}; const CR_CAT='CARTÃO DE CRÉDITO E DÉBITO';
-function fnCartaoTela(){
-  const L=CR.linhas, sel=L?L.filter(x=>x.ok&&x.marcado):[], tot=sel.reduce((s,x)=>s+x.valor,0), ccs=fnCentros();
+/* ---------- Importar recebimentos de cartão e de PIX (planilhas da credenciadora) ----------
+   Cartão ("Recebíveis Completos", aba Resumo): CPF/CNPJ (B) → centro de custo · DATA DE VENCIMENTO (D) · VALOR LÍQUIDO (J); Subtotal/TOTAL ficam de fora
+   PIX ("Vendas Detalhado", aba PIX): CPF/CNPJ (B) → centro de custo · DATA/HORA DA VENDA (D, sem o horário) · VALOR DA VENDA (K)
+   nome MIASHOP; descrição e categoria conforme o tipo */
+const IMPR={
+  cartao:{titulo:'Recebíveis de cartão',arq:'Recebíveis Completos',cat:'CARTÃO DE CRÉDITO E DÉBITO',cData:['DATA DE VENCIMENTO'],cValor:['VALOR LIQUIDO'],pData:3,pValor:9,letras:'J (valor líquido) · D (vencimento)'},
+  pix:{titulo:'Vendas PIX',arq:'Vendas Detalhado (PIX)',cat:'PIX',cData:['DATA/HORA DA VENDA','DATA DA VENDA','DATA DE VENCIMENTO'],cValor:['VALOR DA VENDA'],pData:3,pValor:10,letras:'K (valor da venda) · D (data, sem o horário)'}
+};
+const CR={tipo:'',nome:'',linhas:null}; const CR_CAT=IMPR.cartao.cat;
+function fnCartaoTela(){ return fnImpRecTela('cartao'); }
+function fnPixTela(){ return fnImpRecTela('pix'); }
+function fnImpRecTela(tipo){
+  const K=IMPR[tipo]; if(CR.tipo!==tipo){ CR.tipo=tipo; CR.nome=''; CR.linhas=null; }
+  const L=CR.linhas, sel=L?L.filter(x=>x.ok&&x.marcado):[], tot=sel.reduce((s,x)=>s+x.valor,0), ccs=fnCentros(), temSt=L&&L.some(x=>x.status);
   return `<div class="card" style="padding:14px">
-    <p class="small muted" style="margin:0 0 10px">Anexe ou arraste a planilha <b>Recebíveis Completos</b> da credenciadora. Cada linha de recebimento vira uma conta a receber com o <b>valor líquido</b> (coluna J), o <b>vencimento</b> (coluna D) e o <b>centro de custo</b> da loja pelo CPF/CNPJ (coluna B, conforme o CNPJ cadastrado em Configurações → Centros de custo). Nome <b>MIASHOP</b>, descrição e categoria <b>${CR_CAT}</b>. As linhas de Subtotal e TOTAL não entram.</p>
-    <label class="dn-drop${L?' has':''}" ondragover="event.preventDefault();this.classList.add('on')" ondragleave="this.classList.remove('on')" ondrop="event.preventDefault();this.classList.remove('on');fnCartaoArquivo(event.dataTransfer.files[0])">
-      <input type="file" accept=".xlsx,.xls,.csv" class="hide" onchange="fnCartaoArquivo(this.files[0]);this.value=''"><b>Recebíveis de cartão</b><div class="small" style="margin-top:4px">${L?'✔ '+esc(CR.nome)+' · '+L.length+' recebimento(s)':'📄 clique ou solte o arquivo aqui'}</div></label>
+    <p class="small muted" style="margin:0 0 10px">Anexe ou arraste a planilha <b>${K.arq}</b> da credenciadora. Cada linha vira uma conta a receber — colunas ${K.letras} — com o <b>centro de custo</b> da loja pelo CPF/CNPJ (coluna B, conforme o CNPJ cadastrado em Configurações → Centros de custo). Nome <b>MIASHOP</b>, descrição e categoria <b>${K.cat}</b>.${tipo==='cartao'?' As linhas de Subtotal e TOTAL não entram.':''}</p>
+    <label class="dn-drop${L?' has':''}" ondragover="event.preventDefault();this.classList.add('on')" ondragleave="this.classList.remove('on')" ondrop="event.preventDefault();this.classList.remove('on');fnImpRecArquivo('${tipo}',event.dataTransfer.files[0])">
+      <input type="file" accept=".xlsx,.xls,.csv" class="hide" onchange="fnImpRecArquivo('${tipo}',this.files[0]);this.value=''"><b>${K.titulo}</b><div class="small" style="margin-top:4px">${L?'✔ '+esc(CR.nome)+' · '+L.length+' lançamento(s)':'📄 clique ou solte o arquivo aqui'}</div></label>
     ${L?`<div style="margin-top:8px"><button class="btn ghost sm" onclick="CR.linhas=null;CR.nome='';fnAtualizar()">✕ Limpar arquivo</button></div>`:''}</div>
-  ${L?`<div class="card" style="padding:12px;margin-top:12px"><div class="row" style="align-items:center;gap:10px;margin-bottom:8px"><b>${L.length} recebimento(s)</b><span class="small muted">· ${L.filter(x=>!x.ok).length?`<span class="bad">${L.filter(x=>!x.ok).length} sem centro de custo — escolha abaixo</span>`:'todos com centro de custo ✓'}</span><span class="sp"></span>
-      ${fnContaSel('crConta')}<span class="small">Importar <b>${sel.length}</b> · total <b class="ok">${fR(tot)}</b></span><button class="btn" ${sel.length?'':'disabled'} onclick="fnCartaoImportar()">⬆ Importar ${sel.length} recebimento(s)</button></div>
-    <div class="tw sl-tab"><table><thead><tr><th></th><th>Vencimento</th><th>CPF / CNPJ</th><th>Bandeira / modalidade</th><th class="n">Valor líquido</th><th>Centro de custo</th></tr></thead><tbody>
-    ${L.map((x,i)=>`<tr class="${x.dup?'muted':''}"><td class="c"><input type="checkbox" ${x.marcado?'checked':''} ${x.ok?'':'disabled'} onchange="CR.linhas[${i}].marcado=this.checked;fnAtualizar()"></td><td>${esc(x.venc)}</td><td class="small">${esc(fnFmtCnpj(x.cnpj)||'—')}</td><td class="small">${esc(x.band)}</td><td class="n"><b>${fR(x.valor)}</b></td>
-      <td><select onchange="fnCartaoCC(${i},this.value)" ${x.cc?'':'style="border-color:var(--bad)"'}><option value="">— escolha —</option>${ccs.map(c=>`<option ${up(c)===up(x.cc||'')?'selected':''}>${esc(c)}</option>`).join('')}</select>${x.dup?' <span class="tag t-warn" title="Já existe conta a receber de cartão com o mesmo vencimento, valor e centro de custo">já importado?</span>':''}</td></tr>`).join('')}
+  ${L?`<div class="card" style="padding:12px;margin-top:12px"><div class="row" style="align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap"><b>${L.length} lançamento(s)</b><span class="small muted">· ${L.filter(x=>!x.ok).length?`<span class="bad">${L.filter(x=>!x.ok).length} sem centro de custo — escolha abaixo</span>`:'todos com centro de custo ✓'}</span><span class="sp"></span>
+      ${fnContaSel('crConta')}<span class="small">Importar <b>${sel.length}</b> · total <b class="ok">${fR(tot)}</b></span><button class="btn" id="crBt" ${sel.length?'':'disabled'} onclick="fnImpRecImportar()">⬆ Importar ${sel.length} recebimento(s)</button></div>
+    <div class="tw sl-tab"><table><thead><tr><th></th><th>${tipo==='pix'?'Data':'Vencimento'}</th><th>CPF / CNPJ</th><th>${tipo==='pix'?'Comprovante (CV)':'Bandeira / modalidade'}</th>${temSt?'<th>Status</th>':''}<th class="n">Valor</th><th>Centro de custo</th></tr></thead><tbody>
+    ${L.map((x,i)=>`<tr class="${x.dup||x.stRuim?'muted':''}"><td class="c"><input type="checkbox" ${x.marcado?'checked':''} ${x.ok?'':'disabled'} onchange="CR.linhas[${i}].marcado=this.checked;fnAtualizar()"></td><td>${esc(x.venc)}${x.hora?` <span class="muted small">${esc(x.hora)}</span>`:''}</td><td class="small">${esc(fnFmtCnpj(x.cnpj)||'—')}</td><td class="small">${esc(tipo==='pix'?x.cv:x.band)}</td>${temSt?`<td class="small">${x.stRuim?`<span class="tag t-warn">${esc(x.status)}</span>`:esc(x.status)}</td>`:''}<td class="n"><b>${fR(x.valor)}</b></td>
+      <td><select onchange="fnCartaoCC(${i},this.value)" ${x.cc?'':'style="border-color:var(--bad)"'}><option value="">— escolha —</option>${ccs.map(c=>`<option ${up(c)===up(x.cc||'')?'selected':''}>${esc(c)}</option>`).join('')}</select>${x.dup?' <span class="tag t-warn" title="Já existe esta conta a receber">já importado?</span>':''}</td></tr>`).join('')}
     </tbody></table></div></div>`:''}`;
 }
-function fnCartaoLer(rows){
-  const hi=rows.findIndex(r=>{ const h=r.map(c=>semAcento(c).trim()); return h.some(x=>x.startsWith('CPF / CNPJ')||x==='CPF/CNPJ')&&h.some(x=>x.startsWith('VALOR LIQUIDO'))&&h.some(x=>x.startsWith('DATA DE VENCIMENTO')); });
-  if(hi<0) throw new Error('não achei o cabeçalho (CPF / CNPJ, DATA DE VENCIMENTO, VALOR LÍQUIDO) — é a planilha Recebíveis Completos?');
-  const h=rows[hi].map(c=>semAcento(c).trim()), col=(t,pad)=>{ const i=h.findIndex(x=>x.startsWith(t)); return i>=0?i:pad; };
-  const cC=col('CPF / CNPJ',1), cD=col('DATA DE VENCIMENTO',3), cV=col('VALOR LIQUIDO',9), cB=col('BANDEIRA',4), cE=col('ESTABELECIMENTO',0);
+function fnImpRecLer(tipo,rows){
+  const K=IMPR[tipo];
+  const hi=rows.findIndex(r=>{ const h=r.map(c=>semAcento(c).trim()); return h.some(x=>x.startsWith('CPF / CNPJ')||x==='CPF/CNPJ')&&h.some(x=>K.cValor.some(t=>x.startsWith(t)))&&h.some(x=>K.cData.some(t=>x.startsWith(t))); });
+  if(hi<0) throw new Error(`não achei o cabeçalho (CPF / CNPJ, ${K.cData[0]}, ${K.cValor[0].replace('LIQUIDO','LÍQUIDO')}) — é a planilha ${K.arq}?`);
+  const h=rows[hi].map(c=>semAcento(c).trim()), col=(ts,pad)=>{ for(const t of [].concat(ts)){ const i=h.findIndex(x=>x.startsWith(t)); if(i>=0) return i; } return pad; };
+  const cC=col('CPF / CNPJ',1), cD=col(K.cData,K.pData), cV=col(K.cValor,K.pValor), cB=col('BANDEIRA',-1), cE=col('ESTABELECIMENTO',0), cCV=col('NUMERO DO COMPROVANTE',-1), cS=col('STATUS',-1);
   const out=[];
   for(const r of rows.slice(hi+1)){
     const a=semAcento(r[0]).trim(); if(/^(SUBTOTAL|TOTAL)/.test(a)) continue; // totais ficam de fora
     if(r.some(c=>semAcento(c).trim().startsWith('CPF / CNPJ'))) break; // começou outra tabela
     const cnpj=soDig(r[cC]); if(cnpj.length!==14&&cnpj.length!==11) continue;
-    const venc=fnDataExtrato(r[cD]), v=typeof r[cV]==='number'?r[cV]:fnNumExtrato(r[cV]); if(!/\d{2}\/\d{2}\/\d{4}/.test(venc)||!v) continue;
-    out.push({cnpj,venc,valor:Math.round(v*100)/100,band:String(r[cB]||'').trim(),ec:String(r[cE]||'').trim()});
+    const bruto=r[cD]; const venc=fnDataExtrato(bruto); // só a data (o horário fica de fora)
+    let hora=''; { const m=String(bruto||'').match(/\d{1,2}:\d{2}/); if(m) hora=m[0]; else if(typeof bruto==='number'&&bruto%1){ const mi=Math.round((bruto%1)*1440); hora=String(Math.floor(mi/60)).padStart(2,'0')+':'+String(mi%60).padStart(2,'0'); } }
+    const v=typeof r[cV]==='number'?r[cV]:fnNumExtrato(r[cV]); if(!/\d{2}\/\d{2}\/\d{4}/.test(venc)||!v) continue;
+    const status=cS>=0?String(r[cS]||'').trim():'';
+    out.push({cnpj,venc,hora,valor:Math.round(v*100)/100,band:cB>=0?String(r[cB]||'').trim():'',ec:String(r[cE]||'').trim(),cv:cCV>=0?String(r[cCV]||'').trim():'',status,stRuim:!!status&&!/^PAG|^APROV|^CONFIRM|^CONCLU/.test(semAcento(status))});
   }
-  if(!out.length) throw new Error('nenhum recebimento encontrado na planilha');
+  if(!out.length) throw new Error('nenhum lançamento encontrado na planilha');
   return out;
 }
-async function fnCartaoArquivo(f){ if(!f) return;
-  try{ const rows=await dnLerPlanilha(f); const L=fnCartaoLer(rows); CR.nome=f.name;
+const fnImpRecObs=(tipo,x)=>tipo==='pix'?['PIX'+(x.hora?' '+x.hora:''),x.cv?'CV '+x.cv:'',x.ec?'EC '+x.ec:''].filter(Boolean).join(' · '):[x.band,x.ec?'EC '+x.ec:''].filter(Boolean).join(' · ');
+async function fnCartaoArquivo(f){ return fnImpRecArquivo('cartao',f); }
+async function fnImpRecArquivo(tipo,f){ if(!f) return; const K=IMPR[tipo];
+  try{ const rows=await dnLerPlanilha(f); const L=fnImpRecLer(tipo,rows); CR.tipo=tipo; CR.nome=f.name;
     const ccPorCnpj={}; fin().centros.forEach(c=>{ const d=soDig(c.CNPJ); if(d) ccPorCnpj[d]=c.NOME; });
-    // "já importado?": conta quantas contas a receber de cartão iguais (vencimento + valor + centro) já existem
-    const ja={}; fin().lanc.forEach(l=>{ if(l.TIPO==='RECEBER'&&up(l.CATEGORIA)===up(CR_CAT)){ const k=l.VENCIMENTO+'|'+(+l.VALOR).toFixed(2)+'|'+up(l.CENTRO_CUSTO); ja[k]=(ja[k]||0)+1; } });
-    CR.linhas=L.map(x=>{ const cc=ccPorCnpj[x.cnpj]||''; const k=x.venc+'|'+x.valor.toFixed(2)+'|'+up(cc); const dup=!!cc&&ja[k]>0; if(dup) ja[k]--;
-      return Object.assign(x,{cc,ok:!!cc,marcado:!!cc&&!dup,dup}); });
-    toast(`${L.length} recebimento(s) lido(s) — total ${fR(L.reduce((s,x)=>s+x.valor,0))}`,5000);
+    // "já importado?": PIX pelo número do comprovante (CV); cartão contando os iguais (vencimento + valor + centro)
+    const R=fin().lanc.filter(l=>l.TIPO==='RECEBER'&&up(l.CATEGORIA)===up(K.cat)); const ja={}, cvs=new Set();
+    R.forEach(l=>{ const k=l.VENCIMENTO+'|'+(+l.VALOR).toFixed(2)+'|'+up(l.CENTRO_CUSTO); ja[k]=(ja[k]||0)+1; const m=String(l.OBS||'').match(/CV (\S+)/); if(m) cvs.add(m[1]); });
+    CR.linhas=L.map(x=>{ const cc=ccPorCnpj[x.cnpj]||''; let dup=false;
+      if(x.cv) dup=cvs.has(x.cv); else { const k=x.venc+'|'+x.valor.toFixed(2)+'|'+up(cc); dup=!!cc&&ja[k]>0; if(dup) ja[k]--; }
+      return Object.assign(x,{cc,ok:!!cc,marcado:!!cc&&!dup&&!x.stRuim,dup}); });
+    toast(`${L.length} lançamento(s) lido(s) — total ${fR(L.reduce((s,x)=>s+x.valor,0))}`,5000);
   }catch(e){ toast(f.name+': '+e.message,8000); }
   fnAtualizar(); }
-function fnCartaoCC(i,cc){ const x=CR.linhas[i]; x.cc=cc; x.ok=!!cc; x.marcado=!!cc&&!x.dup; x.ccManual=true;
-  if(cc&&x.cnpj) CR.linhas.forEach(y=>{ if(!y.cc&&y.cnpj===x.cnpj){ y.cc=cc; y.ok=true; y.marcado=!y.dup; y.ccManual=true; } }); // mesma loja nas outras linhas
+function fnCartaoCC(i,cc){ const x=CR.linhas[i]; x.cc=cc; x.ok=!!cc; x.marcado=!!cc&&!x.dup&&!x.stRuim; x.ccManual=true;
+  if(cc&&x.cnpj) CR.linhas.forEach(y=>{ if(!y.cc&&y.cnpj===x.cnpj){ y.cc=cc; y.ok=true; y.marcado=!y.dup&&!y.stRuim; y.ccManual=true; } }); // mesma loja nas outras linhas
   fnAtualizar(); }
-async function fnCartaoImportar(){
-  const L=CR.linhas.filter(x=>x.ok&&x.marcado); if(!L.length) return; const contaId=fnContaLida('crConta'); if(!contaId) return;
-  if(!S.master&&!fin().categorias.some(c=>up(c.NOME)===up(CR_CAT))){ toast(`A categoria "${CR_CAT}" ainda não existe — peça ao usuário master para criar (Configurações → Categorias, tipo receita)`,9000); return; }
-  const lista=L.map(x=>({tipo:'RECEBER',vencimento:x.venc,nome:'MIASHOP',descricao:CR_CAT,categoria:CR_CAT,centroCusto:x.cc,valor:x.valor,formaPagamento:'CONTA CORRENTE',contaId,obs:[x.band,x.ec?'EC '+x.ec:''].filter(Boolean).join(' · ')}));
-  const bt=document.querySelector('[onclick="fnCartaoImportar()"]'); if(bt){ bt.disabled=true; bt.textContent='Importando…'; }
-  try{ const antes=fin().lanc.length; const r=await api('finImportarLanc',{arquivoNome:'Cartões '+(CR.nome||''),lista,impId:fnIdCli('ILC')});
+async function fnCartaoImportar(){ return fnImpRecImportar(); }
+async function fnImpRecImportar(){
+  const tipo=CR.tipo, K=IMPR[tipo]; const L=CR.linhas.filter(x=>x.ok&&x.marcado); if(!L.length) return; const contaId=fnContaLida('crConta'); if(!contaId) return;
+  if(!S.master&&!fin().categorias.some(c=>up(c.NOME)===up(K.cat))){ toast(`A categoria "${K.cat}" ainda não existe — peça ao usuário master para criar (Configurações → Categorias, tipo receita)`,9000); return; }
+  const lista=L.map(x=>({tipo:'RECEBER',vencimento:x.venc,nome:'MIASHOP',descricao:K.cat,categoria:K.cat,centroCusto:x.cc,valor:x.valor,formaPagamento:'CONTA CORRENTE',contaId,obs:fnImpRecObs(tipo,x)}));
+  const bt=document.getElementById('crBt'); if(bt){ bt.disabled=true; bt.textContent='Importando…'; }
+  try{ const antes=fin().lanc.length; const r=await api('finImportarLanc',{arquivoNome:(tipo==='pix'?'PIX ':'Cartões ')+(CR.nome||''),lista,impId:fnIdCli('ILC')});
     if(r.importados&&fin().lanc.length-antes<r.importados){ S.finVer='0'; carregar(true); }
     if(S.master){ const gr={}; L.filter(x=>x.ccManual&&x.cnpj).forEach(x=>{ const c=fin().centros.find(c=>up(c.NOME)===up(x.cc)); if(c&&!soDig(c.CNPJ)) gr[c.NOME]=x.cnpj; });
       for(const [nome,cnpj] of Object.entries(gr)){ try{ await api('finSalvarCentro',{nome,antigo:nome,cnpj:fnFmtCnpj(cnpj)}); }catch(e){} } }
-    toast(`✓ ${r.importados} recebimento(s) de cartão importado(s) · ${fR(L.reduce((s,x)=>s+x.valor,0))}${r.erros&&r.erros.length?' · '+r.erros.length+' com erro: '+r.erros[0]:''}`,8000);
+    toast(`✓ ${r.importados} recebimento(s) de ${tipo==='pix'?'PIX':'cartão'} importado(s) · ${fR(L.reduce((s,x)=>s+x.valor,0))}${r.erros&&r.erros.length?' · '+r.erros.length+' com erro: '+r.erros[0]:''}`,8000);
     CR.linhas=null; CR.nome=''; fnAtualizar(); }
-  catch(e){ toast('Erro: '+e.message,8000); if(bt){ bt.disabled=false; } fnAtualizar(); }
+  catch(e){ toast('Erro: '+e.message,8000); fnAtualizar(); }
 }
 
 </script>
