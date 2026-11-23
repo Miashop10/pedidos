@@ -2098,9 +2098,9 @@ function fnSugestoes(e){ const tipo=(+e.VALOR)>=0?'RECEBER':'PAGAR', v=Math.abs(
   return out.filter(l=>l.STATUS!=='QUITADO'&&Math.round(Math.abs(+l.VALOR)*100)===c0&&(!l.CONTA_ID||String(l.CONTA_ID)===String(e.CONTA_ID)))
     .sort((a,b)=>(b.CONTA_ID?1:0)-(a.CONTA_ID?1:0)); }
 // campo "conta de recebimento" das importações (lembra a última escolhida neste computador)
-function fnContaSel(id){ const C=fin().contas, ult=LS.get('mc_contaRec')||''; return `<label class="small" style="display:inline-flex;align-items:center;gap:6px"><b>Conta de recebimento</b>
-  <select id="${id}" onchange="LS.set('mc_contaRec',this.value)"><option value="">— escolha a conta —</option>${C.map(c=>`<option value="${esc(c.ID)}" ${String(c.ID)===ult?'selected':''}>${esc(c.NOME)}${c.BANCO?' · '+esc(c.BANCO):''}</option>`).join('')}</select></label>`; }
-function fnContaLida(id){ const el=document.getElementById(id); const v=el?el.value:''; if(!v){ toast('Escolha a conta de recebimento',5000); if(el){ el.focus(); el.style.borderColor='var(--bad)'; } return null; } return v; }
+function fnContaSel(id,rot,chave){ chave=chave||'mc_contaRec'; const C=fin().contas, ult=LS.get(chave)||''; return `<label class="small" style="display:inline-flex;align-items:center;gap:6px"><b>${rot||'Conta de recebimento'}</b>
+  <select id="${id}" onchange="LS.set('${chave}',this.value);document.querySelectorAll('select[data-conta-ch=${chave}]').forEach(s=>s.value=this.value)" data-conta-ch="${chave}"><option value="">— escolha a conta —</option>${C.map(c=>`<option value="${esc(c.ID)}" ${String(c.ID)===ult?'selected':''}>${esc(c.NOME)}${c.BANCO?' · '+esc(c.BANCO):''}</option>`).join('')}</select></label>`; }
+function fnContaLida(id,rot){ const el=document.getElementById(id); const v=el?el.value:''; if(!v){ toast('Escolha a '+(rot||'conta de recebimento'),5000); if(el){ el.focus(); el.style.borderColor='var(--bad)'; } return null; } return v; }
 function fnConciliacao(){
   const C=fin().contas; if(!C.length) return '<div class="card muted">Cadastre uma conta bancária e importe o extrato em Excel para conciliar.</div>';
   if(!FN.conta||!fnConta(FN.conta)) FN.conta=C[0].ID;
@@ -2427,6 +2427,7 @@ function fnImportarTela(){
     <p class="small muted" style="margin:4px 0 4px">Modelo: <b>${FIN_MODELO.join(' · ')}</b> <button class="btn ghost sm" onclick="fnModeloLanc()">⬇ Baixar modelo</button></p>
     <p class="small muted" style="margin:0 0 10px">Valor negativo entra como positivo. Forma de pagamento em branco = CONTA CORRENTE. No Excel, selecione as linhas (com ou sem o cabeçalho), aperte <b>Ctrl+C</b>, clique no quadro abaixo e aperte <b>Ctrl+V</b>. Depois confira o que é cada coluna.</p>
     <div class="row" style="align-items:flex-end;margin-bottom:10px"><label class="sf" style="flex:0 0 240px"><span>Os lançamentos colados são</span><select id="fnImpSit" onchange="FN.impSit=this.value;fnColaPrevia()">${ops.map(([k,n])=>`<option value="${k}" ${k===sit?'selected':''}>${n}</option>`).join('')}</select></label>
+      <span style="margin:0 6px 8px">${fnContaSel('fnImpContaT','Conta corrente','mc_contaImp')}</span>
       <label class="fnd-rd" style="margin:0 0 8px"><input type="checkbox" id="fnColaCab" ${FN.cola&&FN.cola.cab?'checked':''} onchange="FN.cola&&(FN.cola.cab=this.checked);fnColaPrevia()"> Primeira linha é o cabeçalho</label>
       <span class="sp"></span><button class="btn ghost sm" onclick="FN.cola=null;document.getElementById('fnCola').value='';fnColaPrevia()">Limpar</button></div>
     <textarea id="fnCola" class="fn-cola" placeholder="Clique aqui e cole (Ctrl+V) os dados copiados do Excel…" oninput="fnColaLer()">${esc(FN.cola?FN.cola.texto:'')}</textarea>
@@ -2487,14 +2488,15 @@ function fnModalImpLanc(){
   modal(`<div class="mh"><h3>Importar ${nomes[sit]} · <span class="muted small">${esc(arquivo.name)}</span></h3><button class="btn ghost" onclick="fecharModal()">✕</button></div>
   <div class="row" style="margin-bottom:10px;align-items:center"><span class="small"><b>${ok.length}</b> de ${L.length} linha(s) · ${fR(ok.reduce((s,x)=>s+x.d.valor,0))}</span>
     ${L.length>ok.length?`<span class="tag t-bad">${L.length-ok.length} com erro (não entram)</span>`:''}${novas.length?`<span class="tag t-warn" title="${esc(novas.join(', '))}">${novas.length} categoria(s) nova(s) serão criadas</span>`:''}
-    <span class="sp"></span><button class="btn" id="fnImpLBt" onclick="fnConfirmarImpLanc()" ${ok.length?'':'disabled'}>Importar ${ok.length} lançamento(s)</button></div>
+    <span class="sp"></span>${fnContaSel('fnImpContaM','Conta corrente','mc_contaImp')}<button class="btn" id="fnImpLBt" onclick="fnConfirmarImpLanc()" ${ok.length?'':'disabled'}>Importar ${ok.length} lançamento(s)</button></div>
   <div class="tw sl-tab" style="max-height:60vh"><table><thead><tr><th>Lin.</th><th>Vencimento</th>${sit==='pagas'||sit==='recebidas'?'<th>Pago em</th>':''}<th>Nome</th><th>Descrição</th><th>NF</th><th>Categoria</th><th>Centro de custo</th><th class="n">Valor</th><th>Situação</th></tr></thead><tbody>
   ${L.map(({d,erros})=>`<tr style="${erros.length?'opacity:.55':''}"><td class="muted">${d.linha}</td><td>${esc(d.vencimento)}</td>${d.quitado?`<td>${esc(d.dataPagamento)}</td>`:''}<td><b>${esc(d.nome)}</b></td><td>${esc(d.descricao)}</td><td>${esc(d.notaFiscal)}</td><td>${esc(d.categoria)}</td><td>${esc(d.centroCusto)}</td><td class="n">${fR(d.valor)}</td><td>${erros.length?`<span class="tag t-bad">${esc(erros.join(', '))}</span>`:'<span class="tag t-ok">ok</span>'}</td></tr>`).join('')}
   </tbody></table></div>`);
 }
 async function fnConfirmarImpLanc(){
+  const contaId=fnContaLida('fnImpContaM','conta corrente'); if(!contaId) return;
   const bt=document.getElementById('fnImpLBt'); bt.disabled=true; bt.textContent='Importando…';
-  try{ const antes=fin().lanc.length; const r=await api('finImportarLanc',{arquivoNome:FN.impL.arquivo.name,lista:FN.impL.linhas.filter(x=>!x.erros.length).map(x=>x.d)}); fecharModal();
+  try{ const antes=fin().lanc.length; const r=await api('finImportarLanc',{arquivoNome:FN.impL.arquivo.name,lista:FN.impL.linhas.filter(x=>!x.erros.length).map(x=>Object.assign({},x.d,{contaId}))}); fecharModal();
     if(r.importados&&fin().lanc.length-antes<r.importados){ S.finVer='0'; carregar(true); }
     const sit=FN.impL.sit; if(FN.impL.cola) FN.cola=null; FN.impL=null; FN.sec='rel'; FN.sub.rel=sit; FN.aberto='rel'; toast(`${r.importados} lançamento(s) importado(s)`+(r.erros.length?' · '+r.erros.length+' com erro':''),5000); render(); }
   catch(e){ bt.disabled=false; bt.textContent='Importar'; toast('Erro: '+e.message,7000); }
@@ -2975,7 +2977,7 @@ function fnConcEnfileirar(dados,rotulo,local){
 async function fnConcDescarregar(){
   const B=CONC_BUF.splice(0); if(!B.length) return; const cl=new Set(B.map(b=>b.cli));
   if(filaLer().some(x=>!x.env&&!x.recusado&&!cl.has(x.cli))){ B.forEach(b=>filaErro(b.cli,'aguardando os anteriores')); S.finPend-=B.length; fnPendAtualizar(); setTimeout(()=>filaEnviar(false),50); return; }
-  try{ for(let i=0;i<B.length;i+=60){ const P=B.slice(i,i+60); const r=await concEnviarLote(P); P.forEach(b=>filaTirar(b.cli)); concErros(r); } S.finFresco=false; }
+  try{ for(let i=0;i<B.length;i+=250){ const P=B.slice(i,i+250); const r=await concEnviarLote(P); P.forEach(b=>filaTirar(b.cli)); concErros(r); } S.finFresco=false; }
   catch(e){ const rest=B.filter(b=>filaLer().some(x=>x.cli===b.cli));
     if(filaPassageiro(e)){ rest.forEach(b=>filaErro(b.cli,e.message)); toast('⚠ Conciliações não chegaram na nuvem ('+e.message+'). Ficaram guardadas neste computador e serão reenviadas sozinhas',9000); }
     else { rest.forEach(b=>filaTirar(b.cli)); toast('⚠ Não salvou: '+e.message+' — recarregando os dados',8000); try{ await carregar(true); fnRedesenharSeguro(); }catch(x){} } }
@@ -3015,7 +3017,7 @@ async function filaEnviar(manual){
   if(FILA_ENVIANDO) return; const F=filaLer().filter(x=>!x.env&&(manual||!x.recusado)); if(!F.length){ if(manual) toast('Nada pendente — tudo já está na nuvem ✓',4000); return; }
   FILA_ENVIANDO=true; let ok=0, falhou=0; if(manual) toast(`Enviando ${F.length} pendente(s)… um por vez`,4000);
   for(let i=0;i<F.length;i++){ // na ordem em que foram feitos, um por vez (na mesma fila dos salvamentos da tela); conciliações seguidas vão juntas
-    const it=F[i]; let grupo=[it]; if(concSimples(it)) while(grupo.length<60&&i+1<F.length&&concSimples(F[i+1])) grupo.push(F[++i]);
+    const it=F[i]; let grupo=[it]; if(concSimples(it)) while(grupo.length<250&&i+1<F.length&&concSimples(F[i+1])) grupo.push(F[++i]);
     try{ if(grupo.length>1||concSimples(it)){ const r=await concEnviarLote(grupo); concErros(r); } else await fnNaFila(()=>apiPersistente(it.acao,Object.assign({},it.dados,{_cli:it.cli})));
       grupo.forEach(g=>filaTirar(g.cli)); ok+=grupo.length; if(S.view==='financeiro'&&FN.sec==='config'&&FN.sub.config==='nuvem') fnRedesenharSeguro(); }
     catch(e){ if(filaPassageiro(e)){ grupo.forEach(g=>filaErro(g.cli,e.message)); falhou+=grupo.length; break; } else { const G=filaLer(); grupo.forEach(g=>{ const x=G.find(y=>y.cli===g.cli); if(x){ x.erro='Recusado: '+e.message; x.recusado=true; x.env=false; } }); filaGravar(G); falhou+=grupo.length; } }
