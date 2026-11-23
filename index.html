@@ -2128,9 +2128,8 @@ function fnConciliacao(){
     <span class="sp"></span><span class="small">${LL.length} linha(s) · ${fnVal(totF)} · saldo da conta: ${fnVal(fnSaldo(c))}</span>
   </div>
   ${nPend?`<div class="fn-selbar" id="fnConcBar"><label class="fnd-rd" style="margin:0"><input type="checkbox" ${nSel&&nSel===nPend?'checked':''} onchange="fnConcTodos(this.checked)"> Marcar todas as pendentes da lista (${nPend})</label>
-    <button class="btn ghost sm" onclick="fnConcSoSug()">Marcar só as com sugestão (${[...vis].filter(id=>FN.concPar[id]).length})</button>
     <span class="sp"></span>${nSel?`<span class="small"><b>${nSel}</b> marcada(s)</span>`:''}
-    <button class="btn" ${nSelSug?'':'disabled'} onclick="fnConciliarMarcados()">✓ Conciliar lançamentos marcados${nSelSug?' ('+nSelSug+')':''}</button>
+    ${(()=>{ const n=fnConcTodosPares().length; return `<button class="btn" ${n?'':'disabled'} onclick="fnConciliarTodos()" title="Concilia todos os créditos do extrato desta conta com a conta a receber de valor e vencimento exatos (débitos/contas a pagar não entram)">✓ Conciliar todos${n?' ('+n+')':''}</button>`; })()}
     <button class="btn ghost sm" ${nSel?'':'disabled'} onclick="fnIgnorarMarcados()" title="Sem lançamento (ex.: transferência entre contas)">Ignorar marcados</button></div>`:''}
   ${fnConcListas()}
   <div class="cc-list">${LL.slice(0,limC).map(fnConcCard).join('')||`<div class="card muted">${E.length?(FN.concFiltro==='pend'&&!pend.length?'Tudo conciliado nesta conta. ✓':'Nada com esses filtros.'):'Nenhum extrato importado nesta conta. Use "📋 Colar extrato" ou "⬆ Importar extrato (Excel)".'}</div>`}</div>
@@ -3133,6 +3132,18 @@ function fnConcTodos(on){ FN.concSel=new Set(on?[...document.querySelectorAll('.
 function fnConcSoSug(){ FN.concSel=new Set([...document.querySelectorAll('.fn-cck')].map(c=>c.getAttribute('onchange').match(/'([^']+)'/)[1]).filter(id=>FN.concPar[id])); fnAtualizar(); }
 function fnIgnorarMarcados(){ const ids=[...FN.concSel]; if(!ids.length||!confirm(`Marcar ${ids.length} linha(s) do extrato como "sem lançamento" (ignorar)?`)) return; FN.concSel=new Set();
   fnBg('finConciliarLote',{pares:ids.map(id=>({extratoId:id,ignorar:true}))},{rotulo:`Ignorar ${ids.length} linha(s) do extrato`,local:()=>{ fin().extrato.forEach(e=>{ if(ids.includes(e.ID)&&!e.LANC_ID) e.LANC_ID='IGNORADO'; }); }}); toast(`${ids.length} linha(s) ignorada(s) — gravando no Google`,4000); }
+// "Conciliar todos": só os CRÉDITOS do extrato desta conta × contas a RECEBER com o mesmo valor (exato) e vencimento = data do extrato
+function fnConcTodosPares(){ const usados=new Set(), pares=[];
+  fin().extrato.forEach(e=>{ if(e.LANC_ID||String(e.CONTA_ID)!==String(FN.conta)||!((+e.VALOR)>0)) return;
+    const l=fnSugestoes(e).find(x=>x.TIPO==='RECEBER'&&!usados.has(x.ID)); if(l){ usados.add(l.ID); pares.push({e,l}); } });
+  return pares; }
+function fnConciliarTodos(){
+  const P=fnConcTodosPares(); if(!P.length){ toast('Nenhum crédito do extrato com conta a receber de mesmo valor e vencimento'); return; }
+  const tot=P.reduce((s,p)=>s+Math.abs(+p.e.VALOR),0);
+  if(!confirm(`Conciliar ${P.length} crédito(s) do extrato com as contas a receber de mesmo valor e vencimento (${fR(tot)})?\n\nDébitos (contas a pagar) não entram.`)) return;
+  P.forEach(({e,l})=>{ FN.concSel&&FN.concSel.delete(e.ID); fnConcEnfileirar({extratoId:e.ID,lancId:l.ID},'Conciliar extrato (todos)',()=>{ e.LANC_ID=l.ID; l.STATUS='QUITADO'; l.DATA_PAGAMENTO=e.DATA; l.VALOR_PAGO=Math.abs(+e.VALOR); l.CONTA_ID=e.CONTA_ID; l.EXTRATO_ID=e.ID; }); });
+  toast(`✓ ${P.length} crédito(s) conciliado(s) · ${fR(tot)} — gravando no Google`,5000); fnAtualizar();
+}
 function fnConciliarMarcados(){
   const pares=[...FN.concSel].filter(id=>FN.concPar[id]).map(id=>({extratoId:id,lancId:FN.concPar[id]})); if(!pares.length){ toast('Nenhuma linha marcada tem sugestão — use 🔍 Buscar lançamento(s) nelas'); return; }
   const tot=pares.reduce((s,p)=>{ const e=fin().extrato.find(x=>x.ID===p.extratoId); return s+Math.abs(+(e||{}).VALOR||0); },0);
