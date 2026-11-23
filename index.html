@@ -2717,6 +2717,7 @@ function fnModalLote(){
   ${f('venc','Vencimento',`<input type="date" id="lv_venc">`)}
   ${f('nome','Nome',`<input id="lv_nome" list="dlFnNomeL" style="width:100%"><datalist id="dlFnNomeL">${fnNomes(tipo).map(n=>`<option value="${esc(n)}">`).join('')}</datalist>`)}
   ${f('desc','Descrição',`<input id="lv_desc" style="width:100%">`)}
+  ${f('nf','Nota fiscal (NF)',`<input id="lv_nf" style="width:100%" placeholder="Número da NF (em branco = apagar a NF)">`)}
   ${f('fp','Forma de pagamento',`<select id="lv_fp"><option>CONTA CORRENTE</option><option>CARTÃO DE CRÉDITO</option></select>`)}
   ${f('obs','Observações',`<input id="lv_obs" style="width:100%">`)}
   <datalist id="dlFnCC">${fnCentros().map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
@@ -2729,11 +2730,11 @@ async function fnSalvarLote(){
   if(on('cc')){ const cc=fnDrLerCC(); const sm=cc.reduce((s,x)=>s+x.pct,0); if(cc.length&&Math.abs(sm-100)>=0.01){ toast(`Centros de custo somam ${fN(sm,2)}% — precisa dar 100%`); return; } c.centroCusto=fnCCTexto(cc); }
   if(on('venc')){ if(!v('venc')){ toast('Informe o vencimento'); return; } c.vencimento=brISO(v('venc')); }
   if(on('nome')){ if(!v('nome')){ toast('Informe o nome'); return; } c.nome=v('nome'); }
-  if(on('desc')) c.descricao=v('desc'); if(on('fp')) c.formaPagamento=v('fp'); if(on('obs')) c.obs=v('obs');
+  if(on('desc')) c.descricao=v('desc'); if(on('nf')) c.notaFiscal=v('nf'); if(on('fp')) c.formaPagamento=v('fp'); if(on('obs')) c.obs=v('obs');
   if(!Object.keys(c).length){ toast('Marque pelo menos um campo para alterar'); return; }
   { const f=fnCadastroFaltando(c.categoria,c.centroCusto); if(f){ toast(f,7000); return; } }
   if(!confirm(`Alterar ${ids.length} lançamento(s)?`)) return;
-  const mapa={categoria:'CATEGORIA',centroCusto:'CENTRO_CUSTO',vencimento:'VENCIMENTO',nome:'NOME',descricao:'DESCRICAO',formaPagamento:'FORMA_PAGAMENTO',obs:'OBS'}; const set=new Set(ids);
+  const mapa={categoria:'CATEGORIA',centroCusto:'CENTRO_CUSTO',vencimento:'VENCIMENTO',nome:'NOME',descricao:'DESCRICAO',notaFiscal:'NOTA_FISCAL',formaPagamento:'FORMA_PAGAMENTO',obs:'OBS'}; const set=new Set(ids);
   fecharModal(); FN.dr=null;
   fnBg('finEditarLote',{ids,campos:c},{rotulo:`Editar ${ids.length} lançamento(s): ${Object.keys(c).join(', ')}`,
     local:()=>{ fin().lanc.forEach(l=>{ if(set.has(l.ID)) Object.keys(c).forEach(k=>{ l[mapa[k]]=k==='formaPagamento'?(/CART/i.test(c[k])?'CARTÃO DE CRÉDITO':'CONTA CORRENTE'):c[k]; }); }); },
