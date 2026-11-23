@@ -2046,13 +2046,13 @@ function fnModalExtrato(){
     <span class="small">${L.length} movimentações · entradas <b class="ok">${fR(ent)}</b> · saídas <b class="bad">${fR(sai)}</b></span><span class="sp"></span><button class="btn" id="fnImpBt" onclick="fnConfirmarExtrato()">Importar ${L.length} linha(s)</button></div>
   <div class="tw sl-tab" style="max-height:60vh"><table><thead><tr><th>Data</th><th>Descrição</th><th>Documento</th><th class="n">Valor</th></tr></thead><tbody>
   ${L.map((l,i)=>`<tr><td>${esc(l.data)}</td><td>${esc(l.descricao)}</td><td>${esc(l.documento)}</td><td class="n" style="white-space:nowrap">${fnVal(l.valor)} <button class="ib" title="Trocar entrada ↔ saída" onclick="FN.imp.linhas[${i}].valor=-FN.imp.linhas[${i}].valor;fnModalExtrato()">±</button></td></tr>`).join('')}</tbody></table></div>
-  <p class="small muted">Linhas iguais já importadas antes (mesma data, valor, descrição e documento) são puladas automaticamente.</p>`);
+  <p class="small muted">Todas as linhas são importadas, mesmo as iguais (vários PIX podem ter a mesma data, valor e documento). Se importar o mesmo extrato duas vezes por engano, desfaça em "Histórico de importações".</p>`);
 }
 async function fnConfirmarExtrato(){
   const bt=document.getElementById('fnImpBt'); bt.disabled=true; bt.textContent='Importando…'; const contaId=document.getElementById('fnImpConta').value;
   try{ const d={contaId,linhas:FN.imp.linhas,arquivoNome:FN.imp.arquivo.name,arquivoMime:FN.imp.arquivo.type}; if(!FN.imp.colado) d.arquivoBase64=await b64Arquivo(FN.imp.arquivo);
     const r=await api('finImportarExtrato',d); fecharModal(); FN.imp=null; FN.conta=contaId; FN.sec='contas'; FN.sub.contas='conc'; FN.aberto='contas';
-    toast(`${r.importadas} linha(s) importada(s)${r.ignoradas?' · '+r.ignoradas+' já existiam':''}`,5000); await fnRecarregar(); render(); }
+    toast(`${r.importadas} linha(s) importada(s)${r.ignoradas?' · '+r.ignoradas+' sem valor (puladas)':''}`,5000); render(); } // a resposta já traz as linhas novas: não precisa recarregar tudo
   catch(e){ bt.disabled=false; bt.textContent='Importar'; toast('Erro: '+e.message,7000); }
 }
 function fnHistorico(){
@@ -2064,7 +2064,7 @@ function fnHistorico(){
   </tbody></table></div>`;
 }
 async function fnExcluirImport(id){ const i=fin().importacoes.find(x=>x.ID===id); if(!confirm(`Desfazer a importação "${i?i.ARQUIVO:''}"?\n\n${i&&i.TIPO==='EXTRATO'?'As linhas do extrato serão apagadas e os lançamentos conciliados com elas voltam a ficar em aberto.':'Os lançamentos importados por ela serão apagados.'}`)) return;
-  try{ await api('finExcluirImportacao',{id}); toast('Importação desfeita'); await fnRecarregar(); render(); }catch(e){ toast('Erro: '+e.message,6000); } }
+  try{ await api('finExcluirImportacao',{id}); toast('Importação desfeita'); render(); }catch(e){ toast('Erro: '+e.message,6000); } }
 
 /* ---------- conciliação bancária ---------- */
 // sugestão: lançamento em aberto do mesmo tipo com valor igual (dif. até R$ 0,01) e vencimento na data do extrato
