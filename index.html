@@ -1989,7 +1989,21 @@ function fnDataExtrato(v){ if(typeof v==='number') return dataExcel(v); const t=
 // extrato colado do site do banco, sem cabeçalho: em cada linha procura a data (início), o valor (último número com centavos) e o resto vira a descrição
 function fnExtratoSemCabecalho(rows){
   const out=[];
+  // célula de valor (colado do Excel): "-100000", "1335,02", "2197,9", "1.335,02", "R$ -1.234,56", "1.234,56 D", "(50,00)"
+  const ehValor=c=>/^\(?\s*[-\u2212\u2013]?\s*(R\$)?\s*[-\u2212\u2013]?\s*\d{1,3}(\.?\d{3})*(,\d{1,2})?\s*\)?\s*[CD-]?$/i.test(c)&&!/^\d{1,2}\/\d{1,2}/.test(c)&&(/[,\-\u2212\u2013$()]|\s[CD]$/i.test(c)||soDig(c).length<=7); // número puro comprido (nº de documento) não é valor
+  // colado do Excel: descobre qual coluna é o VALOR olhando todas as linhas — coluna com centavos/sinal mais à esquerda
+  // (o saldo, quando existe, vem depois; coluna de número sem centavos, como nº de documento, não é valor)
+  const TAB=(()=>{ const R=rows.filter(r=>r&&r.length>=3&&/^\d{1,2}\/\d{1,2}(\/\d{2,4})?$/.test(String(r[0]||'').trim())); if(R.length<Math.max(1,rows.filter(r=>r&&r.some(c=>String(c).trim())).length*0.5)) return null;
+    const W=Math.max(...R.map(r=>r.length)); const num=[], dec=[];
+    for(let j=1;j<W;j++){ const v=R.map(r=>String(r[j]==null?'':r[j]).trim()).filter(Boolean); if(!v.length) continue; const q=v.filter(ehValor).length;
+      if(q/v.length>=0.8){ num.push(j); if(v.some(x=>/,\d{1,2}\b|[-\u2212\u2013]|\s[CD]$/i.test(x))) dec.push(j); } }
+    if(!num.length) return null; return {v:(dec.length?dec:num)[0],num,dec}; })();
   rows.forEach(r=>{ const cel=(r||[]).map(c=>String(c==null?'':c).trim()).filter(Boolean); if(!cel.length) return;
+    // linha em colunas (Excel / tabela do banco): usa a coluna de valor descoberta olhando todas as linhas (abaixo)
+    if(TAB&&/^\d{1,2}\/\d{1,2}(\/\d{2,4})?$/.test(String(r[0]||'').trim())){ const c=j=>String(r[j]==null?'':r[j]).trim(); const vtx=c(TAB.v); if(!vtx||!ehValor(vtx)) return;
+      const desc=r.map((x,j)=>j>0&&j!==TAB.v&&!TAB.num.includes(j)?c(j):'').filter(Boolean).join(' ').replace(/\s+/g,' ').trim(); if(/^SALDO/i.test(semAcento(desc))) return;
+      const doc=TAB.num.filter(j=>j!==TAB.v&&!TAB.dec.includes(j)).map(c).filter(Boolean).join(' ');
+      out.push({data:fnDataExtrato(c(0)),descricao:desc,documento:doc,valor:Math.round(fnNumExtrato(vtx)*100)/100}); return; }
     let txt=cel.join('\t').replace(/[\u2212\u2012\u2013\u2014\u2010\u2011]/g,'-').replace(/\u00a0/g,' '); const md=txt.match(/^(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)/); if(!md) return;
     const vals=[...txt.matchAll(/(-?\s?R?\$?\s?-?\(?\d{1,3}(?:\.\d{3})*,\d{2}\)?\s?[CD-]?)(?=\s|\t|$)/g)].map(x=>x[1]); if(!vals.length) return;
     // se houver 2+ valores (valor e saldo), o valor é o penúltimo; com um só, é ele
