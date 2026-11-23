@@ -505,7 +505,7 @@ td.desc{white-space:normal;min-width:220px;max-width:340px}
     </nav>
     <div class="sp"></div>
     <div class="who"><button class="btn sec sm hide" id="btConfig" onclick="irPara('config')" title="Configurações: usuários e agrupamento de filiais">⚙<span class="bc-txt"> Configurações</span></button><span id="filaBadge" class="fila-b hide" onclick="irPara('financeiro');fnIr('config','nuvem')" title="Há informações que ainda não chegaram na nuvem — clique para enviar"></span><span id="whoNome"></span><span id="whoSync"></span>
-      <button class="btn ghost" title="Atualizar" onclick="carregar()">↻</button>
+      <button class="btn ghost" title="Atualizar (busca tudo de novo na nuvem)" onclick="S.finVer='0';carregar()">↻</button>
       <button class="btn ghost" onclick="sair()">Sair</button></div>
   </div>
 </header>
@@ -2483,7 +2483,8 @@ function fnModalImpLanc(){
 }
 async function fnConfirmarImpLanc(){
   const bt=document.getElementById('fnImpLBt'); bt.disabled=true; bt.textContent='Importando…';
-  try{ const r=await api('finImportarLanc',{arquivoNome:FN.impL.arquivo.name,lista:FN.impL.linhas.filter(x=>!x.erros.length).map(x=>x.d)}); fecharModal();
+  try{ const antes=fin().lanc.length; const r=await api('finImportarLanc',{arquivoNome:FN.impL.arquivo.name,lista:FN.impL.linhas.filter(x=>!x.erros.length).map(x=>x.d)}); fecharModal();
+    if(r.importados&&fin().lanc.length-antes<r.importados){ S.finVer='0'; carregar(true); }
     const sit=FN.impL.sit; if(FN.impL.cola) FN.cola=null; FN.impL=null; FN.sec='rel'; FN.sub.rel=sit; FN.aberto='rel'; toast(`${r.importados} lançamento(s) importado(s)`+(r.erros.length?' · '+r.erros.length+' com erro':''),5000); render(); }
   catch(e){ bt.disabled=false; bt.textContent='Importar'; toast('Erro: '+e.message,7000); }
 }
@@ -2928,11 +2929,17 @@ window.addEventListener('beforeunload',e=>{ if(S.finPend){ e.preventDefault(); e
 function fnRedesenharSeguro(){ const a=document.activeElement; if(a&&a.closest&&a.closest('#fnCorpo')&&/INPUT|SELECT|TEXTAREA/.test(a.tagName)) return; if(S.view==='financeiro') fnAtualizar(); }
 // erro passageiro (sem internet, Google ocupado): fica na fila para reenviar; erro de regra (ex.: categoria não existe): avisa e desfaz na tela
 const filaPassageiro=e=>!e.servidor||/trava|lock|tempo|timeout|too many|Service|Exceeded|ocupad|limite|tente novamente|Falha na comunica/i.test(e.message||'');
+// um envio por vez (vários ao mesmo tempo disputavam a trava do Google e davam "tempo limite do bloqueio")
+let FN_CADEIA=Promise.resolve();
+const ehTrava=e=>/bloqueio|lock|trava/i.test((e&&e.message)||'');
+async function apiPersistente(acao,dados){ // se o Google estiver ocupado com outro envio, espera e tenta de novo
+  for(let t=0;;t++){ try{ return await api(acao,dados); }catch(e){ if(t<3&&ehTrava(e)){ await new Promise(r=>setTimeout(r,4000*(t+1))); continue; } throw e; } } }
+function fnNaFila(fn){ const p=FN_CADEIA.then(fn,fn); FN_CADEIA=p.catch(()=>{}); return p; }
 function fnBg(acao,dados,{local,ok,erro,rotulo}={}){
   if(local) try{ local(); }catch(e){}
   if(S.view==='financeiro') fnAtualizar();
   const item=filaAdd(acao,dados,rotulo); S.finPend=(S.finPend||0)+1; fnPendAtualizar();
-  return api(acao,Object.assign({},dados,{_cli:item.cli})).then(r=>{ filaTirar(item.cli); S.finFresco=false; if(ok) ok(r); fnRedesenharSeguro(); return r; })
+  return fnNaFila(()=>apiPersistente(acao,Object.assign({},dados,{_cli:item.cli}))).then(r=>{ filaTirar(item.cli); S.finFresco=false; if(ok) ok(r); fnRedesenharSeguro(); return r; })
     .catch(async e=>{
       if(filaPassageiro(e)){ filaErro(item.cli,e.message); toast('⚠ Não chegou na nuvem ('+e.message+'). Ficou guardado neste computador e será reenviado — veja Configurações → Envio para a nuvem',9000); }
       else { filaTirar(item.cli); toast('⚠ Não salvou: '+e.message+' — recarregando os dados',8000); if(erro) erro(e); try{ await carregar(true); fnRedesenharSeguro(); }catch(x){} } })
@@ -2969,9 +2976,9 @@ function filaBadge(){ const b=document.getElementById('filaBadge'); if(!b) retur
 let FILA_ENVIANDO=false;
 async function filaEnviar(manual){
   if(FILA_ENVIANDO) return; const F=filaLer().filter(x=>!x.env); if(!F.length){ if(manual) toast('Nada pendente — tudo já está na nuvem ✓',4000); return; }
-  FILA_ENVIANDO=true; let ok=0, falhou=0;
-  for(const it of F){ // na ordem em que foram feitos
-    try{ await api(it.acao,Object.assign({},it.dados,{_cli:it.cli})); filaTirar(it.cli); ok++; }
+  FILA_ENVIANDO=true; let ok=0, falhou=0; if(manual) toast(`Enviando ${F.length} pendente(s)… um por vez`,4000);
+  for(const it of F){ // na ordem em que foram feitos, um por vez (na mesma fila dos salvamentos da tela)
+    try{ await fnNaFila(()=>apiPersistente(it.acao,Object.assign({},it.dados,{_cli:it.cli}))); filaTirar(it.cli); ok++; if(S.view==='financeiro'&&FN.sec==='config'&&FN.sub.config==='nuvem') fnRedesenharSeguro(); }
     catch(e){ if(filaPassageiro(e)){ filaErro(it.cli,e.message); falhou++; break; } else { const G=filaLer(); const x=G.find(y=>y.cli===it.cli); if(x){ x.erro='Recusado: '+e.message; x.recusado=true; x.env=false; } filaGravar(G); falhou++; } }
   }
   FILA_ENVIANDO=false;
@@ -3592,7 +3599,8 @@ async function fnAntecipImportar(){
   const L=AN.linhas.filter(x=>x.ok&&x.marcado); if(!L.length) return;
   if(!S.master&&!fin().categorias.some(c=>up(c.NOME)===up('Antecipações'))){ toast('A categoria "Antecipações" ainda não existe — peça ao usuário master para criar (Configurações → Categorias, tipo receita)',9000); return; }
   const lista=L.map(x=>({tipo:'RECEBER',vencimento:x.data,nome:'Miashop',descricao:'Antecipações',categoria:'Antecipações',centroCusto:x.cc,valor:x.liquido,formaPagamento:'CONTA CORRENTE',obs:'Contrato registradora '+x.contrato}));
-  try{ const r=await api('finImportarLanc',{arquivoNome:'Antecipações '+(AN.con.nome||''),lista});
+  try{ const antes=fin().lanc.length; const r=await api('finImportarLanc',{arquivoNome:'Antecipações '+(AN.con.nome||''),lista});
+    if(r.importados&&fin().lanc.length-antes<r.importados){ S.finVer='0'; carregar(true); } // a resposta não trouxe as linhas novas: busca tudo de novo
     // CNPJ escolhido à mão para um centro que ainda não tinha: grava no centro (para as próximas importações acharem sozinhas)
     if(S.master){ const gr={}; L.filter(x=>x.ccManual&&x.cnpj).forEach(x=>{ const c=fin().centros.find(c=>up(c.NOME)===up(x.cc)); if(c&&!soDig(c.CNPJ)) gr[c.NOME]=x.cnpj; });
       for(const [nome,cnpj] of Object.entries(gr)){ try{ await api('finSalvarCentro',{nome,antigo:nome,cnpj:fnFmtCnpj(cnpj)}); }catch(e){} } }
