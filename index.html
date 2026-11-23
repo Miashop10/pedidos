@@ -2136,7 +2136,7 @@ function fnConciliacao(){
   ${LL.length>limC?`<div class="c" style="margin:10px 0">Mostrando ${limC} de ${LL.length} · <button class="btn ghost sm" onclick="FN.lim=(FN.lim||100)+200;fnAtualizar()">Mostrar mais</button></div>`:''}`;
 }
 function fnConciliar(exId,lancId){ const e=fin().extrato.find(x=>x.ID===exId); fecharModal();
-  fnConcEnfileirar({extratoId:exId,lancId},'Conciliar extrato',()=>{ if(e) e.LANC_ID=lancId; const l=fnLanc(lancId); if(l){ l.STATUS='QUITADO'; l.DATA_PAGAMENTO=e&&e.DATA; l.VALOR_PAGO=e?Math.abs(+e.VALOR):+l.VALOR; if(e) l.CONTA_ID=e.CONTA_ID; l.EXTRATO_ID=exId; } }); toast('Conciliado ✓ — gravando no Google',2500); if(document.getElementById('cc_'+exId)) fnConcRedesenhar(exId); else fnAtualizar(); }
+  fnConcEnfileirar({extratoId:exId,lancId},'Conciliar extrato',()=>{ if(e) e.LANC_ID=lancId; const l=fnLanc(lancId); if(l){ l.STATUS='QUITADO'; l.DATA_PAGAMENTO=e&&e.DATA; l.VALOR_PAGO=e?Math.abs(+e.VALOR):+l.VALOR; if(e) l.CONTA_ID=e.CONTA_ID; l.EXTRATO_ID=exId; } }); toast('Conciliado ✓ — gravando no Google',2500); if(document.getElementById('cc_'+exId)){ fnConcRedesenhar(exId); fnConcTirarSug(lancId,exId); } else fnAtualizar(); }
 async function fnDesconciliar(exId){ if(!confirm('Desfazer esta conciliação? O lançamento volta a ficar em aberto.')) return; try{ await api('finDesconciliar',{extratoId:exId}); toast('Conciliação desfeita'); await fnRecarregar(); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
 async function fnIgnorar(exId){ try{ await api('finConciliar',{extratoId:exId,ignorar:true}); toast('Marcado como sem lançamento'); await fnRecarregar(); fnAtualizar(); }catch(e){ toast('Erro: '+e.message,6000); } }
 function fnBuscarLanc(exId){
@@ -3576,6 +3576,9 @@ function fnConcCard(e){
     <button class="btn cc-ok" ${tab==='sug'&&!sg.length?'disabled':''} onclick="fnConcOK('${id}')">OK</button></div>`;
 }
 function fnConcRedesenhar(exId){ const e=fin().extrato.find(x=>x.ID===exId), el=document.getElementById('cc_'+exId); if(e&&el) el.outerHTML=fnConcCard(e); }
+// lançamento acabou de ser usado numa conciliação: os outros cartões que ainda o sugeriam são redesenhados (a sugestão some deles)
+function fnConcTirarSug(lancIds,exceto){ const ids=new Set([].concat(lancIds).filter(Boolean).map(String)); if(!ids.size) return;
+  document.querySelectorAll('.cc-card').forEach(c=>{ const ex=c.id.slice(3); if(ex===exceto) return; if([...c.querySelectorAll('.cc-sugs input[type=radio]')].some(r=>ids.has(r.value))) fnConcRedesenhar(ex); }); }
 // nome escolhido: completa categoria e centro de custo com os do último lançamento desse nome
 function fnConcNome(inp){ const card=inp.closest('.cc-card'); const n=up(inp.value.trim()); if(!n) return; const L=fin().lanc; let ult=null;
   for(let i=L.length-1;i>=0;i--) if(up(String(L[i].NOME||'').trim())===n){ ult=L[i]; break; } if(!ult) return;
@@ -3584,6 +3587,7 @@ function fnConcOK(exId){
   const e=fin().extrato.find(x=>x.ID===exId); const card=document.getElementById('cc_'+exId); if(!e||!card) return; const tab=(FN.concTab||{})[exId]||(fnSugestoes(e).length?'sug':'nova');
   if(tab==='sug'){ const r=card.querySelector('input[type=radio]:checked'); if(!r) return; const lancId=r.value;
     fnConcEnfileirar({extratoId:exId,lancId},'Conciliar extrato',()=>{ e.LANC_ID=lancId; const l=fnLanc(lancId); if(l){ l.STATUS='QUITADO'; l.DATA_PAGAMENTO=e.DATA; l.VALOR_PAGO=Math.abs(+e.VALOR); l.CONTA_ID=e.CONTA_ID; l.EXTRATO_ID=exId; } });
+    fnConcTirarSug(lancId,exId);
   } else {
     const nome=card.querySelector('.cc-nome').value.trim(), desc=card.querySelector('.cc-desc-in').value.trim(), cat=card.querySelector('.cc-cat').value.trim(), cc=card.querySelector('.cc-cc').value.trim();
     if(!nome){ toast('Preencha o nome'); card.querySelector('.cc-nome').focus(); return; }
