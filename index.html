@@ -1236,7 +1236,13 @@ const lgQuitado = r => { const c=lgCalcDe(r); return c==='BONIF' || (isOK(r.BOLE
 // gravações da mesma linha vão uma de cada vez e sempre com o estado atual (antes, mudar o cálculo e dar OK logo em seguida podia chegar fora de ordem e a planilha ficar com o OK antigo)
 const LG_FILA={}; function lgGravar(r){ const k=String(r.ID); const p=(LG_FILA[k]||Promise.resolve()).catch(()=>{}).then(()=>api('salvarLogistica',lgPayload(r))).then(x=>{ if(x&&x.autoOk) lgAvisoAuto(x.autoOk); return x; }); LG_FILA[k]=p; return p; }
 function lgAvisoAuto(n){ toast(`🤖 ${n} linha(s) com OK automático: os boletos dessa NF já estão lançados no financeiro`,6000); carregar(true).then(()=>{ if(S.view==='logistica') render(); }); }
-async function lgConferirBoletos(){ try{ const r=await api('lgConferirBoletos',{}); if(r&&r.autoOk) lgAvisoAuto(r.autoOk); else toast('Nenhuma NF nova com todos os boletos lançados no financeiro',5000); }catch(e){ toast('Erro: '+e.message,6000); } }
+async function lgConferirBoletos(){ try{ const r=await api('lgConferirBoletos',{}); if(r&&r.autoOk) lgAvisoAuto(r.autoOk);
+    const P=(r&&r.semOk)||[];
+    if(P.length) modal(`<h3>🤖 Conferência dos boletos no financeiro</h3>${r.autoOk?`<p class="ok">✓ ${r.autoOk} linha(s) receberam OK automático.</p>`:''}<p class="small muted">NFs que têm boletos lançados no financeiro, mas ainda não chegaram a 90% do valor calculado no Controle de Logística (NF + fornecedor iguais):</p>
+      <div class="tw"><table><thead><tr><th>NF</th><th>Fornecedor</th><th class="n">Linhas</th><th class="n">Calculado (logística)</th><th class="n">Boletos no financeiro</th><th class="n">%</th><th>Boletos dessa NF de outro fornecedor</th></tr></thead><tbody>
+      ${P.map(x=>`<tr><td>${esc(x.nf)}</td><td>${esc(x.fornecedor)}</td><td class="n">${x.linhas}</td><td class="n">${fR(x.total)}</td><td class="n">${fR(x.boletos)}</td><td class="n">${fN(x.boletos/x.total*100,1)}%</td><td class="small">${esc((x.outrosFornecedores||[]).join(', '))}</td></tr>`).join('')}</tbody></table></div>
+      <div class="row" style="margin-top:10px"><span class="sp"></span><button class="btn" onclick="fecharModal()">Fechar</button></div>`);
+    else if(!(r&&r.autoOk)) toast('Nenhuma NF nova com os boletos lançados no financeiro',5000); }catch(e){ toast('Erro: '+e.message,6000); } }
 
 function nomesLog(tipo){ // nomes já digitados (salvos) + os que aparecem nos lançamentos
   const m={}; const add=n=>{ n=String(n||'').trim(); if(n && !m[up(n)]) m[up(n)]=n; };
@@ -2276,8 +2282,15 @@ function fnDrRecalc(src){
   if(el) el.innerHTML=!comNome?'<span class="muted">Sem centro de custo.</span>':Math.abs(soma-100)<0.01?`<span class="ok">✓ 100% distribuído</span>`:`<span class="bad">Soma: ${fN(soma,2)}% — ${soma<100?'faltam '+fN(100-soma,2):'passou '+fN(soma-100,2)}%</span>`;
 }
 // PDF/Excel de distribuição (ex.: PRATCASA) → centros de custo com o % de cada filial
+// siglas das filiais usadas nas distribuições → centro de custo
+const FIL_CC_PADRAO={PG:'Ponta Grossa',P1:'Padre Anchieta',P2:'Padre Anchieta 02',CD:'Centro de Distribuição',JD:'Shopping Jardim das Américas',
+  R1:'República Argentina Água Verde',R2:'República Argentina 02',B1:'Batel',B2:'Batel 02',VM:'Vicente Machado',EST:'Shopping Estação',
+  COL:'Colombo',LON:'Londrina',TIJ:'Tijucas',ITA:'Itapoá',BAC:'Bacacheri',UMU:'Umuarama'};
+function fnCCPadrao(c){ const nome=FIL_CC_PADRAO[c]; if(!nome) return ''; const C=fnCentros(), k=semAcento(nome).replace(/\s+/g,' ').trim();
+  return C.find(n=>semAcento(n).replace(/\s+/g,' ').trim()===k) || nome; } // usa o nome exatamente como está cadastrado (acentos/espaços)
 function fnCCDoCodigo(cod){ const C=fnCentros(), c=semAcento(cod).trim(); if(!c) return '';
   const al=(fin().ccAlias||[]).find(a=>semAcento(a.CODIGO).trim()===c); if(al) return al.CENTRO;
+  const pd=fnCCPadrao(c.replace(/[^A-Z0-9]/g,'')); if(pd) return pd;
   const fil=(typeof rtAuto==='function'&&S.dados.logistica)?rtAuto(cod):'';
   return C.find(n=>semAcento(n)===c) || (fil&&C.find(n=>semAcento(n)===semAcento(fil))) || (c.length>=3&&C.find(n=>semAcento(n).startsWith(c))) || fil || ''; }
 // NF digitada no lançamento → se essa NF teve distribuição do CD no Controle de Logística, usa os mesmos % por filial
