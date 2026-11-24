@@ -2482,12 +2482,32 @@ function fnColaPrevia(){
 }
 function fnColaMapa(c,k){ const m=FN.cola.map; if(k) m.forEach((x,i)=>{ if(x===k&&i!==c) m[i]=''; }); m[c]=k; fnColaPrevia(); }
 function fnColaImportar(){ FN.impL={arquivo:{name:'Dados colados'},linhas:fnColaMontar(),sit:FN.impSit,cola:true}; fnModalImpLanc(); }
+// linhas do MESMO boleto/cheque divididas por centro de custo (mesmo vencimento, nome, descrição, NF, categoria… só o centro muda) viram 1 lançamento com o valor total
+function fnCCJuntar(itens){ // itens: [{valor, centroCusto}] → texto dos centros em % do total
+  const tot=itens.reduce((s,x)=>s+(+x.valor||0),0), m={}, ord=[]; if(!tot) return '';
+  itens.forEach(x=>{ let cc=fnCCParse(x.centroCusto); if(!cc.length) cc=[{nome:'',pct:100}]; cc.forEach(c=>{ const k=up(c.nome); if(!(k in m)){ m[k]={nome:c.nome,v:0}; ord.push(k); } m[k].v+=(+x.valor||0)*c.pct/100; }); });
+  const lin=ord.filter(k=>k).map(k=>({nome:m[k].nome,pct:Math.round(m[k].v/tot*10000)/100}));
+  const dif=Math.round((100-lin.reduce((s,c)=>s+c.pct,0))*100)/100; if(dif&&lin.length){ const mx=lin.reduce((a,b)=>b.pct>a.pct?b:a); mx.pct=Math.round((mx.pct+dif)*100)/100; }
+  return fnCCTexto(lin); }
+function fnImpJuntar(L){
+  const chave=d=>[d.tipo,d.vencimento,up(d.nome),up(d.descricao),String(d.notaFiscal||'').trim(),up(d.categoria),d.formaPagamento,d.codBarras||'',d.quitado?d.dataPagamento:''].join('|');
+  const G=new Map(); L.forEach(x=>{ if(x.erros.length) return; const k=chave(x.d); if(!G.has(k)) G.set(k,[]); G.get(k).push(x); });
+  const usado=new Set(), out=[];
+  L.forEach(x=>{ if(usado.has(x)) return; const g=x.erros.length?null:G.get(chave(x.d));
+    const nomes=g?g.map(y=>up(fnCCParse(y.d.centroCusto).map(c=>c.nome).join(';'))):[];
+    if(g&&g.length>1&&nomes.every(n=>n)&&new Set(nomes).size===g.length){ g.forEach(y=>usado.add(y));
+      const d=Object.assign({},g[0].d,{linha:g.map(y=>y.d.linha).join(', '),valor:Math.round(g.reduce((s,y)=>s+y.d.valor,0)*100)/100,centroCusto:fnCCJuntar(g.map(y=>y.d)),obs:[...new Set(g.map(y=>y.d.obs).filter(Boolean))].join(' · '),juntou:g.length});
+      out.push({d,erros:[]}); }
+    else { usado.add(x); out.push(x); } });
+  return out; }
 function fnModalImpLanc(){
-  const {linhas:L,sit,arquivo}=FN.impL; const ok=L.filter(x=>!x.erros.length); const nomes={apagar:'contas a pagar',pagas:'contas pagas',areceber:'contas a receber',recebidas:'contas recebidas'};
+  if(FN.impL.juntar==null) FN.impL.juntar=true; const orig=FN.impL.linhas, Lj=fnImpJuntar(orig), nJ=orig.length-Lj.length;
+  const {sit,arquivo}=FN.impL, L=FN.impL.juntar?Lj:orig; const ok=L.filter(x=>!x.erros.length); const nomes={apagar:'contas a pagar',pagas:'contas pagas',areceber:'contas a receber',recebidas:'contas recebidas'};
   const cats=new Set(fin().categorias.map(c=>up(c.NOME))); const novas=[...new Set(ok.map(x=>x.d.categoria).filter(c=>c&&!cats.has(up(c))))];
   modal(`<div class="mh"><h3>Importar ${nomes[sit]} · <span class="muted small">${esc(arquivo.name)}</span></h3><button class="btn ghost" onclick="fecharModal()">✕</button></div>
   <div class="row" style="margin-bottom:10px;align-items:center"><span class="small"><b>${ok.length}</b> de ${L.length} linha(s) · ${fR(ok.reduce((s,x)=>s+x.d.valor,0))}</span>
     ${L.length>ok.length?`<span class="tag t-bad">${L.length-ok.length} com erro (não entram)</span>`:''}${novas.length?`<span class="tag t-warn" title="${esc(novas.join(', '))}">${novas.length} categoria(s) nova(s) serão criadas</span>`:''}
+    ${nJ?`<label class="fnd-rd" title="Linhas com o mesmo vencimento, nome, descrição, NF e categoria que só mudam o centro de custo são o mesmo boleto/cheque"><input type="checkbox" ${FN.impL.juntar?'checked':''} onchange="FN.impL.juntar=this.checked;fnModalImpLanc()"> Juntar linhas do mesmo boleto/cheque divididas por centro de custo (valor total) · ${orig.length-nJ} lançamento(s) em vez de ${orig.length}</label>`:''}
     <span class="sp"></span>${fnContaSel('fnImpContaM','Conta corrente','mc_contaImp')}<button class="btn" id="fnImpLBt" onclick="fnConfirmarImpLanc()" ${ok.length?'':'disabled'}>Importar ${ok.length} lançamento(s)</button></div>
   <div class="tw sl-tab" style="max-height:60vh"><table><thead><tr><th>Lin.</th><th>Vencimento</th>${sit==='pagas'||sit==='recebidas'?'<th>Pago em</th>':''}<th>Nome</th><th>Descrição</th><th>NF</th><th>Categoria</th><th>Centro de custo</th><th class="n">Valor</th><th>Situação</th></tr></thead><tbody>
   ${L.map(({d,erros})=>`<tr style="${erros.length?'opacity:.55':''}"><td class="muted">${d.linha}</td><td>${esc(d.vencimento)}</td>${d.quitado?`<td>${esc(d.dataPagamento)}</td>`:''}<td><b>${esc(d.nome)}</b></td><td>${esc(d.descricao)}</td><td>${esc(d.notaFiscal)}</td><td>${esc(d.categoria)}</td><td>${esc(d.centroCusto)}</td><td class="n">${fR(d.valor)}</td><td>${erros.length?`<span class="tag t-bad">${esc(erros.join(', '))}</span>`:'<span class="tag t-ok">ok</span>'}</td></tr>`).join('')}
@@ -2496,7 +2516,7 @@ function fnModalImpLanc(){
 async function fnConfirmarImpLanc(){
   const contaId=fnContaLida('fnImpContaM','conta corrente'); if(!contaId) return;
   const bt=document.getElementById('fnImpLBt'); bt.disabled=true; bt.textContent='Importando…';
-  try{ const antes=fin().lanc.length; const r=await api('finImportarLanc',{arquivoNome:FN.impL.arquivo.name,lista:FN.impL.linhas.filter(x=>!x.erros.length).map(x=>Object.assign({},x.d,{contaId}))}); fecharModal();
+  try{ const antes=fin().lanc.length; const r=await api('finImportarLanc',{arquivoNome:FN.impL.arquivo.name,lista:(FN.impL.juntar===false?FN.impL.linhas:fnImpJuntar(FN.impL.linhas)).filter(x=>!x.erros.length).map(x=>{ const d=Object.assign({},x.d,{contaId}); delete d.juntou; return d; })}); fecharModal();
     if(r.importados&&fin().lanc.length-antes<r.importados){ S.finVer='0'; carregar(true); }
     const sit=FN.impL.sit; if(FN.impL.cola) FN.cola=null; FN.impL=null; FN.sec='rel'; FN.sub.rel=sit; FN.aberto='rel'; toast(`${r.importados} lançamento(s) importado(s)`+(r.erros.length?' · '+r.erros.length+' com erro':''),5000); render(); }
   catch(e){ bt.disabled=false; bt.textContent='Importar'; toast('Erro: '+e.message,7000); }
@@ -2714,11 +2734,23 @@ function fnBarraSel(L){ FN.sel=FN.sel||new Set(); FN.selVis=L.map(l=>l.ID); cons
   // só aparece quando há lançamentos marcados (a caixinha do cabeçalho marca todos os filtrados)
   if(!k) return '<div id="fnSelBar"></div>';
   return `<div class="fn-selbar" id="fnSelBar"><span class="small"><b>${k}</b> selecionado(s) · ${fR(L.filter(l=>FN.sel.has(l.ID)).reduce((s,l)=>s+(+l.VALOR||0),0))}</span>
-    <button class="btn sm" onclick="fnModalLote()">✎ Editar</button><button class="btn ghost sm del" onclick="fnExcluirSel()">✕ Excluir</button><button class="btn ghost sm" onclick="fnSelTodos(false)">limpar</button></div>`; }
+    <button class="btn sm" onclick="fnModalLote()">✎ Editar</button>${k>1?'<button class="btn ghost sm" onclick="fnJuntarSel()" title="Mesmo boleto/cheque dividido em várias contas por centro de custo: vira 1 conta com o valor total e os centros de custo em %">⧉ Juntar em 1 (valor total)</button>':''}<button class="btn ghost sm del" onclick="fnExcluirSel()">✕ Excluir</button><button class="btn ghost sm" onclick="fnSelTodos(false)">limpar</button></div>`; }
 function fnSelIds(){ return (FN.selVis||[]).filter(i=>FN.sel.has(i)); }
 function fnSelTodos(on){ (FN.selVis||[]).forEach(i=>on?FN.sel.add(i):FN.sel.delete(i)); fnAtualizar(); }
 function fnSelUm(ck){ ck.checked?FN.sel.add(ck.dataset.id):FN.sel.delete(ck.dataset.id); ck.closest('tr').classList.toggle('fn-sel',ck.checked);
   const L=fnFiltrados(FN.sub.rel); const bar=document.getElementById('fnSelBar'); if(bar) bar.outerHTML=fnBarraSel(L); }
+function fnJuntarSel(){
+  const F=fin(), ids=(FN.selVis||[]).filter(id=>FN.sel.has(id)), L=ids.map(fnLanc).filter(Boolean); if(L.length<2) return;
+  if(L.some(l=>l.STATUS==='QUITADO')){ toast('Só dá para juntar lançamentos em aberto (desfaça a baixa antes)',6000); return; }
+  if(new Set(L.map(l=>l.TIPO)).size>1){ toast('Não dá para juntar contas a pagar com contas a receber',5000); return; }
+  if(L.some(l=>!fnCCParse(l.CENTRO_CUSTO).length)){ toast('Algum lançamento está sem centro de custo — preencha antes de juntar',6000); return; }
+  const tot=Math.round(L.reduce((s,l)=>s+(+l.VALOR||0),0)*100)/100, cc=fnCCJuntar(L.map(l=>({valor:+l.VALOR,centroCusto:l.CENTRO_CUSTO})));
+  const nomes=new Set(L.map(l=>up(l.NOME))), venc=new Set(L.map(l=>l.VENCIMENTO));
+  if(!confirm(`Juntar ${L.length} lançamentos em 1 só?\n\n${L[0].NOME} · venc. ${L[0].VENCIMENTO}\nValor total: ${fR(tot)}\nCentros de custo: ${cc.replace(/; /g,'\n   ')}${nomes.size>1||venc.size>1?'\n\n⚠ Os lançamentos marcados têm nomes ou vencimentos diferentes — fica o nome/vencimento do primeiro.':''}\n\n(pode desfazer em Histórico de ações)`)) return;
+  const base=L[0], resto=new Set(L.slice(1).map(l=>l.ID));
+  fnBg('finJuntarLanc',{ids:L.map(l=>l.ID)},{rotulo:`Juntar ${L.length} lançamentos: ${base.NOME} · ${fR(tot)}`,local:()=>{ base.VALOR=tot; base.CENTRO_CUSTO=cc; F.lanc=F.lanc.filter(l=>!resto.has(l.ID)); FN.sel=new Set(); }});
+  toast(`✓ ${L.length} lançamentos juntados em 1 · ${fR(tot)}`,5000);
+}
 function fnModalLote(){
   const ids=fnSelIds(); if(!ids.length) return; const L=ids.map(fnLanc).filter(Boolean); const tipo=L[0].TIPO;
   const tot=L.reduce((s,l)=>s+(+l.VALOR||0),0);
