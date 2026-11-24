@@ -2784,6 +2784,8 @@ function fnJuntarSel(){
   if(L.some(l=>l.STATUS==='QUITADO')){ toast('Só dá para juntar lançamentos em aberto (desfaça a baixa antes)',6000); return; }
   if(new Set(L.map(l=>l.TIPO)).size>1){ toast('Não dá para juntar contas a pagar com contas a receber',5000); return; }
   if(L.some(l=>!fnCCParse(l.CENTRO_CUSTO).length)){ toast('Algum lançamento está sem centro de custo — preencha antes de juntar',6000); return; }
+  if(L.length>40){ toast('Marque no máximo 40 lançamentos para juntar — só as partes do mesmo boleto/cheque',7000); return; }
+  if(new Set(L.map(l=>up(l.NOME))).size>1){ toast('Os lançamentos marcados têm nomes diferentes. Junte só as partes do MESMO boleto/cheque (mesmo fornecedor).',7000); return; }
   const tot=Math.round(L.reduce((s,l)=>s+(+l.VALOR||0),0)*100)/100, cc=fnCCJuntar(L.map(l=>({valor:+l.VALOR,centroCusto:l.CENTRO_CUSTO})));
   const nomes=new Set(L.map(l=>up(l.NOME))), venc=new Set(L.map(l=>l.VENCIMENTO));
   if(!confirm(`Juntar ${L.length} lançamentos em 1 só?\n\n${L[0].NOME} · venc. ${L[0].VENCIMENTO}\nValor total: ${fR(tot)}\nCentros de custo: ${cc.replace(/; /g,'\n   ')}${nomes.size>1||venc.size>1?'\n\n⚠ Os lançamentos marcados têm nomes ou vencimentos diferentes — fica o nome/vencimento do primeiro.':''}\n\n(pode desfazer em Histórico de ações)`)) return;
