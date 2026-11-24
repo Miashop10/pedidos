@@ -874,7 +874,7 @@ function abrirApp(){
   document.getElementById('whoNome').textContent=S.usuario;
   document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>irPara(b.dataset.v));
   carregar();
-  { let n=0; const ini=()=>{ if(fnFinOk(S.dados&&S.dados.fin)||n++>40){ try{ filaIniciar(); }catch(e){} } else setTimeout(ini,1500); }; setTimeout(ini,3000); } // envia os pendentes só depois do financeiro carregado
+  { let n=0; const ini=()=>{ if(fnFinOk(S.dados&&S.dados.fin)||(S.finErro&&n++>20)){ try{ filaIniciar(); }catch(e){} } else setTimeout(ini,1500); }; setTimeout(ini,3000); } // pendentes só depois do financeiro carregar (os dois juntos disputam a planilha e tudo fica lento) // envia os pendentes só depois do financeiro carregado
 }
 // mostra no menu só as abas liberadas para o usuário (master vê todas)
 function aplicarAbas(){
@@ -917,7 +917,7 @@ async function carregar(silencioso){
     else if(f.mesma){ S.finVer='0'; setTimeout(()=>carregar(true),300); } // "está igual", mas a cópia daqui está incompleta: pede tudo
     else if(f.fin){ const mudou=(S.finGen||0)!==(f._gen||0); S.dados.fin=f.fin; S.finVer=mudou?'0':f.ver; S.finVerT=Date.now(); S.finFresco=false; if(S.view==='financeiro') render();
       // houve gravação sua enquanto carregava: mostra já o que veio e confere de novo em segundo plano (uma vez)
-      if(mudou&&!S._finRecheck){ S._finRecheck=true; setTimeout(()=>{ carregar(true).finally(()=>{ S._finRecheck=false; }); },1500); } }
+      if(mudou&&!S._finRecheck&&!S._finRecheckFeito){ S._finRecheck=true; S._finRecheckFeito=true; setTimeout(()=>{ carregar(true).finally(()=>{ S._finRecheck=false; }); },1500); } }
     if(S.finDaCopia) document.getElementById('whoSync').textContent='atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
     S.finDaCopia=false; finGuardar(); carregarRateiosNF(); if(S.view==='financeiro'&&typeof fnPendAtualizar==='function') fnPendAtualizar(); }
 }
@@ -1942,7 +1942,9 @@ function vFinanceiro(){
   </div>
 </div>`;
 }
-function fnCorpo(){
+// se montar a tela der erro, mostra o erro (em vez de deixar a tela vazia/parada) — ajuda a achar o problema
+function fnCorpo(){ try{ return fnCorpo0(); }catch(e){ console.error('[financeiro]',e); return `<div class="card" style="padding:16px;margin-top:12px"><b class="bad">Erro ao montar esta tela.</b><div class="small" style="margin:6px 0">${esc(e.message||String(e))}</div><div class="small muted" style="white-space:pre-wrap">${esc(String(e.stack||'').split('\n').slice(0,4).join('\n'))}</div><div class="small muted" style="margin-top:6px">Mande um print desta mensagem para o suporte.</div></div>`; } }
+function fnCorpo0(){
   const sec=FN.sec, sub=FN.sub[sec];
   if(sec==='inicio') return fnDashboard();
   if(sec==='contas') return sub==='conc'?fnConciliacao(): sub==='contas'?fnContas(): fnHistorico();
@@ -2563,7 +2565,7 @@ function fnRelatorio(sub){
     <button class="btn ghost sm" onclick="FN.q='';FN.de='';FN.ate='';FN.cat='';FN.cc='';fnAtualizar()">limpar</button>
     ${L.length?(()=>{ FN.sel=FN.sel||new Set(); const todos=L.every(l=>FN.sel.has(l.ID)); return todos?`<button class="btn ghost sm" onclick="FN.selVis=fnFiltrados(FN.sub.rel).map(l=>l.ID);fnSelTodos(false)">☐ Desmarcar todos</button>`:`<button class="btn ghost sm" onclick="FN.selVis=fnFiltrados(FN.sub.rel).map(l=>l.ID);fnSelTodos(true)" title="Marca todos os lançamentos filtrados (inclusive os que não aparecem na tela)">☑ Selecionar todos (${L.length})</button>`; })():''}
     ${vencidos.length?`<span class="tag t-bad">${vencidos.length} vencido(s) · ${fR(vencidos.reduce((s,l)=>s+(+l.VALOR||0),0))}</span>`:''}
-  </div>${fnBarraSel(L)}${fnTabelaLanc(L,quit,true)}`;
+  </div>${fnBarraSel(L)}${!L.length?`<div class="card muted small" style="padding:10px 12px;margin-bottom:8px">Nenhum lançamento nesta lista. Financeiro carregado neste computador: <b>${fin().lanc.length}</b> lançamento(s) no total (${fin().lanc.filter(l=>l.TIPO===tipo&&(quit?l.STATUS==='QUITADO':l.STATUS!=='QUITADO')).length} deste tipo)${FN.q||FN.de||FN.ate||FN.cat||FN.cc?' · há filtros ativos — clique em "limpar"':''}${S.finDaCopia?' · usando a cópia deste computador':''}.</div>`:''}${fnTabelaLanc(L,quit,true)}`;
 }
 function fnExportar(){ const sub=FN.sub.rel, quit=(sub==='pagas'||sub==='recebidas');
   const rows=fnFiltrados(sub).map(l=>({'Vencimento':l.VENCIMENTO,'Pago/recebido em':l.DATA_PAGAMENTO||'','Nome':l.NOME,'Descrição':l.DESCRICAO,'Nota fiscal':l.NOTA_FISCAL,'Categoria':l.CATEGORIA,'Centro de custo':l.CENTRO_CUSTO||'','Forma de pagamento':l.FORMA_PAGAMENTO||'CONTA CORRENTE','Observações':l.OBS||'','Código de barras':l.COD_BARRAS?fnFmtCB(l.COD_BARRAS):'','Valor':+l.VALOR,'Valor pago':quit?+l.VALOR_PAGO:'','Conta':(fnConta(l.CONTA_ID)||{}).NOME||'','Conciliado':l.EXTRATO_ID?'SIM':''}));
@@ -3136,7 +3138,7 @@ function fnFeriados(ano){ if(FN_FER[ano]) return FN_FER[ano];
 function fnVencido(l,hoje){ const v=isoBR(l.VENCIMENTO); return !!v&&l.STATUS!=='QUITADO'&&fnDiaUtil(v)<(hoje||hojeISO()); }
 const FN_DU={}; function fnDiaUtilBR(br){ br=String(br||''); if(br in FN_DU) return FN_DU[br]; const iso=isoBR(br); let r=''; if(iso){ const u=fnDiaUtil(iso); r=u.slice(8,10)+'/'+u.slice(5,7)+'/'+u.slice(0,4); } return FN_DU[br]=r; }
 function fnDiaUtil(iso){ // sábado, domingo e feriado passam para o próximo dia útil
-  let d=new Date(iso+'T12:00'); for(let n=0;n<15;n++){ const s=d.toISOString().slice(0,10); if(d.getDay()!==0&&d.getDay()!==6&&!fnFeriados(d.getFullYear())[s]) return s; d.setDate(d.getDate()+1); } return iso; }
+  let d=new Date(iso+'T12:00'); if(isNaN(d)) return iso; for(let n=0;n<15;n++){ const s=d.toISOString().slice(0,10); if(d.getDay()!==0&&d.getDay()!==6&&!fnFeriados(d.getFullYear())[s]) return s; d.setDate(d.getDate()+1); } return iso; }
 function fnDashboard(){
   const hoje=hojeISO(); const mes=FN.mesDash||hoje.slice(0,7); const [A,M]=mes.split('-').map(Number);
   let nomeMes=new Date(A,M-1,1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'}); nomeMes=nomeMes.charAt(0).toUpperCase()+nomeMes.slice(1);
