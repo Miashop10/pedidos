@@ -2011,7 +2011,7 @@ function fnExtratoDeLinhas0(rows){
   return rows.slice(hi+1).map(r=>r||[]).filter(r=>r.some(c=>String(c).trim()!=='')).map(r=>{
     let v=cV>=0?fnNumExtrato(r[cV]):(fnNumExtrato(r[cCr])||0)-Math.abs(fnNumExtrato(r[cDb])||0);
     if(cV>=0&&cDC>=0){ const dc=semAcento(r[cDC]).trim(); if(/^(D|DEB|DEBITO|SAIDA|-)/.test(dc)) v=-Math.abs(v); else if(/^(C|CRED|CREDITO|ENTRADA|\+)/.test(dc)) v=Math.abs(v); } // coluna separada D/C
-    return {data:fnDataExtrato(r[cD]),descricao:String(cDesc>=0?r[cDesc]:'').trim(),documento:String(cDoc>=0?r[cDoc]:'').trim().replace(/\.0+$/,''),valor:Math.round(v*100)/100}; })
+    return {data:fnDataExtrato(r[cD]),descricao:String(cDesc>=0?r[cDesc]:'').trim(),documento:'',valor:Math.round(v*100)/100}; }) // coluna DOCUMENTO é desconsiderada
     .filter(l=>/\d{2}\/\d{2}\/\d{4}/.test(l.data) && l.valor && !/^SALDO/i.test(semAcento(l.descricao)));
 }
 function fnDataExtrato(v){ if(typeof v==='number') return dataExcel(v); const t=String(v||'').trim(); let m=t.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
@@ -2028,13 +2028,15 @@ function fnExtratoSemCabecalho(rows){
     const W=Math.max(...R.map(r=>r.length)); const num=[], dec=[];
     for(let j=1;j<W;j++){ const v=R.map(r=>String(r[j]==null?'':r[j]).trim()).filter(Boolean); if(!v.length) continue; const q=v.filter(ehValor).length;
       if(q/v.length>=0.8){ num.push(j); if(v.some(x=>/,\d{1,2}\b|[-\u2212\u2013]|\s[CD]$/i.test(x))) dec.push(j); } }
-    if(!num.length) return null; return {v:(dec.length?dec:num)[0],num,dec}; })();
+    if(!num.length) return null;
+    // coluna só com números inteiros (nº de documento, mesmo quase toda vazia) é desconsiderada
+    const docs=[]; for(let j=1;j<W;j++){ const v=R.map(r=>String(r[j]==null?'':r[j]).trim()).filter(Boolean); if(v.length&&v.every(x=>/^\d{3,}$/.test(x))) docs.push(j); }
+    return {v:(dec.length?dec:num)[0],num:num.concat(docs),dec}; })();
   rows.forEach(r=>{ const cel=(r||[]).map(c=>String(c==null?'':c).trim()).filter(Boolean); if(!cel.length) return;
     // linha em colunas (Excel / tabela do banco): usa a coluna de valor descoberta olhando todas as linhas (abaixo)
     if(TAB&&/^\d{1,2}\/\d{1,2}(\/\d{2,4})?$/.test(String(r[0]||'').trim())){ const c=j=>String(r[j]==null?'':r[j]).trim(); const vtx=c(TAB.v); if(!vtx||!ehValor(vtx)) return;
       const desc=r.map((x,j)=>j>0&&j!==TAB.v&&!TAB.num.includes(j)?c(j):'').filter(Boolean).join(' ').replace(/\s+/g,' ').trim(); if(/^SALDO/i.test(semAcento(desc))) return;
-      const doc=TAB.num.filter(j=>j!==TAB.v&&!TAB.dec.includes(j)).map(c).filter(Boolean).join(' ');
-      out.push({data:fnDataExtrato(c(0)),descricao:desc,documento:doc,valor:Math.round(fnNumExtrato(vtx)*100)/100}); return; }
+      out.push({data:fnDataExtrato(c(0)),descricao:desc,documento:'',valor:Math.round(fnNumExtrato(vtx)*100)/100}); return; }
     let txt=cel.join('\t').replace(/[\u2212\u2012\u2013\u2014\u2010\u2011]/g,'-').replace(/\u00a0/g,' '); const md=txt.match(/^(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)/); if(!md) return;
     const vals=[...txt.matchAll(/(-?\s?R?\$?\s?-?\(?\d{1,3}(?:\.\d{3})*,\d{2}\)?\s?[CD-]?)(?=\s|\t|$)/g)].map(x=>x[1]); if(!vals.length) return;
     // se houver 2+ valores (valor e saldo), o valor é o penúltimo; com um só, é ele
@@ -2056,7 +2058,7 @@ async function fnLerExtrato(f){
 function fnColarExtrato(){
   if(!fin().contas.length){ toast('Cadastre uma conta antes de importar o extrato'); fnModalConta(); return; }
   modal(`<div class="mh"><h3>📋 Colar extrato</h3><button class="btn ghost" onclick="fecharModal()">✕</button></div>
-  <p class="small muted" style="margin-top:0">Copie o extrato <b>completo</b> do banco (do Excel ou do site) e cole abaixo com <b>Ctrl+V</b> — não precisa apagar nada: linhas de agência/conta, linhas vazias, a coluna de SALDO e as linhas de saldo são ignoradas sozinhas. Com cabeçalho, o sistema usa as colunas DATA, HISTÓRICO/DESCRIÇÃO, DOCUMENTO e VALOR (ou CRÉDITO e DÉBITO). Sem cabeçalho, procura em cada linha a data, a descrição e o valor (saídas com sinal de menos ou "D").</p>
+  <p class="small muted" style="margin-top:0">Copie o extrato <b>completo</b> do banco (do Excel ou do site) e cole abaixo com <b>Ctrl+V</b> — não precisa apagar nada: linhas de agência/conta, linhas vazias, a coluna de SALDO e as linhas de saldo são ignoradas sozinhas. Com cabeçalho, o sistema usa as colunas DATA, HISTÓRICO/DESCRIÇÃO e VALOR (ou CRÉDITO e DÉBITO) — DOCUMENTO e SALDO são desconsiderados. Sem cabeçalho, procura em cada linha a data, a descrição e o valor (saídas com sinal de menos ou "D").</p>
   <div class="row" style="gap:10px;align-items:flex-end;margin-bottom:8px"><label class="sf" style="flex:0 0 160px"><span>Ano (se a data vier sem ano)</span><input id="fnColaAno" inputmode="numeric" value="${new Date().getFullYear()}"></label></div>
   <textarea id="fnColaExt" class="fn-cola" style="min-height:220px" placeholder="Cole aqui o extrato…" oninput="clearTimeout(window._ce);window._ce=setTimeout(fnColaExtPrev,300)"></textarea>
   <label class="small" style="display:flex;gap:6px;align-items:center;margin-top:8px"><input type="checkbox" id="fnColaHist" onchange="fnColaExtPrev()"> O extrato não mostra o sinal de menos nas saídas — identificar as saídas pelo histórico (pagamento, PIX enviado, tarifa, boleto, saque, débito…)</label>
