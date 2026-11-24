@@ -836,8 +836,8 @@ function loading(on){ document.getElementById('loading').classList.toggle('hide'
 
 /* =================== API =================== */
 function api(acao, dados){
-  loading(true);
-  const fim = r => { loading(false); if(r&&r.dados) r.dados=descompactar(r.dados); if(r && r.ok && r.fin && S.dados){ if(r.finParcial&&S.dados.fin){ Object.assign(S.dados.fin,r.fin); if(r.finUpsert){ Object.keys(r.finUpsert).forEach(k=>{ const L=S.dados.fin[k]=S.dados.fin[k]||[]; r.finUpsert[k].forEach(x=>{ const i=L.findIndex(y=>String(y.ID)===String(x.ID)); if(i>=0) L[i]=x; else L.push(x); }); }); } if(r.finRemover){ Object.keys(r.finRemover).forEach(k=>{ const rm=new Set((r.finRemover[k]||[]).map(String)); if(rm.size&&S.dados.fin[k]) S.dados.fin[k]=S.dados.fin[k].filter(y=>!rm.has(String(y.ID))); }); } if(r.finHist){ (S.dados.fin.historico=S.dados.fin.historico||[]).push(r.finHist); } } else S.dados.fin=r.fin; S.finFresco=true; } if(r&&r.ok&&r.finVer){ S.finGen=(S.finGen||0)+1; if(S.finVer&&S.finVer===r.finVerAntes){ S.finVer=r.finVer; } else if(!r.finParcial&&r.fin){ S.finVer=r.finVer; S.finVerT=Date.now(); } else { S.finVer='0'; } finGuardar(); } if(r&&r.tempos&&window.console) console.info('[api]',acao,r.tempos); if(r && r.ok){ S.master=!!r.master; S.abas=r.abas||[]; const b=document.getElementById('btConfig'); if(b) b.classList.toggle('hide',!S.master); aplicarAbas(); } if(!r || !r.ok){ if(r && r.erro==='SENHA_INVALIDA'){ sair(); throw new Error('Senha inválida'); } const er=new Error(r&&r.erro||'Falha na comunicação'); er.servidor=!!(r&&r.erro); throw er; } return r.dados; };
+  loading(true); const tIni=Date.now();
+  const fim = r => { loading(false); if(r&&r.tempos&&/^fin/.test(acao)&&acao!=='finCarregar'&&acao!=='finRateiosNF') fnTempoGuardar(acao,dados,r.tempos,Date.now()-tIni); if(r&&r.dados) r.dados=descompactar(r.dados); if(r && r.ok && r.fin && S.dados){ if(r.finParcial&&S.dados.fin){ Object.assign(S.dados.fin,r.fin); if(r.finUpsert){ Object.keys(r.finUpsert).forEach(k=>{ const L=S.dados.fin[k]=S.dados.fin[k]||[]; r.finUpsert[k].forEach(x=>{ const i=L.findIndex(y=>String(y.ID)===String(x.ID)); if(i>=0) L[i]=x; else L.push(x); }); }); } if(r.finRemover){ Object.keys(r.finRemover).forEach(k=>{ const rm=new Set((r.finRemover[k]||[]).map(String)); if(rm.size&&S.dados.fin[k]) S.dados.fin[k]=S.dados.fin[k].filter(y=>!rm.has(String(y.ID))); }); } if(r.finHist){ (S.dados.fin.historico=S.dados.fin.historico||[]).push(r.finHist); } } else S.dados.fin=r.fin; S.finFresco=true; } if(r&&r.ok&&r.finVer){ S.finGen=(S.finGen||0)+1; if(S.finVer&&S.finVer===r.finVerAntes){ S.finVer=r.finVer; } else if(!r.finParcial&&r.fin){ S.finVer=r.finVer; S.finVerT=Date.now(); } else { S.finVer='0'; } finGuardar(); } if(r&&r.tempos&&window.console) console.info('[api]',acao,r.tempos); if(r && r.ok){ S.master=!!r.master; S.abas=r.abas||[]; const b=document.getElementById('btConfig'); if(b) b.classList.toggle('hide',!S.master); aplicarAbas(); } if(!r || !r.ok){ if(r && r.erro==='SENHA_INVALIDA'){ sair(); throw new Error('Senha inválida'); } const er=new Error(r&&r.erro||'Falha na comunicação'); er.servidor=!!(r&&r.erro); throw er; } return r.dados; };
   if (emAppsScript()) return new Promise((res,rej)=>google.script.run.withSuccessHandler(r=>{try{res(fim(r));}catch(e){rej(e);}}).withFailureHandler(e=>{loading(false);rej(e);}).api(acao,S.senha,dados||{},S.usuario));
   return fetch(S.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({acao,senha:S.senha,usuario:S.usuario,dados:dados||{}})})
     .then(r=>r.json()).then(fim).catch(e=>{loading(false);throw e;});
@@ -2106,6 +2106,7 @@ function fnSugestoes(e){ const tipo=(+e.VALOR)>=0?'RECEBER':'PAGAR', v=Math.abs(
 function fnContaSel(id,rot,chave){ chave=chave||'mc_contaRec'; const C=fin().contas, ult=LS.get(chave)||''; return `<label class="small" style="display:inline-flex;align-items:center;gap:6px"><b>${rot||'Conta de recebimento'}</b>
   <select id="${id}" onchange="LS.set('${chave}',this.value);document.querySelectorAll('select[data-conta-ch=${chave}]').forEach(s=>s.value=this.value)" data-conta-ch="${chave}"><option value="">— escolha a conta —</option>${C.map(c=>`<option value="${esc(c.ID)}" ${String(c.ID)===ult?'selected':''}>${esc(c.NOME)}${c.BANCO?' · '+esc(c.BANCO):''}</option>`).join('')}</select></label>`; }
 function fnContaLida(id,rot){ const el=document.getElementById(id); const v=el?el.value:''; if(!v){ toast('Escolha a '+(rot||'conta de recebimento'),5000); if(el){ el.focus(); el.style.borderColor='var(--bad)'; } return null; } return v; }
+function fnAvisoSheetsApi(){ return S.sheetsApi===false?`<div class="card" style="padding:10px 12px;margin-bottom:10px;border-color:var(--warn,#d97706)"><b>⚡ Conciliação lenta?</b> <span class="small">A API do Google Sheets está desligada. No Apps Script: menu da esquerda <b>Serviços → + → Google Sheets API → Adicionar</b> e publique uma nova versão. As conciliações passam a gravar várias linhas numa chamada só.</span></div>`:''; }
 function fnConciliacao(){
   const C=fin().contas; if(!C.length) return '<div class="card muted">Cadastre uma conta bancária e importe o extrato em Excel para conciliar.</div>';
   if(!FN.conta||!fnConta(FN.conta)) FN.conta=C[0].ID;
@@ -2122,7 +2123,7 @@ function fnConciliacao(){
   const vis=new Set(LL.filter(e=>!e.LANC_ID).map(e=>e.ID)); [...FN.concSel].forEach(id=>{ if(!vis.has(id)) FN.concSel.delete(id); });
   const nSel=FN.concSel.size, nSelSug=[...FN.concSel].filter(id=>FN.concPar[id]).length, nPend=vis.size; const limC=FN.lim||100;
   const totF=LL.reduce((s,e)=>s+(+e.VALOR||0),0);
-  return `<div class="sl-filtros">
+  return fnAvisoSheetsApi()+`<div class="sl-filtros">
     <select style="max-width:220px" onchange="FN.conta=this.value;fnAtualizar()">${C.map(x=>`<option value="${esc(x.ID)}" ${x.ID===FN.conta?'selected':''}>${esc(x.NOME)}</option>`).join('')}</select>
     <select onchange="FN.concFiltro=this.value;fnAtualizar()"><option value="pend" ${FN.concFiltro==='pend'?'selected':''}>Pendentes (${pend.length})</option><option value="conc" ${FN.concFiltro==='conc'?'selected':''}>Conciliadas (${E.length-pend.length})</option><option value="todas" ${FN.concFiltro==='todas'?'selected':''}>Todas (${E.length})</option></select>
     <span class="muted small">de</span><input type="date" value="${CF.de}" onchange="FN.cf.de=this.value;fnAtualizar()"><span class="muted small">a</span><input type="date" value="${CF.ate}" onchange="FN.cf.ate=this.value;fnAtualizar()">
@@ -2771,7 +2772,7 @@ function fnSelTodos(on){ (FN.selVis||[]).forEach(i=>on?FN.sel.add(i):FN.sel.dele
 function fnSelUm(ck){ ck.checked?FN.sel.add(ck.dataset.id):FN.sel.delete(ck.dataset.id); ck.closest('tr').classList.toggle('fn-sel',ck.checked);
   const L=fnFiltrados(FN.sub.rel); const bar=document.getElementById('fnSelBar'); if(bar) bar.outerHTML=fnBarraSel(L); }
 function fnJuntarSel(){
-  const F=fin(), ids=(FN.selVis||[]).filter(id=>FN.sel.has(id)), L=ids.map(fnLanc).filter(Boolean); if(L.length<2) return;
+  const F=fin(), ids=[...new Set((FN.selVis||[]).filter(id=>FN.sel.has(id)))], L=ids.map(fnLanc).filter(Boolean); if(L.length<2) return;
   if(L.some(l=>l.STATUS==='QUITADO')){ toast('Só dá para juntar lançamentos em aberto (desfaça a baixa antes)',6000); return; }
   if(new Set(L.map(l=>l.TIPO)).size>1){ toast('Não dá para juntar contas a pagar com contas a receber',5000); return; }
   if(L.some(l=>!fnCCParse(l.CENTRO_CUSTO).length)){ toast('Algum lançamento está sem centro de custo — preencha antes de juntar',6000); return; }
@@ -3093,18 +3094,27 @@ async function filaEnviar(manual){
 }
 function fnFilaReenviar(cli){ const F=filaLer(); const x=F.find(y=>y.cli===cli); if(x){ x.recusado=false; x.erro=''; } filaGravar(F); filaEnviar(true).then(()=>fnAtualizar()); }
 function filaIniciar(){ // ao abrir: o que ficou "enviando" de uma sessão anterior volta para pendente
-  const F=filaLer(); F.forEach(x=>{ if(x.env&&x.ses!==FILA_SES){ x.env=false; x.erro=x.erro||'Sessão anterior fechada antes da confirmação'; } }); filaGravar(F);
+  const F=filaLer(); F.forEach(x=>{ if(x.env&&x.ses!==FILA_SES){ x.env=false; x.erro=x.erro||'Sessão anterior fechada antes da confirmação'; }
+    if(x.recusado&&x.acao==='finJuntarLanc'&&/não foi encontrado/.test(x.erro||'')){ x.recusado=false; x.erro='reenviando (correção do sistema)'; } }); filaGravar(F); // junções recusadas pela versão anterior: tenta de novo
   filaEnviar(false); setInterval(()=>{ if(filaLer().some(x=>!x.env&&!x.recusado)) filaEnviar(false); },20000); window.addEventListener('online',()=>filaEnviar(false)); }
+// tempos dos últimos envios (para achar o que está lento): rede = ida e volta inteira; Google = tempo dentro do Apps Script
+function fnTempoGuardar(acao,dados,t,rede){ try{ const L=LS.getJ?LS.getJ('mc_tempos',[]):JSON.parse(localStorage.getItem('mc_tempos')||'[]');
+  L.unshift({em:new Date().toLocaleTimeString('pt-BR'),acao,n:(dados&&dados.pares?dados.pares.length:dados&&dados.lista?dados.lista.length:dados&&dados.ids?dados.ids.length:1),rede,t}); localStorage.setItem('mc_tempos',JSON.stringify(L.slice(0,25))); S.sheetsApi=!!t.api; }catch(e){} }
+function fnTemposHtml(){ let L=[]; try{ L=JSON.parse(localStorage.getItem('mc_tempos')||'[]'); }catch(e){} if(!L.length) return '';
+  const sg=ms=>ms==null?'—':(ms/1000).toFixed(1).replace('.',',')+' s';
+  return `<div class="card" style="padding:12px;margin-top:12px"><b>⏱ Tempo dos últimos envios</b> <span class="small muted">· API do Google Sheets: ${L[0].t.api?'<b class="ok">ligada ✓</b>':'<b class="bad">desligada</b> — ligue no Apps Script (Serviços → + → Google Sheets API) para gravar muito mais rápido'}</span>
+    <div class="tw sl-tab" style="margin-top:8px"><table><thead><tr><th>Hora</th><th>Ação</th><th class="n">Itens</th><th class="n">Total (ida e volta)</th><th class="n">No Google</th><th class="n">Esperando outro envio</th><th class="n">Leitura antes</th><th class="n">Gravação</th><th class="n">Histórico</th></tr></thead><tbody>
+    ${L.map(x=>`<tr><td>${esc(x.em)}</td><td>${esc(x.acao)}</td><td class="n">${x.n}</td><td class="n"><b>${sg(x.rede)}</b></td><td class="n">${sg(x.t.total)}</td><td class="n">${sg(x.t.trava)}</td><td class="n">${sg(x.t.antes)}</td><td class="n">${sg(x.t.acao)}</td><td class="n">${sg(x.t.hist)}</td></tr>`).join('')}</tbody></table></div></div>`; }
 function fnNuvemTela(){
   const F=filaLer();
   return `<div class="card" style="padding:14px;margin-bottom:12px"><div class="row" style="align-items:center"><div><b style="font-size:16px">☁ Envio para a nuvem</b>
-    <div class="small muted" style="margin-top:4px">Tudo o que você salva no Financeiro fica guardado neste computador até o Google confirmar que gravou na planilha. Se algo falhar (internet, Google ocupado), fica aqui e é reenviado sozinho a cada minuto — ou na hora pelo botão. Envios repetidos não duplicam lançamentos.</div></div>
+    <div class="small muted" style="margin-top:4px">Tudo o que você salva no Financeiro fica guardado neste computador até o Google confirmar que gravou na planilha. Se algo falhar (internet, Google ocupado), fica aqui e é reenviado sozinho a cada 20 segundos — ou na hora pelo botão. Envios repetidos não duplicam lançamentos.</div></div>
     <span class="sp"></span><button class="btn" onclick="filaEnviar(true).then(()=>fnAtualizar())">☁ Enviar tudo para a nuvem agora</button>
     <button class="btn ghost sm" onclick="carregar(true).then(()=>{ toast('Dados recarregados da nuvem ✓'); fnAtualizar(); })">↻ Recarregar dados da nuvem</button></div></div>
   ${F.length?`<div class="tw sl-tab"><table><thead><tr><th>Feito em</th><th>O quê</th><th class="n">Tentativas</th><th>Situação</th><th></th></tr></thead><tbody>
     ${F.map(x=>`<tr><td>${esc(x.em)}</td><td style="white-space:normal">${esc(x.rotulo)}</td><td class="n">${x.tent||0}</td><td style="white-space:normal">${x.env?'<span class="tag t-acc">enviando…</span>':x.recusado?`<span class="tag t-bad">${esc(x.erro)}</span>${/^tmp/.test(String((x.dados||{}).id||''))?'<div class="small muted" style="margin-top:3px">Alteração feita num lançamento que ainda não tinha chegado na nuvem (versão antiga do sistema). Confira o lançamento na lista, refaça a alteração se precisar e descarte esta linha.</div>':''}`:`<span class="tag t-warn">pendente</span> <span class="muted small">${esc(x.erro||'')}</span>`}</td>
       <td class="c" style="white-space:nowrap">${x.recusado?`<button class="ib" title="Enviar de novo" onclick="fnFilaReenviar('${esc(x.cli)}')">↻ Tentar de novo</button> `:''}<button class="ib del" title="Descartar este envio (não será gravado)" onclick="if(confirm('Descartar este envio? Ele NÃO será gravado na nuvem.')){ filaTirar('${esc(x.cli)}'); fnAtualizar(); }">Descartar</button></td></tr>`).join('')}</tbody></table></div>`
-  :'<div class="card muted" style="padding:14px">✓ Tudo já está na nuvem. Nenhum envio pendente neste computador.</div>'}`;
+  :'<div class="card muted" style="padding:14px">✓ Tudo já está na nuvem. Nenhum envio pendente neste computador.</div>'}${fnTemposHtml()}`;
 }
 
 /* ---------- Dashboard inicial: calendários do mês ---------- */
