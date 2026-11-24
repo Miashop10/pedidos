@@ -837,7 +837,7 @@ function loading(on){ document.getElementById('loading').classList.toggle('hide'
 /* =================== API =================== */
 function api(acao, dados){
   loading(true); const tIni=Date.now();
-  const fim = r => { loading(false); if(r&&r.tempos&&/^fin/.test(acao)&&acao!=='finCarregar'&&acao!=='finRateiosNF') fnTempoGuardar(acao,dados,r.tempos,Date.now()-tIni); if(r&&r.dados) r.dados=descompactar(r.dados); if(r && r.ok && r.fin && S.dados){ if(r.finParcial&&S.dados.fin){ Object.assign(S.dados.fin,r.fin); if(r.finUpsert){ Object.keys(r.finUpsert).forEach(k=>{ const L=S.dados.fin[k]=S.dados.fin[k]||[]; r.finUpsert[k].forEach(x=>{ const i=L.findIndex(y=>String(y.ID)===String(x.ID)); if(i>=0) L[i]=x; else L.push(x); }); }); } if(r.finRemover){ Object.keys(r.finRemover).forEach(k=>{ const rm=new Set((r.finRemover[k]||[]).map(String)); if(rm.size&&S.dados.fin[k]) S.dados.fin[k]=S.dados.fin[k].filter(y=>!rm.has(String(y.ID))); }); } if(r.finHist){ (S.dados.fin.historico=S.dados.fin.historico||[]).push(r.finHist); } } else S.dados.fin=r.fin; S.finFresco=true; } if(r&&r.ok&&r.finVer){ S.finGen=(S.finGen||0)+1; if(S.finVer&&S.finVer===r.finVerAntes){ S.finVer=r.finVer; } else if(!r.finParcial&&r.fin){ S.finVer=r.finVer; S.finVerT=Date.now(); } else { S.finVer='0'; } finGuardar(); } if(r&&r.tempos&&window.console) console.info('[api]',acao,r.tempos); if(r && r.ok){ S.master=!!r.master; S.abas=r.abas||[]; const b=document.getElementById('btConfig'); if(b) b.classList.toggle('hide',!S.master); aplicarAbas(); } if(!r || !r.ok){ if(r && r.erro==='SENHA_INVALIDA'){ sair(); throw new Error('Senha inválida'); } const er=new Error(r&&r.erro||'Falha na comunicação'); er.servidor=!!(r&&r.erro); throw er; } return r.dados; };
+  const fim = r => { loading(false); if(r&&r.tempos&&/^fin/.test(acao)&&acao!=='finCarregar'&&acao!=='finRateiosNF') fnTempoGuardar(acao,dados,r.tempos,Date.now()-tIni); if(r&&r.dados) r.dados=descompactar(r.dados); if(r && r.ok && r.fin && S.dados && (!r.finParcial || fnFinOk(S.dados.fin))){ if(r.finParcial&&S.dados.fin){ Object.assign(S.dados.fin,r.fin); if(r.finUpsert){ Object.keys(r.finUpsert).forEach(k=>{ const L=S.dados.fin[k]=S.dados.fin[k]||[]; r.finUpsert[k].forEach(x=>{ const i=L.findIndex(y=>String(y.ID)===String(x.ID)); if(i>=0) L[i]=x; else L.push(x); }); }); } if(r.finRemover){ Object.keys(r.finRemover).forEach(k=>{ const rm=new Set((r.finRemover[k]||[]).map(String)); if(rm.size&&S.dados.fin[k]) S.dados.fin[k]=S.dados.fin[k].filter(y=>!rm.has(String(y.ID))); }); } if(r.finHist){ (S.dados.fin.historico=S.dados.fin.historico||[]).push(r.finHist); } } else S.dados.fin=r.fin; S.finFresco=true; } if(r&&r.ok&&r.finVer){ S.finGen=(S.finGen||0)+1; if(!fnFinOk(S.dados&&S.dados.fin)){ S.finVer='0'; } else if(S.finVer&&S.finVer===r.finVerAntes){ S.finVer=r.finVer; } else if(!r.finParcial&&r.fin){ S.finVer=r.finVer; S.finVerT=Date.now(); } else { S.finVer='0'; } finGuardar(); } if(r&&r.tempos&&window.console) console.info('[api]',acao,r.tempos); if(r && r.ok){ S.master=!!r.master; S.abas=r.abas||[]; const b=document.getElementById('btConfig'); if(b) b.classList.toggle('hide',!S.master); aplicarAbas(); } if(!r || !r.ok){ if(r && r.erro==='SENHA_INVALIDA'){ sair(); throw new Error('Senha inválida'); } const er=new Error(r&&r.erro||'Falha na comunicação'); er.servidor=!!(r&&r.erro); throw er; } return r.dados; };
   if (emAppsScript()) return new Promise((res,rej)=>google.script.run.withSuccessHandler(r=>{try{res(fim(r));}catch(e){rej(e);}}).withFailureHandler(e=>{loading(false);rej(e);}).api(acao,S.senha,dados||{},S.usuario));
   return fetch(S.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({acao,senha:S.senha,usuario:S.usuario,dados:dados||{}})})
     .then(r=>r.json()).then(fim).catch(e=>{loading(false);throw e;});
@@ -874,7 +874,7 @@ function abrirApp(){
   document.getElementById('whoNome').textContent=S.usuario;
   document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>irPara(b.dataset.v));
   carregar();
-  setTimeout(()=>{ try{ filaIniciar(); }catch(e){} },3000);
+  { let n=0; const ini=()=>{ if(fnFinOk(S.dados&&S.dados.fin)||n++>40){ try{ filaIniciar(); }catch(e){} } else setTimeout(ini,1500); }; setTimeout(ini,3000); } // envia os pendentes só depois do financeiro carregado
 }
 // mostra no menu só as abas liberadas para o usuário (master vê todas)
 function aplicarAbas(){
@@ -893,12 +893,15 @@ const IDB={ db:null, abrir(){ if(this.db) return this.db; this.db=new Promise((o
   async del(k){ try{ const db=await this.abrir(); await new Promise(ok=>{ const t=db.transaction('kv','readwrite'); t.objectStore('kv').delete(k); t.oncomplete=ok; t.onerror=ok; }); }catch(e){} } };
 const finChave=()=>'fin|'+(S.url||'')+'|'+up(S.usuario||'');
 // guarda sempre a cópia (mesmo sem versão confiável: aí ela só serve para abrir na hora, e a nuvem manda tudo de novo em seguida)
-let _finSalvarT; function finGuardar(){ clearTimeout(_finSalvarT); _finSalvarT=setTimeout(()=>{ if(S.dados&&S.dados.fin) IDB.set(finChave(),{ver:S.finVer||'0',t:S.finVerT||Date.now(),fin:S.dados.fin}); },2000); }
+let _finSalvarT; // cópia completa do financeiro? (resposta parcial de um envio — só categorias/centros — NÃO é o financeiro)
+function fnFinOk(f){ return !!(f&&Array.isArray(f.lanc)&&Array.isArray(f.extrato)&&Array.isArray(f.contas)); }
+function finGuardar(){ clearTimeout(_finSalvarT); _finSalvarT=setTimeout(()=>{ if(S.dados&&fnFinOk(S.dados.fin)) IDB.set(finChave(),{ver:S.finVer||'0',t:S.finVerT||Date.now(),fin:S.dados.fin}); },2000); }
 // abre o sistema com as abas leves primeiro; o financeiro (maior) chega em paralelo, sem segurar as outras abas
 async function carregar(silencioso){
   const temFin=()=>S.master||(S.abas||[]).includes('financeiro');
   const pode=(S.abas||S.master)&&temFin();
-  const pCache=pode&&!(S.dados&&S.dados.fin)?IDB.get(finChave()):Promise.resolve(null);
+  if(S.dados&&S.dados.fin&&!fnFinOk(S.dados.fin)){ S.dados.fin=null; S.finVer='0'; } // financeiro incompleto na memória: busca tudo de novo
+  const pCache=pode&&!(S.dados&&S.dados.fin)?IDB.get(finChave()).then(c=>c&&fnFinOk(c.fin)?c:null).catch(()=>null):Promise.resolve(null);
   // pede o financeiro uma vez só (antes, se alguma gravação terminasse no meio, descartava a resposta e pedia de novo — com o financeiro grande isso podia nunca acabar)
   const pedirFin=async c=>{ const g=S.finGen||0; const r=await api('finCarregar',c?{ver:c.ver,idade:Date.now()-(c.t||0)}:{}); if(r&&typeof r==='object') r._gen=g; return r; };
   S.finErro=null; S.finIni=Date.now();
@@ -910,7 +913,8 @@ async function carregar(silencioso){
   let f=pFin?await pFin:null; if(!pFin&&temFin()) f=await api('finCarregar',{}).catch(e=>{ S.finErro=e.message||String(e); if(S.view==='financeiro') render(); return null; });
   if(f&&!('fin' in f)&&!f.mesma&&Array.isArray(f.lanc)) f={fin:f,ver:'0'}; // Code.gs antigo (sem versão): usa assim mesmo
   if(f&&S.dados){
-    if(f.mesma&&S.dados.fin){ S.finVer=f.ver; S.finVerT=Date.now(); }
+    if(f.mesma&&fnFinOk(S.dados.fin)){ S.finVer=f.ver; S.finVerT=Date.now(); }
+    else if(f.mesma){ S.finVer='0'; setTimeout(()=>carregar(true),300); } // "está igual", mas a cópia daqui está incompleta: pede tudo
     else if(f.fin){ const mudou=(S.finGen||0)!==(f._gen||0); S.dados.fin=f.fin; S.finVer=mudou?'0':f.ver; S.finVerT=Date.now(); S.finFresco=false; if(S.view==='financeiro') render();
       // houve gravação sua enquanto carregava: mostra já o que veio e confere de novo em segundo plano (uma vez)
       if(mudou&&!S._finRecheck){ S._finRecheck=true; setTimeout(()=>{ carregar(true).finally(()=>{ S._finRecheck=false; }); },1500); } }
