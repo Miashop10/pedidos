@@ -252,6 +252,7 @@ tr.fn-bok td{background:#eef7ef}
 .fnd-pv.ro{background:var(--soft)}.fnd-pv.ro input{background:transparent;color:var(--mut)}
 .fnd-f{display:flex;align-items:center;gap:14px;padding:12px 22px;border-top:1px solid var(--line);background:var(--card)}
 .fnd-f .btn{padding:10px 26px;font-size:16px}
+.lg-auto{font-size:10px;line-height:1;color:var(--mut,#888);margin-top:2px;white-space:nowrap;cursor:help}
 .fn-ccn{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;cursor:default;border-bottom:1px dotted var(--mut,#888)}
 .fn-ccn i{font-style:normal;font-size:11px;font-weight:700;width:15px;height:15px;border-radius:50%;background:#555;color:#fff;display:inline-flex;align-items:center;justify-content:center}
 #ccPop{position:fixed;z-index:9999;display:none;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:8px 10px;font-size:13px;max-height:70vh;overflow:auto;min-width:220px;pointer-events:none}
@@ -1233,7 +1234,9 @@ const isOK = v => String(v||'').trim().toUpperCase()==='OK';
 const lgCalcDe = r => calcNorm(r.CALCULO)||String(r.CALCULO||'').trim().toUpperCase();
 const lgQuitado = r => { const c=lgCalcDe(r); return c==='BONIF' || (isOK(r.BOLETOS_PARTE_NF) && (c==='NC' || isOK(r.BOLETO_PARTE_ESPECIAL))); };
 // gravações da mesma linha vão uma de cada vez e sempre com o estado atual (antes, mudar o cálculo e dar OK logo em seguida podia chegar fora de ordem e a planilha ficar com o OK antigo)
-const LG_FILA={}; function lgGravar(r){ const k=String(r.ID); const p=(LG_FILA[k]||Promise.resolve()).catch(()=>{}).then(()=>api('salvarLogistica',lgPayload(r))); LG_FILA[k]=p; return p; }
+const LG_FILA={}; function lgGravar(r){ const k=String(r.ID); const p=(LG_FILA[k]||Promise.resolve()).catch(()=>{}).then(()=>api('salvarLogistica',lgPayload(r))).then(x=>{ if(x&&x.autoOk) lgAvisoAuto(x.autoOk); return x; }); LG_FILA[k]=p; return p; }
+function lgAvisoAuto(n){ toast(`🤖 ${n} linha(s) com OK automático: os boletos dessa NF já estão lançados no financeiro`,6000); carregar(true).then(()=>{ if(S.view==='logistica') render(); }); }
+async function lgConferirBoletos(){ try{ const r=await api('lgConferirBoletos',{}); if(r&&r.autoOk) lgAvisoAuto(r.autoOk); else toast('Nenhuma NF nova com todos os boletos lançados no financeiro',5000); }catch(e){ toast('Erro: '+e.message,6000); } }
 
 function nomesLog(tipo){ // nomes já digitados (salvos) + os que aparecem nos lançamentos
   const m={}; const add=n=>{ n=String(n||'').trim(); if(n && !m[up(n)]) m[up(n)]=n; };
@@ -1272,7 +1275,7 @@ function vLogistica(){
   const f=(lbl,html,cls)=>`<label class="sf ${cls||''}"><span>${lbl}</span>${html}</label>`;
   const F=LG.f;
   return `<div class="slim">
-  <div class="sl-head"><h2>Controle de Logística</h2><span class="muted small">NF × cálculo (NC, X2, X3… ou BONIF) · verde = boletos OK · clique no campo da lista para alterar (salva sozinho)</span><span class="sp"></span><button class="btn sec sm" onclick="RT.lancId='';document.getElementById('rtIn').click()" title="Anexo 'Rateio de Nota Fiscal por Filial' de uma NF recebida no CD">⇄ Distribuição do CD</button><input type="file" id="rtIn" accept=".pdf,.xlsx,.xls,.csv" class="hide" onchange="if(this.files[0]) rtLerArquivo(this.files[0]); this.value=''"><button class="btn sm" onclick="document.getElementById('lgInXls').click()" title="FORNECEDOR | FILIAL | DT CHEGADA | NOTA FISCAL | DT LANÇAMENTO | VALOR NF | CÁLCULO | RECEBIDO | BOLETOS | BOLETOS | OBS">⬆ Importar planilha Excel</button><input type="file" id="lgInXls" accept=".xlsx,.xls,.csv" class="hide" onchange="if(this.files[0]) lgLerPlanilha(this.files[0]); this.value=''"></div>
+  <div class="sl-head"><h2>Controle de Logística</h2><span class="muted small">NF × cálculo (NC, X2, X3… ou BONIF) · verde = boletos OK · clique no campo da lista para alterar (salva sozinho)</span><span class="sp"></span><button class="btn sec sm" onclick="lgConferirBoletos()" title="Dá OK sozinho nas NFs cujos boletos (mesmo número de NF e fornecedor) já foram todos lançados no financeiro">🤖 Conferir boletos no financeiro</button><button class="btn sec sm" onclick="RT.lancId='';document.getElementById('rtIn').click()" title="Anexo 'Rateio de Nota Fiscal por Filial' de uma NF recebida no CD">⇄ Distribuição do CD</button><input type="file" id="rtIn" accept=".pdf,.xlsx,.xls,.csv" class="hide" onchange="if(this.files[0]) rtLerArquivo(this.files[0]); this.value=''"><button class="btn sm" onclick="document.getElementById('lgInXls').click()" title="FORNECEDOR | FILIAL | DT CHEGADA | NOTA FISCAL | DT LANÇAMENTO | VALOR NF | CÁLCULO | RECEBIDO | BOLETOS | BOLETOS | OBS">⬆ Importar planilha Excel</button><input type="file" id="lgInXls" accept=".xlsx,.xls,.csv" class="hide" onchange="if(this.files[0]) lgLerPlanilha(this.files[0]); this.value=''"></div>
   <div class="card sl-form${ed?' sl-edit':''}" id="lgForm">
     ${ed?`<div class="sl-banner">✎ EDITANDO: <b>${esc(r.FORNECEDOR)}</b>${r.NOTA_FISCAL?' · NF '+esc(r.NOTA_FISCAL):''} — altere os campos e clique em <b>Salvar</b></div>`:''}
     ${f('Fornecedor',`<div class="acw"><input id="lgForn" autocomplete="off" value="${esc(r.FORNECEDOR||'')}" placeholder="Digite…"><div class="sugbox"></div></div>`,'w-forn')}
@@ -1337,7 +1340,7 @@ function lgLinha(r){ // cada célula é um campo: clique, digite e saia (Enter/T
     <td class="n w-v">${inp('VALOR_NF',fN(+r.VALOR_NF,2),'inputmode="decimal" style="text-align:right"')}</td>
     <td class="c w-c">${inp('CALCULO',r.CALCULO||'NC','list="lgCalcLista" style="text-align:center" title="NC, BONIF ou X + número"')}</td>
     <td class="n" title="${+r.VALOR_PARTE_ESPECIAL?'Parte especial: '+fR(+r.VALOR_PARTE_ESPECIAL):''}"><b>${fR(+r.VALOR_CALCULADO)}</b></td>
-    ${lgCalcDe(r)==='BONIF'?'<td class="c" colspan="2"><span class="tag t-ok" title="Bonificado pelo fornecedor: sem boletos">BONIFICADO</span></td>':`<td class="c">${chip('BOLETOS_PARTE_NF',isOK(r.BOLETOS_PARTE_NF),'OK','')}</td>
+    ${lgCalcDe(r)==='BONIF'?'<td class="c" colspan="2"><span class="tag t-ok" title="Bonificado pelo fornecedor: sem boletos">BONIFICADO</span></td>':`<td class="c">${chip('BOLETOS_PARTE_NF',isOK(r.BOLETOS_PARTE_NF),'OK','')}${r.OK_AUTO?`<div class="lg-auto" title="${esc(r.OK_AUTO)}">🤖 sistema</div>`:''}</td>
     <td class="c">${lgCalcDe(r)==='NC'&&!isOK(r.BOLETO_PARTE_ESPECIAL)?'<span class="muted small">—</span>':chip('BOLETO_PARTE_ESPECIAL',isOK(r.BOLETO_PARTE_ESPECIAL),'OK','')}</td>`}
     <td class="lg-obs">${inp('OBS',r.OBS||'','placeholder="—" title="'+esc(r.OBS||'')+'"')}</td>
     <td class="c" style="white-space:nowrap">${rtBotao(r)}<button class="ib del" title="Excluir lançamento" onclick="lgExcluir(this.closest('tr').dataset.id)">✕</button></td></tr>`;
@@ -1372,7 +1375,7 @@ async function lgSalvar(){
   if(d.notaFiscal){ const dup=(S.dados.logistica||[]).find(r=>String(r.ID)!==String(d.id) && up(r.FORNECEDOR)===up(d.fornecedor) && String(r.NOTA_FISCAL).trim()===d.notaFiscal);
     if(dup && !confirm(`A NF ${d.notaFiscal} de ${dup.FORNECEDOR} já está lançada (filial ${dup.FILIAL||'—'}). Lançar mesmo assim?`)) return; }
   const bt=document.getElementById('lgSalvar'); bt.disabled=true;
-  try{ await api('salvarLogistica',d); toast(LG.edit?'Lançamento alterado':'Lançamento adicionado'); if(!LG.edit) LG.sort={k:'criado',d:-1}; LG.edit=null; await carregar(true); render(); setTimeout(()=>{ const f=document.getElementById('lgForn'); if(f) f.focus(); },50); }
+  try{ const rs=await api('salvarLogistica',d); toast(LG.edit?'Lançamento alterado':'Lançamento adicionado'); if(rs&&rs.autoOk) setTimeout(()=>toast(`🤖 OK automático: os boletos dessa NF já estão lançados no financeiro`,6000),1500); if(!LG.edit) LG.sort={k:'criado',d:-1}; LG.edit=null; await carregar(true); render(); setTimeout(()=>{ const f=document.getElementById('lgForn'); if(f) f.focus(); },50); }
   catch(e){ toast('Erro: '+e.message,6000); bt.disabled=false; }
 }
 const lgAchar = id => (S.dados.logistica||[]).find(r=>String(r.ID).trim()===String(id).trim());
@@ -1412,7 +1415,7 @@ function lgRedesenharLinha(tr,r){ // troca a linha mantendo o cursor no campo em
 }
 async function lgAlternar(id,campo){ // marca/desmarca Recebido ou boletos direto na tabela
   const r=lgAchar(id); if(!r) return; const antes=r[campo];
-  r[campo] = campo==='RECEBIDO' ? (r.RECEBIDO==='SIM'?'NÃO':'SIM') : (isOK(r[campo])?'':'OK'); const tr=document.querySelector(`#tbLog tr[data-id="${CSS.escape(String(r.ID))}"]`); if(tr){ lgRedesenharLinha(tr,r); lgResumoAtualizar(); } else lgAtualizar();
+  r[campo] = campo==='RECEBIDO' ? (r.RECEBIDO==='SIM'?'NÃO':'SIM') : (isOK(r[campo])?'':'OK'); if(campo!=='RECEBIDO') r.OK_AUTO=''; const tr=document.querySelector(`#tbLog tr[data-id="${CSS.escape(String(r.ID))}"]`); if(tr){ lgRedesenharLinha(tr,r); lgResumoAtualizar(); } else lgAtualizar();
   try{ await lgGravar(r); }
   catch(e){ r[campo]=antes; lgAtualizar(); toast('Erro: '+e.message,6000); }
 }
@@ -1553,7 +1556,7 @@ function lgModalImport(nome){
 async function lgConfirmarImport(){
   const lista=LG_IMP.linhas.filter(x=>!x.erros.length&&!(LG_IMP.pularDup&&x.dup)).map(x=>x.d); if(!lista.length) return;
   const bt=document.getElementById('lgImpBt'); bt.disabled=true; bt.textContent='Importando…';
-  try{ const r=await api('importarLogistica',{lista}); fecharModal(); LG.sort={k:'criado',d:-1}; toast(`${r.importados} lançamento(s) importado(s)`+(r.erros.length?' · '+r.erros.length+' com erro':''),6000); await carregar(true); render(); }
+  try{ const r=await api('importarLogistica',{lista}); fecharModal(); LG.sort={k:'criado',d:-1}; toast(`${r.importados} lançamento(s) importado(s)`+(r.erros.length?' · '+r.erros.length+' com erro':'')+(r.autoOk?` · 🤖 ${r.autoOk} com OK automático (boletos já no financeiro)`:''),7000); await carregar(true); render(); }
   catch(e){ bt.disabled=false; bt.textContent='Importar'; toast('Erro: '+e.message,7000); }
 }
 
@@ -3663,7 +3666,13 @@ function fnConcCard(e){
   return `<div class="cc-card${FN.concSel.has(e.ID)?' cc-sel':''}" id="cc_${id}">${esq}<div class="cc-r"><div class="cc-tabs">${tabs}</div><div class="cc-corpo">${corpo}</div></div>
     <button class="btn cc-ok" ${tab==='sug'&&!sg.length?'disabled':''} onclick="fnConcOK('${id}')">OK</button></div>`;
 }
-function fnConcRedesenhar(exId){ const e=fin().extrato.find(x=>x.ID===exId), el=document.getElementById('cc_'+exId); if(e&&el) el.outerHTML=fnConcCard(e); }
+function fnConcRedesenhar(exId){ const e=fin().extrato.find(x=>x.ID===exId), el=document.getElementById('cc_'+exId); if(!e||!el) return;
+  // vendo só as pendentes: a linha conciliada/ignorada sai da tela na hora
+  if(e.LANC_ID&&FN.concFiltro==='pend'){ el.style.transition='opacity .25s, max-height .3s'; el.style.overflow='hidden'; el.style.maxHeight=el.offsetHeight+'px'; requestAnimationFrame(()=>{ el.style.opacity='0'; el.style.maxHeight='0'; el.style.marginBottom='0'; }); setTimeout(()=>{ el.remove(); fnConcContador(); },320); return; }
+  el.outerHTML=fnConcCard(e); }
+// atualiza o "Pendentes (N)" do filtro sem redesenhar a tela
+function fnConcContador(){ const sel=document.querySelector('select[onchange^="FN.concFiltro"]'); if(!sel) return; const E=fin().extrato.filter(e=>String(e.CONTA_ID)===String(FN.conta)); const o=sel.querySelector('option[value="pend"]'); if(o) o.textContent='Pendentes ('+E.filter(e=>!e.LANC_ID).length+')';
+  if(!document.querySelector('.cc-list .cc-card')) fnAtualizar(); }
 // lançamento acabou de ser usado numa conciliação: os outros cartões que ainda o sugeriam são redesenhados (a sugestão some deles)
 function fnConcTirarSug(lancIds,exceto){ const ids=new Set([].concat(lancIds).filter(Boolean).map(String)); if(!ids.size) return;
   document.querySelectorAll('.cc-card').forEach(c=>{ const ex=c.id.slice(3); if(ex===exceto) return; if([...c.querySelectorAll('.cc-sugs input[type=radio]')].some(r=>ids.has(r.value))) fnConcRedesenhar(ex); }); }
