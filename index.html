@@ -252,6 +252,10 @@ tr.fn-bok td{background:#eef7ef}
 .fnd-pv.ro{background:var(--soft)}.fnd-pv.ro input{background:transparent;color:var(--mut)}
 .fnd-f{display:flex;align-items:center;gap:14px;padding:12px 22px;border-top:1px solid var(--line);background:var(--card)}
 .fnd-f .btn{padding:10px 26px;font-size:16px}
+.fn-ccn{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;cursor:default;border-bottom:1px dotted var(--mut,#888)}
+.fn-ccn i{font-style:normal;font-size:11px;font-weight:700;width:15px;height:15px;border-radius:50%;background:#555;color:#fff;display:inline-flex;align-items:center;justify-content:center}
+#ccPop{position:fixed;z-index:9999;display:none;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:8px 10px;font-size:13px;max-height:70vh;overflow:auto;min-width:220px;pointer-events:none}
+#ccPop div{display:flex;justify-content:space-between;gap:16px;padding:2px 0;border-bottom:1px solid var(--soft)}#ccPop div:last-child{border-bottom:0}
 .fn-cc{display:inline-block;background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:0 6px;margin:1px 2px 1px 0;font-size:13px;white-space:nowrap}
 @media (max-width:700px){.fnd-g{grid-template-columns:1fr}.fnd-ccl{grid-template-columns:1fr 90px 30px}.fnd-ccl .fnd-pv:nth-child(3){display:none}}
 .fn-main{min-width:0}
@@ -2092,9 +2096,10 @@ async function fnExcluirImport(id){ const i=fin().importacoes.find(x=>x.ID===id)
 function fnSugestoes(e){ const tipo=(+e.VALOR)>=0?'RECEBER':'PAGAR', v=Math.abs(+e.VALOR);
   // lançamento com conta de recebimento/pagamento definida só é sugerido para o extrato dessa conta (os da mesma conta vêm primeiro)
   // índice tipo|data|valor (antes cada linha do extrato percorria os 160 mil+ lançamentos: a tela travava a cada OK)
-  const F=fin(), k=F.lanc.length+'|'+(S.finGen||0); if(!FN._sugIdx||FN._sugK!==k){ const ix=new Map(); F.lanc.forEach(l=>{ if(l.STATUS==='QUITADO') return; const c=l.TIPO+'|'+l.VENCIMENTO+'|'+Math.round(Math.abs(+l.VALOR)*100); let a=ix.get(c); if(!a) ix.set(c,a=[]); a.push(l); }); FN._sugIdx=ix; FN._sugK=k; }
+  const F=fin(), k=F.lanc.length+'|'+(S.finGen||0); if(!FN._sugIdx||FN._sugK!==k){ const ix=new Map(); F.lanc.forEach(l=>{ if(l.STATUS==='QUITADO') return; const vc=Math.round(Math.abs(+l.VALOR)*100), put=d=>{ const c=l.TIPO+'|'+d+'|'+vc; let a=ix.get(c); if(!a) ix.set(c,a=[]); a.push(l); };
+      put(l.VENCIMENTO); const u=fnDiaUtilBR(l.VENCIMENTO); if(u&&u!==l.VENCIMENTO) put(u); }); /* vencimento em sábado/domingo/feriado também é sugerido no próximo dia útil */ FN._sugIdx=ix; FN._sugK=k; }
   // só o valor EXATO (centavo por centavo): 24,98 não sugere 24,97 nem 24,99
-  const c0=Math.round(v*100), out=(FN._sugIdx.get(tipo+'|'+e.DATA+'|'+c0)||[]).slice();
+  const c0=Math.round(v*100), out=[...new Set(FN._sugIdx.get(tipo+'|'+e.DATA+'|'+c0)||[])].sort((a,b)=>(a.VENCIMENTO===e.DATA?0:1)-(b.VENCIMENTO===e.DATA?0:1));
   return out.filter(l=>l.STATUS!=='QUITADO'&&Math.round(Math.abs(+l.VALOR)*100)===c0&&(!l.CONTA_ID||String(l.CONTA_ID)===String(e.CONTA_ID)))
     .sort((a,b)=>(b.CONTA_ID?1:0)-(a.CONTA_ID?1:0)); }
 // campo "conta de recebimento" das importações (lembra a última escolhida neste computador)
@@ -2172,7 +2177,17 @@ function fnCCParse(t){ t=String(t||'').trim(); if(!t) return [];
     .map((c,_,a)=>({nome:c.nome,pct:c.pct==null?(a.length===1?100:Math.round(10000/a.length)/100):c.pct})); }
 function fnCCTexto(a){ a=(a||[]).filter(c=>c.nome); if(!a.length) return ''; if(a.length===1&&Math.abs(a[0].pct-100)<0.005) return a[0].nome; return a.map(c=>`${c.nome} (${fN(c.pct,2).replace(/,00$/,'')}%)`).join('; '); }
 function fnCCPeso(l,cc){ const c=fnCCParse(l.CENTRO_CUSTO).filter(x=>up(x.nome)===up(cc)); return c.reduce((s,x)=>s+x.pct,0)/100; }
-function fnCCHtml(t){ const a=fnCCParse(t); if(!a.length) return '<span class="muted">—</span>'; if(a.length===1) return esc(a[0].nome); return a.map(c=>`<span class="fn-cc">${esc(c.nome)} <b>${fN(c.pct,2).replace(/,00$/,'')}%</b></span>`).join(' '); }
+function fnCCHtml(t,valor){ const a=fnCCParse(t); if(!a.length) return '<span class="muted">—</span>'; if(a.length===1) return esc(a[0].nome);
+  // vários centros: linha fina "N centros de custo ⓘ"; passando o mouse mostra todos com o %
+  const lista=a.map(c=>`<div><span>${esc(c.nome)}</span><b>${fN(c.pct,2)}%${valor?` · ${fR(valor*c.pct/100)}`:''}</b></div>`).join('');
+  return `<span class="fn-ccn" data-ccpop="${esc(lista)}" title="">${a.length} centros de custo <i>i</i></span>`; }
+document.addEventListener('mouseover',e=>{ const el=e.target.closest&&e.target.closest('[data-ccpop]'); let p=document.getElementById('ccPop');
+  if(!el){ if(p) p.style.display='none'; return; }
+  if(!p){ p=document.createElement('div'); p.id='ccPop'; document.body.appendChild(p); }
+  p.innerHTML=el.dataset.ccpop; p.style.display='block'; const r=el.getBoundingClientRect(), h=p.offsetHeight, w=p.offsetWidth;
+  let top=r.bottom+6; if(top+h>innerHeight-8) top=Math.max(8,r.top-h-6); let left=Math.min(r.left,innerWidth-w-8);
+  p.style.top=top+'px'; p.style.left=Math.max(8,left)+'px'; });
+document.addEventListener('scroll',()=>{ const p=document.getElementById('ccPop'); if(p) p.style.display='none'; },true);
 
 /* ---------- agendar recebimento / pagamento (lista + painel lateral) ---------- */
 function fnValidar(d){ if(!d.vencimento) return 'Informe a data de vencimento'; if(!d.nome) return 'Informe o nome'; if(!d.valor) return 'Informe o valor'; return ''; }
@@ -2407,7 +2422,7 @@ function fnTabelaLanc(Ltodos,quitadas,sel){
   const hoje=hojeISO(); FN.sel=FN.sel||new Set(); const tot=Ltodos.reduce((s,l)=>s+(+(quitadas?l.VALOR_PAGO:l.VALOR)||0),0); const lim=FN.lim||FN_LIM; const L=Ltodos.slice(0,lim);
   return `<div class="tw sl-tab"><table><thead><tr>${sel?`<th class="c" style="width:30px"><input type="checkbox" title="Marcar/desmarcar todos os filtrados" ${Ltodos.length&&Ltodos.every(l=>FN.sel.has(l.ID))?'checked':''} onchange="fnSelTodos(this.checked)"></th>`:''}<th>${quitadas?'Pago/recebido em':'Vencimento'}</th>${quitadas?'<th>Vencimento</th>':''}<th>Nome</th><th>Descrição</th><th>NF</th><th>Categoria</th><th>Centro de custo</th><th class="n">Valor</th>${quitadas?'<th>Conta</th>':''}<th></th></tr></thead><tbody>
   ${L.map(l=>{ const venc=!quitadas&&fnVencido(l,hoje);
-    return `<tr class="${venc?'fn-venc':''}${sel&&FN.sel.has(l.ID)?' fn-sel':''}">${sel?`<td class="c"><input type="checkbox" class="fn-ck" data-id="${esc(l.ID)}" ${FN.sel.has(l.ID)?'checked':''} onchange="fnSelUm(this)"></td>`:''}<td>${esc(quitadas?l.DATA_PAGAMENTO:l.VENCIMENTO)}${venc?' <span class="tag t-bad">vencido</span>':''}</td>${quitadas?`<td class="muted">${esc(l.VENCIMENTO)}</td>`:''}<td><b>${esc(l.NOME)}</b>${/CART/i.test(l.FORMA_PAGAMENTO||'')?' <span class="tag t-warn" title="Cartão de crédito">💳 cartão</span>':''}${!quitadas&&l.CONTA_ID&&fnConta(l.CONTA_ID)?`<div class="muted small" title="Conta de recebimento/pagamento prevista">🏦 ${esc(fnConta(l.CONTA_ID).NOME)}</div>`:''}</td><td style="white-space:normal">${esc(l.DESCRICAO)}${l.OBS?`<div class="muted small" title="Observações">📝 ${esc(l.OBS)}</div>`:''}</td><td>${esc(l.NOTA_FISCAL)}</td><td>${esc(l.CATEGORIA)||'<span class="muted">—</span>'}</td><td style="white-space:normal">${fnCCHtml(l.CENTRO_CUSTO)}</td>
+    return `<tr class="${venc?'fn-venc':''}${sel&&FN.sel.has(l.ID)?' fn-sel':''}">${sel?`<td class="c"><input type="checkbox" class="fn-ck" data-id="${esc(l.ID)}" ${FN.sel.has(l.ID)?'checked':''} onchange="fnSelUm(this)"></td>`:''}<td>${esc(quitadas?l.DATA_PAGAMENTO:l.VENCIMENTO)}${venc?' <span class="tag t-bad">vencido</span>':''}</td>${quitadas?`<td class="muted">${esc(l.VENCIMENTO)}</td>`:''}<td><b>${esc(l.NOME)}</b>${/CART/i.test(l.FORMA_PAGAMENTO||'')?' <span class="tag t-warn" title="Cartão de crédito">💳 cartão</span>':''}${!quitadas&&l.CONTA_ID&&fnConta(l.CONTA_ID)?`<div class="muted small" title="Conta de recebimento/pagamento prevista">🏦 ${esc(fnConta(l.CONTA_ID).NOME)}</div>`:''}</td><td style="white-space:normal">${esc(l.DESCRICAO)}${l.OBS?`<div class="muted small" title="Observações">📝 ${esc(l.OBS)}</div>`:''}</td><td>${esc(l.NOTA_FISCAL)}</td><td>${esc(l.CATEGORIA)||'<span class="muted">—</span>'}</td><td style="white-space:normal">${fnCCHtml(l.CENTRO_CUSTO,+l.VALOR)}</td>
     <td class="n"><b>${fR(+(quitadas?l.VALOR_PAGO:l.VALOR))}</b></td>${quitadas?`<td>${esc((fnConta(l.CONTA_ID)||{}).NOME||'—')}${l.EXTRATO_ID?' <span class="tag t-ok" title="Conciliado com o extrato">✓</span>':''}</td>`:''}
     <td class="c" style="white-space:nowrap">${l.COD_BARRAS?`<button class="ib" title="Copiar código de barras: ${esc(fnFmtCB(l.COD_BARRAS))}" onclick="fnCopiarCB('${esc(l.COD_BARRAS)}')">📋</button>`:''}${quitadas?`<button class="ib" onclick="fnEstornar('${esc(l.ID)}')">Estornar</button>`:(fnSoConciliacao(l)?`<button class="ib fn-soconc" title="Conta corrente: o pagamento só é baixado pela Conciliação bancária" onclick="fnIr('contas','conc')">🏦 Conciliação</button>`:`<button class="ib" onclick="fnModalBaixa('${esc(l.ID)}')">✓ ${l.TIPO==='RECEBER'?'Receber':'Pagar'}</button>`)}<button class="ib" onclick="fnModalLanc('${esc(l.ID)}')">✎</button><button class="ib del" onclick="fnExcluirLanc('${esc(l.ID)}')">✕</button></td></tr>`; }).join('')
     ||`<tr><td colspan="10" class="muted">Nenhum lançamento.</td></tr>`}</tbody>
@@ -2541,6 +2556,7 @@ function fnRelatorio(sub){
     <select onchange="FN.cat=this.value;fnAtualizar()" style="max-width:220px"><option value="">Categoria: todas</option>${fnCats(tipo).map(c=>`<option ${c===FN.cat?'selected':''}>${esc(c)}</option>`).join('')}</select>
     <select onchange="FN.cc=this.value;fnAtualizar()" style="max-width:200px"><option value="">Centro de custo: todos</option>${fnCentros().map(c=>`<option ${c===FN.cc?'selected':''}>${esc(c)}</option>`).join('')}</select>
     <button class="btn ghost sm" onclick="FN.q='';FN.de='';FN.ate='';FN.cat='';FN.cc='';fnAtualizar()">limpar</button>
+    ${L.length?(()=>{ FN.sel=FN.sel||new Set(); const todos=L.every(l=>FN.sel.has(l.ID)); return todos?`<button class="btn ghost sm" onclick="FN.selVis=fnFiltrados(FN.sub.rel).map(l=>l.ID);fnSelTodos(false)">☐ Desmarcar todos</button>`:`<button class="btn ghost sm" onclick="FN.selVis=fnFiltrados(FN.sub.rel).map(l=>l.ID);fnSelTodos(true)" title="Marca todos os lançamentos filtrados (inclusive os que não aparecem na tela)">☑ Selecionar todos (${L.length})</button>`; })():''}
     ${vencidos.length?`<span class="tag t-bad">${vencidos.length} vencido(s) · ${fR(vencidos.reduce((s,l)=>s+(+l.VALOR||0),0))}</span>`:''}
   </div>${fnBarraSel(L)}${fnTabelaLanc(L,quit,true)}`;
 }
@@ -2575,7 +2591,7 @@ function fnDREAbrir(key,g,nome,m){
   modal(`<div class="mh"><h3>${part?'DRE particular':'DRE Miashop'} · ${realizado?'Realizado':'Agendado'} — ${esc(nome||rotG)}${m?' · '+rrMesNome(m):' · '+FN.ano}</h3><button class="btn ghost" onclick="fecharModal()">✕</button></div>
   <p class="small muted" style="margin-top:0">${L.length} lançamento(s) · total <b>${fR(tot)}</b>${FN.dreCC?` · centro de custo <b>${esc(FN.dreCC)}</b> (valores proporcionais ao % do centro)`:''}</p>
   <div class="tw sl-tab" style="max-height:62vh"><table><thead><tr><th>${realizado?'Pago/recebido em':'Vencimento'}</th><th>Nome</th><th>Descrição</th><th>NF</th>${nome?'':'<th>Categoria</th>'}<th>Centro de custo</th><th class="n">Valor</th><th></th></tr></thead><tbody>
-  ${L.map(({l,v})=>`<tr><td>${esc(realizado?l.DATA_PAGAMENTO:l.VENCIMENTO)}</td><td><b>${esc(l.NOME)}</b>${/CART/i.test(l.FORMA_PAGAMENTO||'')?' <span class="tag t-warn">💳</span>':''}</td><td style="white-space:normal">${esc(l.DESCRICAO)}${l.OBS?`<div class="muted small">📝 ${esc(l.OBS)}</div>`:''}</td><td>${esc(l.NOTA_FISCAL)}</td>${nome?'':`<td>${esc(l.CATEGORIA)}</td>`}<td style="white-space:normal">${fnCCHtml(l.CENTRO_CUSTO)}</td><td class="n"><b>${fR(v)}</b></td>
+  ${L.map(({l,v})=>`<tr><td>${esc(realizado?l.DATA_PAGAMENTO:l.VENCIMENTO)}</td><td><b>${esc(l.NOME)}</b>${/CART/i.test(l.FORMA_PAGAMENTO||'')?' <span class="tag t-warn">💳</span>':''}</td><td style="white-space:normal">${esc(l.DESCRICAO)}${l.OBS?`<div class="muted small">📝 ${esc(l.OBS)}</div>`:''}</td><td>${esc(l.NOTA_FISCAL)}</td>${nome?'':`<td>${esc(l.CATEGORIA)}</td>`}<td style="white-space:normal">${fnCCHtml(l.CENTRO_CUSTO,+l.VALOR)}</td><td class="n"><b>${fR(v)}</b></td>
     <td class="c"><button class="ib" title="Editar" onclick="fecharModal();fnAbrirLanc('${esc(l.ID)}')">✎</button></td></tr>`).join('')}</tbody>
   <tfoot><tr><td colspan="${nome?5:6}">TOTAL</td><td class="n">${fR(tot)}</td><td></td></tr></tfoot></table></div>`);
 }
@@ -2736,6 +2752,21 @@ function fnBarraSel(L){ FN.sel=FN.sel||new Set(); FN.selVis=L.map(l=>l.ID); cons
   return `<div class="fn-selbar" id="fnSelBar"><span class="small"><b>${k}</b> selecionado(s) · ${fR(L.filter(l=>FN.sel.has(l.ID)).reduce((s,l)=>s+(+l.VALOR||0),0))}</span>
     <button class="btn sm" onclick="fnModalLote()">✎ Editar</button>${k>1?'<button class="btn ghost sm" onclick="fnJuntarSel()" title="Mesmo boleto/cheque dividido em várias contas por centro de custo: vira 1 conta com o valor total e os centros de custo em %">⧉ Juntar em 1 (valor total)</button>':''}<button class="btn ghost sm del" onclick="fnExcluirSel()">✕ Excluir</button><button class="btn ghost sm" onclick="fnSelTodos(false)">limpar</button></div>`; }
 function fnSelIds(){ return (FN.selVis||[]).filter(i=>FN.sel.has(i)); }
+// clicar na caixinha e ARRASTAR para cima/baixo marca (ou desmarca) vários de uma vez; Shift+clique marca o intervalo
+let FN_ARR=null, FN_ULTCK=null;
+function fnSelAplicar(box,v){ box.checked=v; v?FN.sel.add(box.dataset.id):FN.sel.delete(box.dataset.id); const tr=box.closest('tr'); if(tr) tr.classList.toggle('fn-sel',v); }
+function fnSelIntervalo(a,b,v){ const T=a.closest('tbody'); if(!T||T!==b.closest('tbody')) return fnSelAplicar(b,v); const all=[...T.querySelectorAll('input.fn-ck')], i=all.indexOf(a), j=all.indexOf(b); if(i<0||j<0) return fnSelAplicar(b,v);
+  for(let k=Math.min(i,j);k<=Math.max(i,j);k++) fnSelAplicar(all[k],v); }
+function fnSelBarraAtualizar(){ const L=fnFiltrados(FN.sub.rel); const bar=document.getElementById('fnSelBar'); if(bar) bar.outerHTML=fnBarraSel(L); }
+document.addEventListener('mousedown',e=>{ if(e.button!==0) return; const td=e.target.closest&&e.target.closest('td'); const box=td&&td.querySelector('input.fn-ck'); if(!box) return;
+  e.preventDefault(); FN.sel=FN.sel||new Set(); const v=!box.checked;
+  if(e.shiftKey&&FN_ULTCK&&document.body.contains(FN_ULTCK)) fnSelIntervalo(FN_ULTCK,box,v); else fnSelAplicar(box,v);
+  FN_ARR={v,ult:box}; FN_ULTCK=box; });
+document.addEventListener('mouseover',e=>{ if(!FN_ARR) return; const tr=e.target.closest&&e.target.closest('tr'); const box=tr&&tr.querySelector('input.fn-ck'); if(box&&box!==FN_ARR.ult){ fnSelIntervalo(FN_ARR.ult,box,FN_ARR.v); FN_ARR.ult=box; FN_ULTCK=box; } });
+document.addEventListener('mousemove',e=>{ if(!FN_ARR) return; if(e.clientY>innerHeight-50) scrollBy(0,24); else if(e.clientY<70) scrollBy(0,-24); });
+document.addEventListener('mouseup',()=>{ if(!FN_ARR) return; FN_ARR=null; fnSelBarraAtualizar(); });
+document.addEventListener('click',e=>{ if(e.target.matches&&e.target.matches('input.fn-ck')) e.preventDefault(); },true); // a marcação já foi feita no mousedown
+document.addEventListener('keydown',e=>{ if(e.key===' '&&e.target.matches&&e.target.matches('input.fn-ck')){ e.preventDefault(); FN.sel=FN.sel||new Set(); fnSelAplicar(e.target,!e.target.checked); fnSelBarraAtualizar(); } });
 function fnSelTodos(on){ (FN.selVis||[]).forEach(i=>on?FN.sel.add(i):FN.sel.delete(i)); fnAtualizar(); }
 function fnSelUm(ck){ ck.checked?FN.sel.add(ck.dataset.id):FN.sel.delete(ck.dataset.id); ck.closest('tr').classList.toggle('fn-sel',ck.checked);
   const L=fnFiltrados(FN.sub.rel); const bar=document.getElementById('fnSelBar'); if(bar) bar.outerHTML=fnBarraSel(L); }
@@ -3089,6 +3120,7 @@ function fnFeriados(ano){ if(FN_FER[ano]) return FN_FER[ano];
   return FN_FER[ano]=F; }
 // vencido só depois do dia útil: vencimento em sábado, domingo ou feriado vale até o próximo dia útil (a data gravada não muda)
 function fnVencido(l,hoje){ const v=isoBR(l.VENCIMENTO); return !!v&&l.STATUS!=='QUITADO'&&fnDiaUtil(v)<(hoje||hojeISO()); }
+const FN_DU={}; function fnDiaUtilBR(br){ br=String(br||''); if(br in FN_DU) return FN_DU[br]; const iso=isoBR(br); let r=''; if(iso){ const u=fnDiaUtil(iso); r=u.slice(8,10)+'/'+u.slice(5,7)+'/'+u.slice(0,4); } return FN_DU[br]=r; }
 function fnDiaUtil(iso){ // sábado, domingo e feriado passam para o próximo dia útil
   let d=new Date(iso+'T12:00'); for(let n=0;n<15;n++){ const s=d.toISOString().slice(0,10); if(d.getDay()!==0&&d.getDay()!==6&&!fnFeriados(d.getFullYear())[s]) return s; d.setDate(d.getDate()+1); } return iso; }
 function fnDashboard(){
