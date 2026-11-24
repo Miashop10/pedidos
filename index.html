@@ -3099,7 +3099,7 @@ async function filaEnviar(manual){
 function fnFilaReenviar(cli){ const F=filaLer(); const x=F.find(y=>y.cli===cli); if(x){ x.recusado=false; x.erro=''; } filaGravar(F); filaEnviar(true).then(()=>fnAtualizar()); }
 function filaIniciar(){ // ao abrir: o que ficou "enviando" de uma sessão anterior volta para pendente
   const F=filaLer(); F.forEach(x=>{ if(x.env&&x.ses!==FILA_SES){ x.env=false; x.erro=x.erro||'Sessão anterior fechada antes da confirmação'; }
-    if(x.recusado&&x.acao==='finJuntarLanc'&&/não foi encontrado/.test(x.erro||'')){ x.recusado=false; x.erro='reenviando (correção do sistema)'; } }); filaGravar(F); // junções recusadas pela versão anterior: tenta de novo
+    if(x.recusado&&x.acao==='finJuntarLanc'&&/não foi encontrado|foi encontrado na planilha/.test(x.erro||'')){ x.recusado=false; x.erro='reenviando (correção do sistema)'; } }); filaGravar(F); // junções recusadas pela versão anterior: tenta de novo
   filaEnviar(false); setInterval(()=>{ if(filaLer().some(x=>!x.env&&!x.recusado)) filaEnviar(false); },20000); window.addEventListener('online',()=>filaEnviar(false)); }
 // tempos dos últimos envios (para achar o que está lento): rede = ida e volta inteira; Google = tempo dentro do Apps Script
 function fnTempoGuardar(acao,dados,t,rede){ try{ const L=LS.getJ?LS.getJ('mc_tempos',[]):JSON.parse(localStorage.getItem('mc_tempos')||'[]');
