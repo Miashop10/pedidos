@@ -2830,7 +2830,9 @@ async function fnSalvarLote(){
 }
 async function fnExcluirSel(){
   const ids=fnSelIds(); if(!ids.length) return; const tot=ids.map(fnLanc).filter(Boolean).reduce((s,l)=>s+(+l.VALOR||0),0);
-  if(!confirm(`EXCLUIR ${ids.length} lançamento(s) · ${fR(tot)}?\n\nDá para desfazer em Configurações → Histórico de ações.`)) return;
+  if(ids.length>200){ toast(`São ${ids.length} lançamentos marcados — exclua no máximo 200 por vez`,7000); return; }
+  if(ids.length>20){ const r=prompt(`ATENÇÃO: você vai EXCLUIR ${ids.length} lançamento(s) · ${fR(tot)}.\n\nPara confirmar, digite o número ${ids.length}:`); if(String(r||'').trim()!==String(ids.length)){ toast('Exclusão cancelada'); return; } }
+  else if(!confirm(`EXCLUIR ${ids.length} lançamento(s) · ${fR(tot)}?\n\nDá para desfazer em Configurações → Histórico de ações.`)) return;
   ids.forEach(i=>FN.sel.delete(i)); const set=new Set(ids);
   fnBg('finExcluirLote',{ids},{rotulo:`Excluir ${ids.length} lançamento(s) · ${fR(tot)}`,
     local:()=>{ const F=fin(); F.lanc=F.lanc.filter(l=>!set.has(l.ID)); F.extrato.forEach(e=>{ if(set.has(e.LANC_ID)) e.LANC_ID=''; }); },
