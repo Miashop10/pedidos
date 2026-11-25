@@ -1941,8 +1941,8 @@ function vFinanceiro(){
     : sec==='rel'?`<button class="btn sec sm" onclick="fnExportar()">Exportar Excel</button><button class="btn sec sm" onclick="exportarPDF(fnExportar,(FIN_SUBS.rel.find(x=>x[0]===FN.sub.rel)||[])[1])">Exportar PDF</button>${sub==='apagar'||sub==='areceber'?`<button class="btn" onclick="fnAbrirLanc(null,'${sub==='areceber'?'RECEBER':'PAGAR'}')">+ Agendar ${sub==='areceber'?'recebimento':'pagamento'}</button>`:''}`:'';
   return `<div class="slim fn-wrap">
   <aside class="fn-side"><div class="fn-side-t">FINANCEIRO</div>
-    ${FIN_SECOES.map(([k,n])=>{ const ab=FN.aberto===k; return `<div class="fn-grp ${ab?'ab':''} ${k===sec?'atv':''}">
-      <button class="fn-gh" onclick="${k==='inicio'?"fnIr('inicio','dash')":`fnIr('${k}')`}"><span class="fn-ic">${FIN_ICON[k]}</span><span>${n}</span>${k==='inicio'?'':`<span class="fn-ch">${ab?'︿':'﹀'}</span>`}</button>
+    ${FIN_SECOES.map(([k,n])=>{ const ab=true; /* todos os grupos do menu ficam sempre abertos */ return `<div class="fn-grp ${ab?'ab':''} ${k===sec?'atv':''}">
+      <button class="fn-gh" onclick="${k==='inicio'?"fnIr('inicio','dash')":`fnIr('${k}','${FIN_SUBS[k][0][0]}')`}"><span class="fn-ic">${FIN_ICON[k]}</span><span>${n}</span></button>
       ${ab&&k!=='inicio'?`<div class="fn-gl">${FIN_SUBS[k].map(([s2,n2])=>`<button class="${k===sec&&s2===sub?'on':''}" onclick="fnIr('${k}','${s2}')">${n2}</button>`).join('')}</div>`:''}</div>`; }).join('')}
   </aside>
   <div class="fn-main">
