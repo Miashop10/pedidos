@@ -886,6 +886,21 @@ function aplicarAbas(){
 function irPara(v){ if(v!=='config' && !(S.master||(S.abas||[]).includes(v))) return; S.view=v; const navV=v; document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===navV)); const bc=document.getElementById('btConfig'); if(bc) bc.classList.toggle('on',v==='config'); if(v==='config') CFG.usuarios=null; render(); window.scrollTo(0,0); }
 
 function descompactar(o){ if(Array.isArray(o)) return o.map(descompactar); if(o&&typeof o==='object'){ if(o.__c&&o.__r){ const c=o.__c; return o.__r.map(r=>{ const x={}; c.forEach((k,i)=>x[k]=r[i]); return x; }); } const r={}; for(const k in o) r[k]=descompactar(o[k]); return r; } return o; }
+// baixa o financeiro: os cadastros vêm primeiro e os lançamentos/extrato em partes de 15 mil linhas (3 de cada vez).
+// Tudo numa resposta só passava de ~50 MB (limite do Google) e o computador que precisava baixar tudo ficava com a cópia velha.
+async function finBaixar(params){
+  const r=await api('finCarregar',Object.assign({partes:1},params||{}));
+  if(!r||!r.paginar) return r;
+  const PASSO=15000, T=[]; Object.entries(r.paginar).forEach(([aba,n])=>{ for(let i=2;i<=n;i+=PASSO) T.push({aba,ini:i}); });
+  const res=new Array(T.length); let prox=0, feitas=0; S.finProg=0;
+  const um=async()=>{ while(prox<T.length){ const k=prox++, t=T[k];
+    for(let tent=0;;tent++){ try{ res[k]=await api('finCarregarParte',{aba:t.aba,ini:t.ini,qtd:PASSO}); break; }catch(e){ if(tent>=3){ S.finProg=null; throw e; } await new Promise(z=>setTimeout(z,2500*(tent+1))); } }
+    feitas++; S.finProg=Math.round(feitas*100/T.length); } };
+  try{ await Promise.all([um(),um(),um()]); } finally { S.finProg=null; }
+  const vistos={FIN_LANCAMENTOS:new Set(),FIN_EXTRATO:new Set()};
+  T.forEach((t,k)=>{ const dest=t.aba==='FIN_EXTRATO'?r.fin.extrato:r.fin.lanc, v=vistos[t.aba]; ((res[k]&&res[k].linhas)||[]).forEach(x=>{ const id=String(x.ID||''); if(id&&v.has(id)) return; if(id) v.add(id); dest.push(x); }); });
+  delete r.paginar; return r;
+}
 // abre o sistema com as abas leves primeiro; o financeiro (maior) chega em paralelo, sem segurar as outras abas
 // cópia do financeiro guardada neste computador (IndexedDB): o financeiro abre na hora com ela e é conferido com a nuvem em seguida
 const IDB={ db:null, abrir(){ if(this.db) return this.db; this.db=new Promise((ok,err)=>{ try{ const r=indexedDB.open('miashop',1); r.onupgradeneeded=()=>r.result.createObjectStore('kv'); r.onsuccess=()=>ok(r.result); r.onerror=()=>err(r.error); }catch(e){ err(e); } }); return this.db; },
@@ -904,14 +919,14 @@ async function carregar(silencioso){
   if(S.dados&&S.dados.fin&&!fnFinOk(S.dados.fin)){ S.dados.fin=null; S.finVer='0'; } // financeiro incompleto na memória: busca tudo de novo
   const pCache=pode&&!(S.dados&&S.dados.fin)?IDB.get(finChave()).then(c=>c&&fnFinOk(c.fin)?c:null).catch(()=>null):Promise.resolve(null);
   // pede o financeiro uma vez só (antes, se alguma gravação terminasse no meio, descartava a resposta e pedia de novo — com o financeiro grande isso podia nunca acabar)
-  const pedirFin=async c=>{ const g=S.finGen||0; const r=await api('finCarregar',c?{ver:c.ver,idade:Date.now()-(c.t||0)}:{}); if(r&&typeof r==='object') r._gen=g; return r; };
+  const pedirFin=async c=>{ const g=S.finGen||0; const r=await finBaixar(c?{ver:c.ver,idade:Date.now()-(c.t||0)}:{}); if(r&&typeof r==='object') r._gen=g; return r; };
   S.finErro=null; S.finIni=Date.now();
   const pFin=pode?pCache.then(c=>pedirFin(c&&c.fin?c:(S.dados&&S.dados.fin&&S.finVer?{ver:S.finVer,t:S.finVerT}:null))).catch(e=>{ S.finErro=e.message||String(e); if(!silencioso) toast('Erro ao carregar o financeiro: '+S.finErro,8000); if(S.view==='financeiro') render(); return null; }):null;
   try{ const d=await api('getDados'); const finAnt=S.dados&&S.dados.fin; S.dados=d; if(finAnt) S.dados.fin=finAnt; S.dados.compras=(d.importadoras||[]).map(n=>({IMPORTADORA:n}));
     if(!S.dados.fin){ const c=await pCache; if(c&&c.fin){ S.dados.fin=c.fin; S.finVer=c.ver; S.finVerT=c.t; S.finDaCopia=true; } }
     document.getElementById('whoSync').textContent=S.finDaCopia?'conferindo o financeiro…':'atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); render(); }
   catch(e){ if(!silencioso) toast('Erro ao carregar: '+e.message,5000); if(!S.dados){ S.finErro='Erro ao carregar o sistema: '+e.message; render(); } }
-  let f=pFin?await pFin:null; if(!pFin&&temFin()) f=await api('finCarregar',{}).catch(e=>{ S.finErro=e.message||String(e); if(S.view==='financeiro') render(); return null; });
+  let f=pFin?await pFin:null; if(!pFin&&temFin()) f=await finBaixar({}).catch(e=>{ S.finErro=e.message||String(e); if(S.view==='financeiro') render(); return null; });
   if(f&&!('fin' in f)&&!f.mesma&&Array.isArray(f.lanc)) f={fin:f,ver:'0'}; // Code.gs antigo (sem versão): usa assim mesmo
   if(f&&S.dados){
     if(f.mesma&&fnFinOk(S.dados.fin)){ S.finVer=f.ver; S.finVerT=Date.now(); }
@@ -1930,7 +1945,7 @@ const FIN_ICON={inicio:'📊',contas:'🏦',receb:'↑',pagar:'↓',rel:'📄',c
 // Antes, um computador aberto desde cedo não via as baixas/conciliações feitas em outro (ex.: Contas pagas vazia num computador e cheia no outro).
 async function fnChecarNuvem(){ const pend=()=>filaLer().some(x=>!x.env&&!x.recusado);
   if(S._checando||!S.dados||!fnFinOk(S.dados.fin)||pend()||Date.now()-(S._ultChec||0)<180000) return; S._checando=true; S._ultChec=Date.now();
-  try{ const g=S.finGen||0; const r=await api('finCarregar',{ver:S.finVer||'0',idade:Date.now()-(S.finVerT||0)});
+  try{ const g=S.finGen||0; const r=await finBaixar({ver:S.finVer||'0',idade:Date.now()-(S.finVerT||0)});
     if(!r) return; if(r.mesma){ S.finVer=r.ver; S.finVerT=Date.now(); return; }
     if(r.fin&&fnFinOk(r.fin)&&(S.finGen||0)===g&&!pend()){ S.dados.fin=r.fin; S.finVer=r.ver; S.finVerT=Date.now(); FN._nomeIdx=null; FN._sugIdx=null; finGuardar();
       const a=document.activeElement, ocupado=document.querySelector('#fnDrawer .fnd')||document.querySelector('.mbg')||(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName));
@@ -1940,7 +1955,7 @@ function fnIr(sec,sub){ setTimeout(fnChecarNuvem,50); FN.lim=0; if(sub&&(FN.sec!
 function vFinanceiro(){
   if(!S.dados||!S.dados.fin){ if(S.finErro) return `<div class="card" style="margin-top:20px;padding:18px"><b class="bad">Não consegui carregar o financeiro.</b><div class="small muted" style="margin:6px 0 12px">${esc(S.finErro)}</div><button class="btn" onclick="S.finErro=null;render();carregar()">↻ Tentar de novo</button></div>`;
     const seg=S.finIni?Math.round((Date.now()-S.finIni)/1000):0; clearTimeout(window._finTic); window._finTic=setTimeout(()=>{ if(S.view==='financeiro'&&(!S.dados||!S.dados.fin)) render(); },1000);
-    return `<div class="card muted" style="margin-top:20px;padding:18px">⏳ Carregando o financeiro… <span class="small">${seg}s</span>${seg>40?'<div class="small" style="margin-top:6px">O financeiro está grande e a primeira carga neste computador demora. Nas próximas vezes ele abre na hora.</div>':''}</div>`; }
+    return `<div class="card muted" style="margin-top:20px;padding:18px">⏳ Carregando o financeiro… <span class="small">${S.finProg!=null?S.finProg+'% · ':''}${seg}s</span>${seg>40?'<div class="small" style="margin-top:6px">O financeiro está grande e a primeira carga neste computador demora. Nas próximas vezes ele abre na hora.</div>':''}</div>`; }
   const sec=FN.sec, sub=FN.sub[sec]; if(FN.aberto===undefined) FN.aberto=sec;
   const titulo=(FIN_SUBS[sec].find(x=>x[0]===sub)||[])[1]||'';
   const acoes = sec==='contas'?`<button class="btn sec sm" onclick="fnModalConta()">+ Adicionar conta</button><button class="btn sec sm" onclick="fnColarExtrato()">📋 Colar extrato</button><button class="btn sm" onclick="fnEscolherExtrato()">⬆ Importar extrato (Excel)</button><input type="file" id="fnInExt" accept=".xlsx,.xls,.csv" class="hide" onchange="if(this.files[0]) fnLerExtrato(this.files[0]); this.value=''">`
