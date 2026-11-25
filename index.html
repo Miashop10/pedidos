@@ -1926,7 +1926,7 @@ const fnConsta = (c,e) => { const d0=fnConta0(c); return !d0 || (isoBR(e.DATA)||
 function fnSaldo(c){ return (+c.SALDO_INICIAL||0) + fin().extrato.filter(e=>String(e.CONTA_ID)===String(c.ID)&&fnConsta(c,e)).reduce((s,e)=>s+(+e.VALOR||0),0); }
 
 const FIN_ICON={inicio:'📊',contas:'🏦',receb:'↑',pagar:'↓',rel:'📄',config:'⚙'};
-function fnIr(sec,sub){ FN.lim=0; if(sub){ FN.sec=sec; FN.sub[sec]=sub; FN.aberto=sec; } else if(FN.aberto===sec){ FN.aberto=''; } else { FN.aberto=sec; FN.sec=sec; } render(); }
+function fnIr(sec,sub){ FN.lim=0; if(sub&&(FN.sec!==sec||FN.sub[sec]!==sub)){ FN.q=''; FN.hq=''; FN.bq=''; } /* trocou de tela: a busca digitada na outra não continua filtrando */ if(sub){ FN.sec=sec; FN.sub[sec]=sub; FN.aberto=sec; } else if(FN.aberto===sec){ FN.aberto=''; } else { FN.aberto=sec; FN.sec=sec; } render(); }
 function vFinanceiro(){
   if(!S.dados||!S.dados.fin){ if(S.finErro) return `<div class="card" style="margin-top:20px;padding:18px"><b class="bad">Não consegui carregar o financeiro.</b><div class="small muted" style="margin:6px 0 12px">${esc(S.finErro)}</div><button class="btn" onclick="S.finErro=null;render();carregar()">↻ Tentar de novo</button></div>`;
     const seg=S.finIni?Math.round((Date.now()-S.finIni)/1000):0; clearTimeout(window._finTic); window._finTic=setTimeout(()=>{ if(S.view==='financeiro'&&(!S.dados||!S.dados.fin)) render(); },1000);
@@ -1970,7 +1970,12 @@ function fnCorpo0(){
   if(sub==='lucro') return fnLucroLoja();
   return fnRelatorio(sub);
 }
-function fnAtualizar(){ const el=document.getElementById('fnCorpo'); if(!el) return; el.innerHTML=fnCorpo(); ajustarTabelas(el); }
+function fnAtualizar(){ const el=document.getElementById('fnCorpo'); if(!el) return;
+  // o campo onde a pessoa está digitando (ex.: Buscar) continua com o cursor depois de redesenhar a tela
+  const a=document.activeElement, foco=a&&el.contains(a)&&a.tagName==='INPUT'&&/^(search|text)$/i.test(a.type||'text')?{id:a.id,ph:a.getAttribute('placeholder'),i:[...el.querySelectorAll('input')].indexOf(a),s:a.selectionStart,e:a.selectionEnd}:null;
+  el.innerHTML=fnCorpo(); ajustarTabelas(el);
+  if(foco){ let n=foco.id?document.getElementById(foco.id):null; if(!n&&foco.ph) n=[...el.querySelectorAll('input')].find(x=>x.getAttribute('placeholder')===foco.ph); if(!n) n=el.querySelectorAll('input')[foco.i];
+    if(n){ n.focus(); try{ n.setSelectionRange(foco.s,foco.e); }catch(e){} } } }
 function ligarFinanceiro(){ fnLigarAgendar(); ligarImportarCola(); }
 
 /* ---------- contas bancárias ---------- */
@@ -2235,12 +2240,12 @@ function fnAbrirLanc(id,tipo,pre,exId){
       <div class="fnd-g">
         ${f('Nome',`<input id="fmNome" list="dlFnNome${tipo}" value="${esc(l.NOME||'')}" placeholder="${rec?'Cliente / origem':'Fornecedor / favorecido'}" onchange="const nf=document.getElementById('fmNF'); if(nf&&nf.value.trim()) fnDrNFDist(nf.value)">`)}
         ${f('Descrição',`<input id="fmDesc" value="${esc(l.DESCRICAO||'')}" placeholder="Ex.: Serviço prestado">`,'',1)}
-        ${f('Nota fiscal',`<input id="fmNF" value="${esc(l.NOTA_FISCAL||'')}" onchange="fnDrNFDist(this.value)">`,'',1)}
+        ${rec?`<input type="hidden" id="fmNF" value="${esc(l.NOTA_FISCAL||'')}">`:f('Nota fiscal',`<input id="fmNF" value="${esc(l.NOTA_FISCAL||'')}" onchange="fnDrNFDist(this.value)">`,'',1)}
         ${f('Categoria',`<input id="fmCat" list="dlFnCat${tipo}" value="${esc(l.CATEGORIA||'')}" placeholder="Selecione ou digite uma categoria…">`)}
         ${f('Valor',`<div class="fnd-val"><span class="${rec?'ok':'bad'}">${rec?'↑':'↓'}</span><input id="fmValor" inputmode="decimal" value="${l.VALOR?fN(+l.VALOR,2):''}" placeholder="0,00" oninput="fnDrRecalc()"></div>`)}
       </div>
-      <label class="sf" style="margin-top:12px"><span>Código de barras <i class="muted" style="font-weight:400;text-transform:none">(linha digitável — preenchido pelo boleto)</i></span>
-        <div class="fnd-cb"><input id="fmCB" inputmode="numeric" value="${esc(fnFmtCB(l.COD_BARRAS||''))}" placeholder="Anexe o boleto ou cole a linha digitável" oninput="this.value=fnFmtCB(this.value)"><button type="button" class="btn sec sm" onclick="fnCopiarCB(document.getElementById('fmCB').value)">📋 Copiar</button></div></label>
+      ${rec?`<input type="hidden" id="fmCB" value="${esc(l.COD_BARRAS||'')}">`:`      <label class="sf" style="margin-top:12px"><span>Código de barras <i class="muted" style="font-weight:400;text-transform:none">(linha digitável — preenchido pelo boleto)</i></span>
+        <div class="fnd-cb"><input id="fmCB" inputmode="numeric" value="${esc(fnFmtCB(l.COD_BARRAS||''))}" placeholder="Anexe o boleto ou cole a linha digitável" oninput="this.value=fnFmtCB(this.value)"><button type="button" class="btn sec sm" onclick="fnCopiarCB(document.getElementById('fmCB').value)">📋 Copiar</button></div></label>`}
       <label class="sf" style="margin-top:12px"><span>Observações <i class="muted" style="font-weight:400;text-transform:none">(opcional)</i></span><textarea id="fmObs" rows="2" style="width:100%;resize:vertical">${esc(l.OBS||'')}</textarea></label>
       <div class="fnd-cc">
         <div class="row" style="align-items:center"><b>Centro de custo</b><span class="sp"></span>
@@ -2583,9 +2588,7 @@ function fnRelatorio(sub){
     <button class="btn ghost sm" onclick="FN.q='';FN.de='';FN.ate='';FN.cat='';FN.cc='';fnAtualizar()">limpar</button>
     ${L.length?(()=>{ FN.sel=FN.sel||new Set(); const todos=L.every(l=>FN.sel.has(l.ID)); return todos?`<button class="btn ghost sm" onclick="FN.selVis=fnFiltrados(FN.sub.rel).map(l=>l.ID);fnSelTodos(false)">☐ Desmarcar todos</button>`:`<button class="btn ghost sm" onclick="FN.selVis=fnFiltrados(FN.sub.rel).map(l=>l.ID);fnSelTodos(true)" title="Marca todos os lançamentos filtrados (inclusive os que não aparecem na tela)">☑ Selecionar todos (${L.length})</button>`; })():''}
     ${vencidos.length?`<span class="tag t-bad">${vencidos.length} vencido(s) · ${fR(vencidos.reduce((s,l)=>s+(+l.VALOR||0),0))}</span>`:''}
-  </div>${fnBarraSel(L)}${!L.length?`<div class="card muted small" style="padding:10px 12px;margin-bottom:8px">Nenhum lançamento nesta lista. Financeiro carregado neste computador: <b>${fin().lanc.length}</b> lançamento(s) no total (${fin().lanc.filter(l=>l.TIPO===tipo&&(quit?l.STATUS==='QUITADO':l.STATUS!=='QUITADO')).length} deste tipo)${(()=>{ const c={}; fin().lanc.forEach(l=>{ const k=String(l.TIPO)+' / '+String(l.STATUS||'(vazio)'); c[k]=(c[k]||0)+1; });
-  const rec=fin().lanc.filter(l=>l.TIPO===tipo).sort((a,b)=>String(b.ATUALIZADO_EM).split(' ')[0].split('/').reverse().join('')+String(b.ATUALIZADO_EM).split(' ')[1] > String(a.ATUALIZADO_EM).split(' ')[0].split('/').reverse().join('')+String(a.ATUALIZADO_EM).split(' ')[1] ? 1:-1).slice(0,8);
-  return `<div style="margin-top:6px">Por tipo/situação: ${Object.entries(c).map(([k,v])=>esc(k)+': <b>'+v+'</b>').join(' · ')}</div><div style="margin-top:4px">Últimos alterados deste tipo: ${rec.map(l=>esc(l.NOME)+' ('+esc(l.STATUS)+', pago '+esc(l.DATA_PAGAMENTO||'-')+', alt. '+esc(l.ATUALIZADO_EM)+' por '+esc(l.USUARIO)+(l.EXTRATO_ID?', extrato '+esc(l.EXTRATO_ID):'')+')').join('; ')}</div>`; })()}${FN.q||FN.de||FN.ate||FN.cat||FN.cc?' · há filtros ativos — clique em "limpar"':''}${S.finDaCopia?' · usando a cópia deste computador':''}.</div>`:''}${fnTabelaLanc(L,quit,true)}`;
+  </div>${fnBarraSel(L)}${fnTabelaLanc(L,quit,true)}`;
 }
 function fnExportar(){ const sub=FN.sub.rel, quit=(sub==='pagas'||sub==='recebidas');
   const rows=fnFiltrados(sub).map(l=>({'Vencimento':l.VENCIMENTO,'Pago/recebido em':l.DATA_PAGAMENTO||'','Nome':l.NOME,'Descrição':l.DESCRICAO,'Nota fiscal':l.NOTA_FISCAL,'Categoria':l.CATEGORIA,'Centro de custo':l.CENTRO_CUSTO||'','Forma de pagamento':l.FORMA_PAGAMENTO||'CONTA CORRENTE','Observações':l.OBS||'','Código de barras':l.COD_BARRAS?fnFmtCB(l.COD_BARRAS):'','Valor':+l.VALOR,'Valor pago':quit?+l.VALOR_PAGO:'','Conta':(fnConta(l.CONTA_ID)||{}).NOME||'','Conciliado':l.EXTRATO_ID?'SIM':''}));
