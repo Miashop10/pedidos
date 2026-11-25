@@ -2225,7 +2225,7 @@ function fnLigarAgendar(){}
 function fnAbrirLanc(id,tipo,pre,exId){
   const l=id?fnLanc(id):(pre||{}); tipo=id?l.TIPO:tipo; const rec=tipo==='RECEBER';
   const ccs=fnCCParse(l.CENTRO_CUSTO); FN.dr={id:id||'',tipo,exId:exId||'',modo:'pct'};
-  const titulo=exId?'Criar lançamento e conciliar':id?('Editar '+(rec?'recebimento':'pagamento')):('Agendar '+(rec?'recebimento':'pagamento'));
+  const titulo=pre&&pre._dup?('Duplicar '+(rec?'recebimento':'pagamento')+' — ajuste o vencimento e o valor'):exId?'Criar lançamento e conciliar':id?('Editar '+(rec?'recebimento':'pagamento')):('Agendar '+(rec?'recebimento':'pagamento'));
   const f=(lb,html,st,op)=>`<label class="sf" style="${st||''}"><span>${lb}${op?' <i class="muted" style="font-weight:400;text-transform:none">(opcional)</i>':''}</span>${html}</label>`;
   const dr=document.getElementById('fnDrawer')||document.body.appendChild(Object.assign(document.createElement('div'),{id:'fnDrawer'}));
   dr.innerHTML=`<div class="fnd-bg" onclick="fnFecharLanc()"></div><div class="fnd ${rec?'rec':'pag'}">
@@ -2234,11 +2234,11 @@ function fnAbrirLanc(id,tipo,pre,exId){
       ${!rec&&!id?`<label class="fnd-drop fnd-bol" id="fmBolDrop" ondragover="event.preventDefault();this.classList.add('on')" ondragleave="this.classList.remove('on')" ondrop="event.preventDefault();this.classList.remove('on');if(event.dataTransfer.files[0]) fnDrBoleto(event.dataTransfer.files[0])">
         <input type="file" accept=".pdf,image/jpeg,image/png,image/webp" class="hide" onchange="if(this.files[0]) fnDrBoleto(this.files[0]); this.value=''">🧾 <b>Arraste aqui o boleto (PDF ou foto)</b> <span class="muted">ou clique para escolher — preenche nome, vencimento, valor, categoria e centro de custo</span></label>
       <div id="fmBolInfo"></div>`:''}
-      <div class="fnd-r1">${f('Vencimento',`<input type="date" id="fmVenc" value="${isoBR(l.VENCIMENTO)||''}">`,'flex:0 0 170px')}
+      <div class="fnd-r1">${f('Vencimento',`<input type="date" id="fmVenc" value="${isoBR(l.VENCIMENTO)||(id?'':fnHojeISO())}">`,'flex:0 0 170px')}
         ${f('Forma de pagamento',`<div class="fnd-fp">${['CONTA CORRENTE','CARTÃO DE CRÉDITO'].map(o=>`<label><input type="radio" name="fmFP" value="${o}" ${(/CART/i.test(l.FORMA_PAGAMENTO||'')?'CARTÃO DE CRÉDITO':'CONTA CORRENTE')===o?'checked':''}><span>${o==='CONTA CORRENTE'?'🏦':'💳'} ${o}</span></label>`).join('')}</div>`,'flex:0 0 auto')}<span class="sp"></span>
         <div class="fnd-tot"><span>Total a ${rec?'receber':'pagar'}</span><b id="fmTotTop">${fR(+l.VALOR||0)}</b></div></div>
       <div class="fnd-g">
-        ${f('Nome',`<input id="fmNome" list="dlFnNome${tipo}" value="${esc(l.NOME||'')}" placeholder="${rec?'Cliente / origem':'Fornecedor / favorecido'}" onchange="const nf=document.getElementById('fmNF'); if(nf&&nf.value.trim()) fnDrNFDist(nf.value)">`)}
+        ${f('Nome',`<input id="fmNome" list="dlFnNome${tipo}" value="${esc(l.NOME||'')}" placeholder="${rec?'Cliente / origem':'Fornecedor / favorecido'}" oninput="fnDrNomeAuto(this.value,'${tipo}',false)" onchange="fnDrNomeAuto(this.value,'${tipo}',true);const nf=document.getElementById('fmNF'); if(nf&&nf.value.trim()) fnDrNFDist(nf.value)">`)}
         ${f('Descrição',`<input id="fmDesc" value="${esc(l.DESCRICAO||'')}" placeholder="Ex.: Serviço prestado">`,'',1)}
         ${rec?`<input type="hidden" id="fmNF" value="${esc(l.NOTA_FISCAL||'')}">`:f('Nota fiscal',`<input id="fmNF" value="${esc(l.NOTA_FISCAL||'')}" onchange="fnDrNFDist(this.value)">`,'',1)}
         ${f('Categoria',`<input id="fmCat" list="dlFnCat${tipo}" value="${esc(l.CATEGORIA||'')}" placeholder="Selecione ou digite uma categoria…">`)}
@@ -2266,7 +2266,7 @@ function fnAbrirLanc(id,tipo,pre,exId){
   </div>
   <datalist id="dlFnNome${tipo}">${fnNomes(tipo).map(n=>`<option value="${esc(n)}">`).join('')}</datalist><datalist id="dlFnCat${tipo}">${fnCats(tipo).map(n=>`<option value="${esc(n)}">`).join('')}</datalist><datalist id="dlFnCC">${fnCentros().map(n=>`<option value="${esc(n)}">`).join('')}</datalist>`;
   requestAnimationFrame(()=>dr.classList.add('on')); fnDrRecalc();
-  setTimeout(()=>{ const e=document.getElementById(l.VENCIMENTO?'fmNome':'fmVenc'); if(e) e.focus(); },120);
+  setTimeout(()=>{ const e=document.getElementById(l.VENCIMENTO&&!l._dup?'fmNome':'fmVenc'); if(e) e.focus(); },120);
 }
 function fnDrLinhaCC(c){ return `<div class="fnd-ccl${c.cod?' cod':''}${c.cod&&!c.nome?' falta':''}" ${c.cod?`data-cod="${esc(c.cod)}" data-ini="${esc(c.nome||'')}"`:''}><div class="cc-nw">${c.cod?`<span class="cc-cod" title="Código no anexo">${esc(c.cod)}</span>`:''}<input class="cc-n" list="dlFnCC" value="${esc(c.nome||'')}" placeholder="${c.cod?'Escolha o centro de custo de “'+esc(c.cod)+'”…':'Selecione ou digite um centro de custo…'}" oninput="this.closest('.fnd-ccl').classList.toggle('falta',!this.value.trim()&&!!this.closest('.fnd-ccl').dataset.cod)"></div>
   <div class="fnd-pv"><input class="cc-p" inputmode="decimal" value="${c.pct!=null&&c.pct!==''?fN(+c.pct,2):''}" placeholder="0,00" oninput="fnDrRecalc(this)"><i>%</i></div>
@@ -2568,8 +2568,10 @@ async function fnConfirmarImpLanc(){
 }
 
 /* ---------- relatórios ---------- */
+function fnSemFiltro(sub){ return sub==='pagas'&&!String(FN.q||'').trim()&&!FN.de&&!FN.ate&&!FN.cat&&!FN.cc; }
 function fnFiltrados(sub){
   const quit=(sub==='pagas'||sub==='recebidas'), tipo=(sub==='areceber'||sub==='recebidas')?'RECEBER':'PAGAR'; const q=semAcento(FN.q).trim();
+  if(fnSemFiltro(sub)) return []; // contas pagas: a tela abre vazia, só mostra o que for buscado/filtrado
   return fin().lanc.filter(l=>l.TIPO===tipo&&(quit?l.STATUS==='QUITADO':l.STATUS!=='QUITADO')).filter(l=>{
     const d=isoBR(quit?l.DATA_PAGAMENTO:l.VENCIMENTO); if(FN.de&&(!d||d<FN.de)) return false; if(FN.ate&&(!d||d>FN.ate)) return false;
     if(FN.cat&&up(l.CATEGORIA)!==up(FN.cat)) return false;
@@ -2588,7 +2590,7 @@ function fnRelatorio(sub){
     <button class="btn ghost sm" onclick="FN.q='';FN.de='';FN.ate='';FN.cat='';FN.cc='';fnAtualizar()">limpar</button>
     ${L.length?(()=>{ FN.sel=FN.sel||new Set(); const todos=L.every(l=>FN.sel.has(l.ID)); return todos?`<button class="btn ghost sm" onclick="FN.selVis=fnFiltrados(FN.sub.rel).map(l=>l.ID);fnSelTodos(false)">☐ Desmarcar todos</button>`:`<button class="btn ghost sm" onclick="FN.selVis=fnFiltrados(FN.sub.rel).map(l=>l.ID);fnSelTodos(true)" title="Marca todos os lançamentos filtrados (inclusive os que não aparecem na tela)">☑ Selecionar todos (${L.length})</button>`; })():''}
     ${vencidos.length?`<span class="tag t-bad">${vencidos.length} vencido(s) · ${fR(vencidos.reduce((s,l)=>s+(+l.VALOR||0),0))}</span>`:''}
-  </div>${fnBarraSel(L)}${fnTabelaLanc(L,quit,true)}`;
+  </div>${fnSemFiltro(sub)?`<div class="card muted" style="padding:22px;text-align:center">🔎 Use o campo <b>Buscar</b> ou os filtros (data de pagamento, categoria, centro de custo) para ver as contas pagas.</div>`:fnBarraSel(L)+fnTabelaLanc(L,quit,true)}`;
 }
 function fnExportar(){ const sub=FN.sub.rel, quit=(sub==='pagas'||sub==='recebidas');
   const rows=fnFiltrados(sub).map(l=>({'Vencimento':l.VENCIMENTO,'Pago/recebido em':l.DATA_PAGAMENTO||'','Nome':l.NOME,'Descrição':l.DESCRICAO,'Nota fiscal':l.NOTA_FISCAL,'Categoria':l.CATEGORIA,'Centro de custo':l.CENTRO_CUSTO||'','Forma de pagamento':l.FORMA_PAGAMENTO||'CONTA CORRENTE','Observações':l.OBS||'','Código de barras':l.COD_BARRAS?fnFmtCB(l.COD_BARRAS):'','Valor':+l.VALOR,'Valor pago':quit?+l.VALOR_PAGO:'','Conta':(fnConta(l.CONTA_ID)||{}).NOME||'','Conciliado':l.EXTRATO_ID?'SIM':''}));
@@ -2776,11 +2778,25 @@ async function fnAgrupar(){
 }
 
 /* ---------- seleção e edição em lote (relatórios) ---------- */
+function fnHojeISO(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+// NOME que já existe no sistema: puxa a Descrição e a Categoria do último lançamento com esse nome (só preenche o que está vazio)
+function fnNomeIdx(){ const L=fin().lanc; if(FN._nomeIdx&&FN._nomeIdxN===L.length) return FN._nomeIdx; const m={};
+  L.forEach(l=>{ const k=l.TIPO+'|'+semAcento(String(l.NOME||'')).trim().toUpperCase(); if(k.endsWith('|')) return; const o=m[k];
+    const t=String(l.ATUALIZADO_EM||'').replace(/^(\d\d)\/(\d\d)\/(\d{4})/,'$3$2$1'); if(!o||t>=o.t) m[k]={t,d:l.DESCRICAO||'',c:l.CATEGORIA||''}; });
+  FN._nomeIdx=m; FN._nomeIdxN=L.length; return m; }
+function fnDrNomeAuto(nome,tipo,fim){ if(!FN.dr||FN.dr.id) return; const v=semAcento(String(nome||'')).trim().toUpperCase(); if(!v) return;
+  const o=fnNomeIdx()[tipo+'|'+v]; if(!o) return; let n=0;
+  [['fmDesc',o.d],['fmCat',o.c]].forEach(([id,val])=>{ const el=document.getElementById(id); if(el&&val&&(!el.value.trim()||el.dataset.auto===el.value)){ el.value=val; el.dataset.auto=val; n++; } });
+  if(n&&fim) toast('Descrição e categoria puxadas do último lançamento de '+nome,2500); }
+// duplica o lançamento marcado e já abre para editar (vencimento e valor)
+function fnDuplicarSel(){ const ids=fnSelIds(); if(ids.length!==1) return toast('Marque só 1 lançamento para duplicar'); const l=fnLanc(ids[0]); if(!l) return;
+  const pre=Object.assign({},l,{ID:'',STATUS:'ABERTO',DATA_PAGAMENTO:'',EXTRATO_ID:'',COD_BARRAS:'',_dup:1}); FN.sel.clear(); fnAtualizar();
+  fnAbrirLanc(null,l.TIPO,pre); }
 function fnBarraSel(L){ FN.sel=FN.sel||new Set(); FN.selVis=L.map(l=>l.ID); const k=L.filter(l=>FN.sel.has(l.ID)).length;
   // só aparece quando há lançamentos marcados (a caixinha do cabeçalho marca todos os filtrados)
   if(!k) return '<div id="fnSelBar"></div>';
   return `<div class="fn-selbar" id="fnSelBar"><span class="small"><b>${k}</b> selecionado(s) · ${fR(L.filter(l=>FN.sel.has(l.ID)).reduce((s,l)=>s+(+l.VALOR||0),0))}</span>
-    <button class="btn sm" onclick="fnModalLote()">✎ Editar</button>${k>1?'<button class="btn ghost sm" onclick="fnJuntarSel()" title="Mesmo boleto/cheque dividido em várias contas por centro de custo: vira 1 conta com o valor total e os centros de custo em %">⧉ Juntar em 1 (valor total)</button>':''}<button class="btn ghost sm del" onclick="fnExcluirSel()">✕ Excluir</button><button class="btn ghost sm" onclick="fnSelTodos(false)">limpar</button></div>`; }
+    <button class="btn sm" onclick="fnModalLote()">✎ Editar</button>${k===1?'<button class="btn ghost sm" onclick="fnDuplicarSel()" title="Cria uma cópia deste lançamento e abre para você ajustar o vencimento e o valor">⧉ Duplicar</button>':''}${k>1?'<button class="btn ghost sm" onclick="fnJuntarSel()" title="Mesmo boleto/cheque dividido em várias contas por centro de custo: vira 1 conta com o valor total e os centros de custo em %">⧉ Juntar em 1 (valor total)</button>':''}<button class="btn ghost sm del" onclick="fnExcluirSel()">✕ Excluir</button><button class="btn ghost sm" onclick="fnSelTodos(false)">limpar</button></div>`; }
 function fnSelIds(){ return (FN.selVis||[]).filter(i=>FN.sel.has(i)); }
 // clicar na caixinha e ARRASTAR para cima/baixo marca (ou desmarca) vários de uma vez; Shift+clique marca o intervalo
 let FN_ARR=null, FN_ULTCK=null;
@@ -2823,6 +2839,7 @@ function fnModalLote(){
   ${f('cat','Categoria',`<input id="lv_cat" list="dlFnCatL" placeholder="Nova categoria" style="width:100%"><datalist id="dlFnCatL">${fnCats(tipo).map(n=>`<option value="${esc(n)}">`).join('')}</datalist>`)}
   ${f('cc','Centro de custo',`<div id="fmCCs">${fnDrLinhaCC({nome:'',pct:100})}</div><button class="btn ghost sm" onclick="fnDrAddCC()">+ Adicionar centro de custo</button> <span class="small" id="fmCCSoma"></span><input type="hidden" id="fmValor" value="${fN(100,2)}">`)}
   ${f('venc','Vencimento',`<input type="date" id="lv_venc">`)}
+  ${f('valor','Valor',`<input id="lv_valor" inputmode="decimal" placeholder="0,00 — todos ficam com este valor" style="width:220px">`)}
   ${f('nome','Nome',`<input id="lv_nome" list="dlFnNomeL" style="width:100%"><datalist id="dlFnNomeL">${fnNomes(tipo).map(n=>`<option value="${esc(n)}">`).join('')}</datalist>`)}
   ${f('desc','Descrição',`<input id="lv_desc" style="width:100%">`)}
   ${f('nf','Nota fiscal (NF)',`<input id="lv_nf" style="width:100%" placeholder="Número da NF (em branco = apagar a NF)">`)}
@@ -2837,12 +2854,13 @@ async function fnSalvarLote(){
   if(on('cat')){ if(!v('cat')){ toast('Informe a categoria'); return; } c.categoria=v('cat'); }
   if(on('cc')){ const cc=fnDrLerCC(); const sm=cc.reduce((s,x)=>s+x.pct,0); if(cc.length&&Math.abs(sm-100)>=0.01){ toast(`Centros de custo somam ${fN(sm,2)}% — precisa dar 100%`); return; } c.centroCusto=fnCCTexto(cc); }
   if(on('venc')){ if(!v('venc')){ toast('Informe o vencimento'); return; } c.vencimento=brISO(v('venc')); }
+  if(on('valor')){ const x=numBR(v('valor')); if(!(x>0)){ toast('Informe um valor maior que zero'); return; } c.valor=Math.round(x*100)/100; }
   if(on('nome')){ if(!v('nome')){ toast('Informe o nome'); return; } c.nome=v('nome'); }
   if(on('desc')) c.descricao=v('desc'); if(on('nf')) c.notaFiscal=v('nf'); if(on('fp')) c.formaPagamento=v('fp'); if(on('obs')) c.obs=v('obs');
   if(!Object.keys(c).length){ toast('Marque pelo menos um campo para alterar'); return; }
   { const f=fnCadastroFaltando(c.categoria,c.centroCusto); if(f){ toast(f,7000); return; } }
   if(!confirm(`Alterar ${ids.length} lançamento(s)?`)) return;
-  const mapa={categoria:'CATEGORIA',centroCusto:'CENTRO_CUSTO',vencimento:'VENCIMENTO',nome:'NOME',descricao:'DESCRICAO',notaFiscal:'NOTA_FISCAL',formaPagamento:'FORMA_PAGAMENTO',obs:'OBS'}; const set=new Set(ids);
+  const mapa={valor:'VALOR',categoria:'CATEGORIA',centroCusto:'CENTRO_CUSTO',vencimento:'VENCIMENTO',nome:'NOME',descricao:'DESCRICAO',notaFiscal:'NOTA_FISCAL',formaPagamento:'FORMA_PAGAMENTO',obs:'OBS'}; const set=new Set(ids);
   fecharModal(); FN.dr=null;
   fnBg('finEditarLote',{ids,campos:c},{rotulo:`Editar ${ids.length} lançamento(s): ${Object.keys(c).join(', ')}`,
     local:()=>{ fin().lanc.forEach(l=>{ if(set.has(l.ID)) Object.keys(c).forEach(k=>{ l[mapa[k]]=k==='formaPagamento'?(/CART/i.test(c[k])?'CARTÃO DE CRÉDITO':'CONTA CORRENTE'):c[k]; }); }); },
