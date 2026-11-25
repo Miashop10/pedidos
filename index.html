@@ -888,18 +888,22 @@ function irPara(v){ if(v!=='config' && !(S.master||(S.abas||[]).includes(v))) re
 function descompactar(o){ if(Array.isArray(o)) return o.map(descompactar); if(o&&typeof o==='object'){ if(o.__c&&o.__r){ const c=o.__c; return o.__r.map(r=>{ const x={}; c.forEach((k,i)=>x[k]=r[i]); return x; }); } const r={}; for(const k in o) r[k]=descompactar(o[k]); return r; } return o; }
 // baixa o financeiro: os cadastros vêm primeiro e os lançamentos/extrato em partes de 15 mil linhas (3 de cada vez).
 // Tudo numa resposta só passava de ~50 MB (limite do Google) e o computador que precisava baixar tudo ficava com a cópia velha.
+// linha pequena de conferência quando a lista vem vazia: quanto do financeiro está neste computador e de onde veio
+function fnDiagLinha(){ try{ const L=fin().lanc, c=k=>L.filter(l=>l.TIPO===k[0]&&(k[1]?l.STATUS==='QUITADO':l.STATUS!=='QUITADO')).length, I=S.finInfo||{};
+  return ` <span class="small" style="opacity:.75">· Neste computador: ${L.length} lançamentos (a pagar ${c(['PAGAR',0])}, pagos ${c(['PAGAR',1])}, a receber ${c(['RECEBER',0])}, recebidos ${c(['RECEBER',1])}) · ${esc(I.modo||'?')} ${esc(I.em||'')}${I.erro?' · erro: '+esc(I.erro):''}</span>`; }catch(e){ return ''; } }
 async function finBaixar(params){
-  const r=await api('finCarregar',Object.assign({partes:1},params||{}));
+  let r; try{ r=await api('finCarregar',Object.assign({partes:1},params||{})); }catch(e){ S.finInfo={modo:'falhou',em:new Date().toLocaleTimeString('pt-BR'),erro:String(e&&e.message||e).slice(0,120)}; throw e; }
+  if(r&&r.mesma) S.finInfo={modo:'cópia deste computador (nada mudou na nuvem)',em:new Date().toLocaleTimeString('pt-BR')};
+  else if(r&&r.fin&&!r.paginar) S.finInfo={modo:'baixado inteiro (Code.gs antigo?)',em:new Date().toLocaleTimeString('pt-BR')};
   if(!r||!r.paginar) return r;
   const PASSO=15000, T=[]; Object.entries(r.paginar).forEach(([aba,n])=>{ for(let i=2;i<=n;i+=PASSO) T.push({aba,ini:i}); });
   const res=new Array(T.length); let prox=0, feitas=0; S.finProg=0;
   const um=async()=>{ while(prox<T.length){ const k=prox++, t=T[k];
-    for(let tent=0;;tent++){ try{ res[k]=await api('finCarregarParte',{aba:t.aba,ini:t.ini,qtd:PASSO}); break; }catch(e){ if(tent>=3){ S.finProg=null; throw e; } await new Promise(z=>setTimeout(z,2500*(tent+1))); } }
+    for(let tent=0;;tent++){ try{ res[k]=await api('finCarregarParte',{aba:t.aba,ini:t.ini,qtd:PASSO}); break; }catch(e){ if(tent>=3){ S.finProg=null; S.finInfo={modo:'falhou na parte '+(k+1)+' de '+T.length,em:new Date().toLocaleTimeString('pt-BR'),erro:String(e&&e.message||e).slice(0,120)}; throw e; } await new Promise(z=>setTimeout(z,2500*(tent+1))); } }
     feitas++; S.finProg=Math.round(feitas*100/T.length); } };
   try{ await Promise.all([um(),um(),um()]); } finally { S.finProg=null; }
-  const vistos={FIN_LANCAMENTOS:new Set(),FIN_EXTRATO:new Set()};
-  T.forEach((t,k)=>{ const dest=t.aba==='FIN_EXTRATO'?r.fin.extrato:r.fin.lanc, v=vistos[t.aba]; ((res[k]&&res[k].linhas)||[]).forEach(x=>{ const id=String(x.ID||''); if(id&&v.has(id)) return; if(id) v.add(id); dest.push(x); }); });
-  delete r.paginar; return r;
+  T.forEach((t,k)=>{ const dest=t.aba==='FIN_EXTRATO'?r.fin.extrato:r.fin.lanc; ((res[k]&&res[k].linhas)||[]).forEach(x=>dest.push(x)); });
+  S.finInfo={modo:'baixado em '+T.length+' partes',em:new Date().toLocaleTimeString('pt-BR')}; delete r.paginar; return r;
 }
 // abre o sistema com as abas leves primeiro; o financeiro (maior) chega em paralelo, sem segurar as outras abas
 // cópia do financeiro guardada neste computador (IndexedDB): o financeiro abre na hora com ela e é conferido com a nuvem em seguida
@@ -1951,7 +1955,7 @@ async function fnChecarNuvem(){ const pend=()=>filaLer().some(x=>!x.env&&!x.recu
       const a=document.activeElement, ocupado=document.querySelector('#fnDrawer .fnd')||document.querySelector('.mbg')||(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName));
       if(S.view==='financeiro'&&!ocupado) fnAtualizar(); } }
   catch(e){} finally{ S._checando=false; } }
-function fnIr(sec,sub){ setTimeout(fnChecarNuvem,50); FN.lim=0; if(sub&&(FN.sec!==sec||FN.sub[sec]!==sub)){ FN.q=''; FN.hq=''; FN.bq=''; } /* trocou de tela: a busca digitada na outra não continua filtrando */ if(sub){ FN.sec=sec; FN.sub[sec]=sub; FN.aberto=sec; } else if(FN.aberto===sec){ FN.aberto=''; } else { FN.aberto=sec; FN.sec=sec; } render(); }
+function fnIr(sec,sub){ setTimeout(fnChecarNuvem,50); FN.lim=0; if(sub&&(FN.sec!==sec||FN.sub[sec]!==sub)){ FN.q=''; FN.hq=''; FN.bq=''; FN.de=''; FN.ate=''; FN.cat=''; FN.cc=''; FN.sel&&FN.sel.clear(); } /* trocou de tela: a busca digitada na outra não continua filtrando */ if(sub){ FN.sec=sec; FN.sub[sec]=sub; FN.aberto=sec; } else if(FN.aberto===sec){ FN.aberto=''; } else { FN.aberto=sec; FN.sec=sec; } render(); }
 function vFinanceiro(){
   if(!S.dados||!S.dados.fin){ if(S.finErro) return `<div class="card" style="margin-top:20px;padding:18px"><b class="bad">Não consegui carregar o financeiro.</b><div class="small muted" style="margin:6px 0 12px">${esc(S.finErro)}</div><button class="btn" onclick="S.finErro=null;render();carregar()">↻ Tentar de novo</button></div>`;
     const seg=S.finIni?Math.round((Date.now()-S.finIni)/1000):0; clearTimeout(window._finTic); window._finTic=setTimeout(()=>{ if(S.view==='financeiro'&&(!S.dados||!S.dados.fin)) render(); },1000);
@@ -2480,7 +2484,7 @@ function fnTabelaLanc(Ltodos,quitadas,sel){
     return `<tr class="${venc?'fn-venc':''}${sel&&FN.sel.has(l.ID)?' fn-sel':''}">${sel?`<td class="c"><input type="checkbox" class="fn-ck" data-id="${esc(l.ID)}" ${FN.sel.has(l.ID)?'checked':''} onchange="fnSelUm(this)"></td>`:''}<td>${esc(quitadas?l.DATA_PAGAMENTO:l.VENCIMENTO)}${venc?' <span class="tag t-bad">vencido</span>':''}</td>${quitadas?`<td class="muted">${esc(l.VENCIMENTO)}</td>`:''}<td><b>${esc(l.NOME)}</b>${/CART/i.test(l.FORMA_PAGAMENTO||'')?' <span class="tag t-warn" title="Cartão de crédito">💳 cartão</span>':''}${!quitadas&&l.CONTA_ID&&fnConta(l.CONTA_ID)?`<div class="muted small" title="Conta de recebimento/pagamento prevista">🏦 ${esc(fnConta(l.CONTA_ID).NOME)}</div>`:''}</td><td style="white-space:normal">${esc(l.DESCRICAO)}${l.OBS?`<div class="muted small" title="Observações">📝 ${esc(l.OBS)}</div>`:''}</td><td>${esc(l.NOTA_FISCAL)}</td><td>${esc(l.CATEGORIA)||'<span class="muted">—</span>'}</td><td style="white-space:normal">${fnCCHtml(l.CENTRO_CUSTO,+l.VALOR)}</td>
     <td class="n"><b>${fR(+(quitadas?l.VALOR_PAGO:l.VALOR))}</b></td>${quitadas?`<td>${esc((fnConta(l.CONTA_ID)||{}).NOME||'—')}${l.EXTRATO_ID?' <span class="tag t-ok" title="Conciliado com o extrato">✓</span>':''}</td>`:''}
     <td class="c" style="white-space:nowrap">${l.COD_BARRAS?`<button class="ib" title="Copiar código de barras: ${esc(fnFmtCB(l.COD_BARRAS))}" onclick="fnCopiarCB('${esc(l.COD_BARRAS)}')">📋</button>`:''}${quitadas?`<button class="ib" onclick="fnEstornar('${esc(l.ID)}')">Estornar</button>`:(fnSoConciliacao(l)?`<button class="ib fn-soconc" title="Conta corrente: o pagamento só é baixado pela Conciliação bancária" onclick="fnIr('contas','conc')">🏦 Conciliação</button>`:`<button class="ib" onclick="fnModalBaixa('${esc(l.ID)}')">✓ ${l.TIPO==='RECEBER'?'Receber':'Pagar'}</button>`)}<button class="ib" onclick="fnModalLanc('${esc(l.ID)}')">✎</button><button class="ib del" onclick="fnExcluirLanc('${esc(l.ID)}')">✕</button></td></tr>`; }).join('')
-    ||`<tr><td colspan="10" class="muted">Nenhum lançamento.</td></tr>`}</tbody>
+    ||`<tr><td colspan="10" class="muted">Nenhum lançamento.${fnDiagLinha()}</td></tr>`}</tbody>
   <tfoot>${Ltodos.length>lim?`<tr><td colspan="${(quitadas?10:9)+(sel?1:0)}" class="c" style="background:var(--card);font-weight:400">Mostrando ${lim} de ${Ltodos.length} · <button class="btn ghost sm" onclick="FN.lim=${lim}+500;fnAtualizar()">Mostrar mais 500</button> <button class="btn ghost sm" onclick="FN.lim=1e9;fnAtualizar()">Mostrar todos</button> <span class="muted small">(busca, filtros, total e Excel consideram todos)</span></td></tr>`:''}<tr><td colspan="${(quitadas?7:6)+(sel?1:0)}">TOTAL · ${Ltodos.length} lançamento(s)</td><td class="n">${fR(tot)}</td><td colspan="${quitadas?2:1}"></td></tr></tfoot></table></div>`;
 }
 
