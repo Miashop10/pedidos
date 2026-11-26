@@ -95,6 +95,13 @@ td.lg-obs input:hover,td.lg-obs input:focus{border-color:var(--line);background:
 .okb.on{background:var(--ok);border-color:var(--ok);color:#fff}
 .okb.sm{height:22px;min-width:40px;font-size:11.5px;border-radius:6px;padding:0 6px}
 .sl-filtros{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
+.dc-chq.dc-bol{cursor:default}
+/* relatórios: filtros + cabeçalho da tabela ficam fixos ao rolar */
+.rel-topo{position:sticky;top:var(--relTop,0px);z-index:15;background:var(--bg);padding-top:6px;margin-top:-6px}
+.rel-topo .sl-filtros{margin-bottom:6px}
+.lg-topo .sl-form{margin-bottom:6px}
+.tw.rel-tw{overflow:visible}
+.tw.rel-tw thead th{position:sticky;top:calc((var(--relTop,0px) + var(--relH,0px)) / var(--z,1));z-index:5;box-shadow:0 1px 0 var(--line)}
 .sl-filtros input,.sl-filtros select{height:30px;padding:3px 8px;font-size:13.5px}
 .sl-filtros .w-q{flex:1 1 150px;min-width:130px}
 .sl-filtros select{max-width:138px}
@@ -818,7 +825,7 @@ function exportarPDF(fnExcel,titulo){ // roda a exportação do Excel "por baixo
   try{ fnExcel(); }finally{ XLSX.writeFile=orig; }
   if(!wb) return; pdfTabelas(titulo,wb.SheetNames.map(n=>({nome:n,linhas:XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,defval:''})})),nome);
 }
-const LS = { get(k){ try{return localStorage.getItem(k);}catch(e){return null;} }, set(k,v){ try{localStorage.setItem(k,v);}catch(e){} }, del(k){ try{localStorage.removeItem(k);}catch(e){} } };
+const LS = { get(k){ try{return localStorage.getItem(k);}catch(e){return null;} }, set(k,v){ try{localStorage.setItem(k,v); return true;}catch(e){ return false; } }, del(k){ try{localStorage.removeItem(k);}catch(e){} } };
 const emAppsScript = () => !!(window.google && google.script && google.script.run);
 if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
@@ -828,6 +835,8 @@ const fN = (v,d=0) => (v==null||isNaN(v)||!isFinite(v)) ? '—' : v.toLocaleStri
 const fP = v => (v==null||isNaN(v)||!isFinite(v)) ? '—' : (v*100).toLocaleString('pt-BR',{maximumFractionDigits:0})+'%';
 const fD = v => (v==null||isNaN(v)||!isFinite(v)) ? '—' : (v<1 ? '< 1 dia' : Math.ceil(v)===1 ? '1 dia' : fN(Math.ceil(v))+' dias');
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// texto dentro de '...' num onclick: escapa para o JavaScript ANTES do HTML (nome com apóstrofo, ex. D'ÁVILA, quebrava o botão)
+const escJs = s => esc(String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\r?\n/g,' '));
 const up = s => String(s==null?'':s).replace(/\s+/g,' ').trim().toUpperCase(); // ignora espaços duplos
 function dnum(s){ const m=String(s||'').match(/(\d{2})\/(\d{2})\/(\d{4})/); return m? +(m[3]+m[2]+m[1]) : 0; }
 function dfmt(n){ if(!n) return '—'; n=String(n); return n.substr(6,2)+'/'+n.substr(4,2)+'/'+n.substr(0,4); }
@@ -836,9 +845,17 @@ function toast(m,ms=3000){ const t=document.getElementById('toast'); t.textConte
 function loading(on){ document.getElementById('loading').classList.toggle('hide',!on); }
 
 /* =================== API =================== */
+// clique duplo / chamada repetida: o MESMO pedido de gravação que ainda está a caminho não é enviado de novo (evita lançamento/importação em dobro)
+const API_NO_AR=new Map(), API_LEITURA=/^(getDados|finCarregar|finCarregarParte|finRateiosNF|pedidoItens|distDetalhe|lgConferirBoletos)$/;
 function api(acao, dados){
+  if(!API_LEITURA.test(acao)){ let k=null; try{ k=acao+'|'+JSON.stringify(dados||{}); }catch(e){}
+    if(k&&API_NO_AR.has(k)) return API_NO_AR.get(k);
+    if(k){ const p=apiEnviar(acao,dados); API_NO_AR.set(k,p); const tira=()=>API_NO_AR.delete(k); p.then(tira,tira); return p; } }
+  return apiEnviar(acao,dados);
+}
+function apiEnviar(acao, dados){
   loading(true); const tIni=Date.now();
-  const fim = r => { loading(false); if(r&&r.tempos&&/^fin/.test(acao)&&acao!=='finCarregar'&&acao!=='finRateiosNF') fnTempoGuardar(acao,dados,r.tempos,Date.now()-tIni); if(r&&r.dados) r.dados=descompactar(r.dados); if(r && r.ok && r.fin && S.dados && (!r.finParcial || fnFinOk(S.dados.fin))){ if(r.finParcial&&S.dados.fin){ Object.assign(S.dados.fin,r.fin); if(r.finUpsert){ Object.keys(r.finUpsert).forEach(k=>{ const L=S.dados.fin[k]=S.dados.fin[k]||[]; r.finUpsert[k].forEach(x=>{ const i=L.findIndex(y=>String(y.ID)===String(x.ID)); if(i>=0) L[i]=x; else L.push(x); }); }); } if(r.finRemover){ Object.keys(r.finRemover).forEach(k=>{ const rm=new Set((r.finRemover[k]||[]).map(String)); if(rm.size&&S.dados.fin[k]) S.dados.fin[k]=S.dados.fin[k].filter(y=>!rm.has(String(y.ID))); }); } if(r.finHist){ (S.dados.fin.historico=S.dados.fin.historico||[]).push(r.finHist); } } else S.dados.fin=r.fin; S.finFresco=true; } if(r&&r.ok&&r.finVer){ S.finGen=(S.finGen||0)+1; if(!fnFinOk(S.dados&&S.dados.fin)){ S.finVer='0'; } else if(S.finVer&&S.finVer===r.finVerAntes){ S.finVer=r.finVer; } else if(!r.finParcial&&r.fin){ S.finVer=r.finVer; S.finVerT=Date.now(); } else { S.finVer='0'; } finGuardar(); } if(r&&r.tempos&&window.console) console.info('[api]',acao,r.tempos); if(r && r.ok){ S.master=!!r.master; S.abas=r.abas||[]; const b=document.getElementById('btConfig'); if(b) b.classList.toggle('hide',!S.master); aplicarAbas(); } if(!r || !r.ok){ if(r && r.erro==='SENHA_INVALIDA'){ sair(); throw new Error('Senha inválida'); } const er=new Error(r&&r.erro||'Falha na comunicação'); er.servidor=!!(r&&r.erro); throw er; } return r.dados; };
+  const fim = r => { loading(false); if(r&&r.tempos&&/^fin/.test(acao)&&acao!=='finCarregar'&&acao!=='finRateiosNF') fnTempoGuardar(acao,dados,r.tempos,Date.now()-tIni); if(r&&r.dados) r.dados=descompactar(r.dados); if(r && r.ok && r.fin && S.dados && (!r.finParcial || fnFinOk(S.dados.fin))){ if(r.finParcial&&S.dados.fin){ Object.assign(S.dados.fin,r.fin); if(r.finUpsert){ Object.keys(r.finUpsert).forEach(k=>{ const L=S.dados.fin[k]=S.dados.fin[k]||[]; const U=r.finUpsert[k]||[]; if(!U.length) return; let pos=null; if(U.length>3){ pos=new Map(); L.forEach((y,i)=>pos.set(String(y.ID),i)); } /* importação de milhares de linhas: antes procurava cada uma na lista inteira (130 mil) e a tela congelava */ U.forEach(x=>{ const i=pos?(pos.has(String(x.ID))?pos.get(String(x.ID)):-1):L.findIndex(y=>String(y.ID)===String(x.ID)); if(i>=0) L[i]=x; else { if(pos) pos.set(String(x.ID),L.length); L.push(x); } }); }); } if(r.finRemover){ Object.keys(r.finRemover).forEach(k=>{ const rm=new Set((r.finRemover[k]||[]).map(String)); if(rm.size&&S.dados.fin[k]) S.dados.fin[k]=S.dados.fin[k].filter(y=>!rm.has(String(y.ID))); }); } if(r.finHist){ (S.dados.fin.historico=S.dados.fin.historico||[]).push(r.finHist); } } else S.dados.fin=r.fin; S.finFresco=true; } if(r&&r.ok&&r.finVer){ S.finGen=(S.finGen||0)+1; if(!fnFinOk(S.dados&&S.dados.fin)){ S.finVer='0'; } else if(S.finVer&&S.finVer===r.finVerAntes){ S.finVer=r.finVer; } else if(!r.finParcial&&r.fin){ S.finVer=r.finVer; S.finVerT=Date.now(); } else { S.finVer='0'; } finGuardar(); } if(r&&r.ok&&r.finRecarregar){ S.finVer='0'; S._ultChec=0; setTimeout(()=>{ if(typeof fnChecarNuvem==='function') fnChecarNuvem(); },800); } if(r&&r.tempos&&window.console) console.info('[api]',acao,r.tempos); if(r && r.ok){ S.master=!!r.master; S.abas=r.abas||[]; const b=document.getElementById('btConfig'); if(b) b.classList.toggle('hide',!S.master); aplicarAbas(); } if(!r || !r.ok){ if(r && r.erro==='SENHA_INVALIDA'){ sair(); throw new Error('Senha inválida'); } const er=new Error(r&&r.erro||'Falha na comunicação'); er.servidor=!!(r&&r.erro); throw er; } return r.dados; };
   if (emAppsScript()) return new Promise((res,rej)=>google.script.run.withSuccessHandler(r=>{try{res(fim(r));}catch(e){rej(e);}}).withFailureHandler(e=>{loading(false);rej(e);}).api(acao,S.senha,dados||{},S.usuario));
   return fetch(S.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({acao,senha:S.senha,usuario:S.usuario,dados:dados||{}})})
     .then(r=>r.json()).then(fim).catch(e=>{loading(false);throw e;});
@@ -891,8 +908,18 @@ function descompactar(o){ if(Array.isArray(o)) return o.map(descompactar); if(o&
 // linha pequena de conferência quando a lista vem vazia: quanto do financeiro está neste computador e de onde veio
 function fnDiagLinha(){ try{ const L=fin().lanc, c=k=>L.filter(l=>l.TIPO===k[0]&&(k[1]?l.STATUS==='QUITADO':l.STATUS!=='QUITADO')).length, I=S.finInfo||{};
   return ` <span class="small" style="opacity:.75">· Neste computador: ${L.length} lançamentos (a pagar ${c(['PAGAR',0])}, pagos ${c(['PAGAR',1])}, a receber ${c(['RECEBER',0])}, recebidos ${c(['RECEBER',1])}) · ${esc(I.modo||'?')} ${esc(I.em||'')}${I.erro?' · erro: '+esc(I.erro):''}</span>`; }catch(e){ return ''; } }
-async function finBaixar(params){
-  let r; try{ r=await api('finCarregar',Object.assign({partes:1},params||{})); }catch(e){ S.finInfo={modo:'falhou',em:new Date().toLocaleTimeString('pt-BR'),erro:String(e&&e.message||e).slice(0,120)}; throw e; }
+// aplica "só o que mudou" (sincronização por diferença) sobre a cópia que o computador já tem — devolve um financeiro NOVO (não mexe no que está na tela)
+function finAplicarDelta(base,r){ const d=r.delta, nf=Object.assign({},base,r.fin||{});
+  const ap=(L0,linhas,rm,pre)=>{ const up=new Map((linhas||[]).map(x=>[String(x.ID),x])), rms=new Set((rm||[]).map(String)), P=pre||[];
+    const out=[]; L0.forEach(y=>{ const k=String(y.ID); if(up.has(k)){ out.push(up.get(k)); up.delete(k); return; } if(rms.has(k)) return; if(P.length&&P.some(p=>k.indexOf(p)===0)) return; out.push(y); });
+    up.forEach(x=>out.push(x)); return out; };
+  nf.lanc=ap(base.lanc||[],d.lanc,d.rmL,d.preL); nf.extrato=ap(base.extrato||[],d.ext,d.rmE,d.preE);
+  S.finInfo={modo:'atualizado só o que mudou ('+((d.lanc||[]).length+(d.ext||[]).length)+' linhas)',em:new Date().toLocaleTimeString('pt-BR')}; return {fin:nf,ver:r.ver}; }
+async function finBaixar(params,base){
+  params=Object.assign({partes:1},params||{}); if(base&&fnFinOk(base)&&params.ver&&params.ver!=='0') params.delta=1;
+  let r; try{ r=await api('finCarregar',params); }catch(e){ S.finInfo={modo:'falhou',em:new Date().toLocaleTimeString('pt-BR'),erro:String(e&&e.message||e).slice(0,120)}; throw e; }
+  if(r&&r.aguarde) return {mesma:true,ver:params.ver}; // outra gravação ainda em andamento: fica com a cópia e confere de novo depois
+  if(r&&r.delta&&base&&fnFinOk(base)) return finAplicarDelta(base,r);
   if(r&&r.mesma) S.finInfo={modo:'cópia deste computador (nada mudou na nuvem)',em:new Date().toLocaleTimeString('pt-BR')};
   else if(r&&r.fin&&!r.paginar) S.finInfo={modo:'baixado inteiro (Code.gs antigo?)',em:new Date().toLocaleTimeString('pt-BR')};
   if(!r||!r.paginar) return r;
@@ -923,9 +950,9 @@ async function carregar(silencioso){
   if(S.dados&&S.dados.fin&&!fnFinOk(S.dados.fin)){ S.dados.fin=null; S.finVer='0'; } // financeiro incompleto na memória: busca tudo de novo
   const pCache=pode&&!(S.dados&&S.dados.fin)?IDB.get(finChave()).then(c=>c&&fnFinOk(c.fin)?c:null).catch(()=>null):Promise.resolve(null);
   // pede o financeiro uma vez só (antes, se alguma gravação terminasse no meio, descartava a resposta e pedia de novo — com o financeiro grande isso podia nunca acabar)
-  const pedirFin=async c=>{ const g=S.finGen||0; const r=await finBaixar(c?{ver:c.ver,idade:Date.now()-(c.t||0)}:{}); if(r&&typeof r==='object') r._gen=g; return r; };
+  const pedirFin=async c=>{ const g=S.finGen||0; const r=await finBaixar(c?{ver:c.ver,idade:Date.now()-(c.t||0)}:{},c&&c.fin); if(r&&typeof r==='object') r._gen=g; return r; };
   S.finErro=null; S.finIni=Date.now();
-  const pFin=pode?pCache.then(c=>pedirFin(c&&c.fin?c:(S.dados&&S.dados.fin&&S.finVer?{ver:S.finVer,t:S.finVerT}:null))).catch(e=>{ S.finErro=e.message||String(e); if(!silencioso) toast('Erro ao carregar o financeiro: '+S.finErro,8000); if(S.view==='financeiro') render(); return null; }):null;
+  const pFin=pode?pCache.then(c=>pedirFin(c&&c.fin?c:(S.dados&&S.dados.fin&&S.finVer?{ver:S.finVer,t:S.finVerT,fin:S.dados.fin}:null))).catch(e=>{ S.finErro=e.message||String(e); if(!silencioso) toast('Erro ao carregar o financeiro: '+S.finErro,8000); if(S.view==='financeiro') render(); return null; }):null;
   try{ const d=await api('getDados'); const finAnt=S.dados&&S.dados.fin; S.dados=d; if(finAnt) S.dados.fin=finAnt; S.dados.compras=(d.importadoras||[]).map(n=>({IMPORTADORA:n}));
     if(!S.dados.fin){ const c=await pCache; if(c&&c.fin){ S.dados.fin=c.fin; S.finVer=c.ver; S.finVerT=c.t; S.finDaCopia=true; } }
     document.getElementById('whoSync').textContent=S.finDaCopia?'conferindo o financeiro…':'atualizado '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); render(); }
@@ -957,8 +984,11 @@ function render(){
   ajustarTabelas();
 }
 /* zoom automático: encolhe a tabela para caber na largura da tela (sem rolar para os lados) */
-function ajustarTabelas(raiz){ (raiz||document).querySelectorAll('.tw > table, .dre-wrap > table').forEach(t=>{ t.style.zoom=''; const w=t.parentElement.clientWidth, sw=t.scrollWidth;
-  if(sw>w+2 && w>0){ const z=Math.max(0.6, (w-2)/sw); t.style.zoom=z.toFixed(3); } }); }
+function ajustarTabelas(raiz){ (raiz||document).querySelectorAll('.tw > table, .dre-wrap > table').forEach(t=>{ t.style.zoom=''; t.style.removeProperty('--z'); const w=t.parentElement.clientWidth, sw=t.scrollWidth;
+  if(sw>w+2 && w>0){ const z=Math.max(0.6, (w-2)/sw); t.style.zoom=z.toFixed(3); t.style.setProperty('--z',z.toFixed(3)); } }); fnFixarTopo(); }
+// altura do cabeçalho do sistema e da barra de filtros (para a tabela parar logo abaixo deles)
+function fnFixarTopo(){ const t=document.querySelector('.rel-topo'); if(!t) return; const hd=document.querySelector('header');
+  const top=hd&&getComputedStyle(hd).position==='sticky'?hd.offsetHeight:0; const r=document.documentElement.style; r.setProperty('--relTop',top+'px'); r.setProperty('--relH',t.offsetHeight+'px'); }
 let _rz; window.addEventListener('resize',()=>{ clearTimeout(_rz); _rz=setTimeout(()=>ajustarTabelas(),150); });
 /* =================== MODAIS =================== */
 function modal(html){ fecharModal(); const d=document.createElement('div'); d.className='mbg'; d.innerHTML=`<div class="modal">${html}</div>`; d.addEventListener('mousedown',e=>{ if(e.target===d) fecharModal(); }); document.body.appendChild(d); setTimeout(()=>ajustarTabelas(d),0); return d; }
@@ -1076,7 +1106,7 @@ function desenharPrevPedido(){
   <p class="small muted" style="margin:0 0 8px">${r.produtos.length} produtos · ${res.length} filiais · ${fN(pc)} peças · <b>${fR(tot)}</b></p>
   <div class="tw" style="margin-bottom:12px"><table><thead><tr><th>Filial</th><th>CNPJ</th><th>Razão social</th><th class="n">Itens</th><th class="n">Peças</th><th class="n">Valor</th><th></th></tr></thead><tbody>
   ${res.map(x=>`<tr><td><b>${esc(x.filial)}</b>${FM[x.filial]&&FM[x.filial].NOME_LOJA?' · '+esc(FM[x.filial].NOME_LOJA):''}</td><td>${esc(x.cnpj)||'<span class="bad">sem CNPJ</span>'}</td><td>${esc(FM[x.filial]?FM[x.filial].RAZAO_SOCIAL:'')}</td><td class="n">${x.itens.length}</td><td class="n">${fN(x.pecas)}</td><td class="n">${fR(x.valor)}</td>
-    <td><button class="btn ghost" onclick="previaPdfFilial('${esc(x.filial)}')">ver PDF</button></td></tr>`).join('')}</tbody></table></div>
+    <td><button class="btn ghost" onclick="previaPdfFilial('${escJs(x.filial)}')">ver PDF</button></td></tr>`).join('')}</tbody></table></div>
   <div class="tw prev" style="max-height:420px"><table><thead><tr><th>Código</th><th>Descrição</th><th class="n">Valor un.</th><th class="n">Venda</th>${fil.map(n=>`<th class="n">${esc(n)}</th>`).join('')}<th class="n">Total pç</th><th class="n">Total R$</th></tr></thead><tbody>
   ${r.produtos.map((p,ix)=>{ const q=Object.values(p.qtds).reduce((s,v)=>s+v,0); return `<tr><td><b>${esc(p.codigo)}</b></td>
     <td><input value="${esc(p.descricao)}" style="min-width:260px" placeholder="(sem descrição)" onchange="PD.atual.produtos[${ix}].descricao=this.value"></td>
@@ -1301,7 +1331,7 @@ function vLogistica(){
   const F=LG.f;
   return `<div class="slim">
   <div class="sl-head"><h2>Controle de Logística</h2><span class="muted small">NF × cálculo (NC, X2, X3… ou BONIF) · verde = boletos OK · clique no campo da lista para alterar (salva sozinho)</span><span class="sp"></span><button class="btn sec sm" onclick="lgConferirBoletos()" title="Dá OK sozinho nas NFs cujos boletos (mesmo número de NF e fornecedor) já foram todos lançados no financeiro">🤖 Conferir boletos no financeiro</button><button class="btn sec sm" onclick="RT.lancId='';document.getElementById('rtIn').click()" title="Anexo 'Rateio de Nota Fiscal por Filial' de uma NF recebida no CD">⇄ Distribuição do CD</button><input type="file" id="rtIn" accept=".pdf,.xlsx,.xls,.csv" class="hide" onchange="if(this.files[0]) rtLerArquivo(this.files[0]); this.value=''"><button class="btn sm" onclick="document.getElementById('lgInXls').click()" title="FORNECEDOR | FILIAL | DT CHEGADA | NOTA FISCAL | DT LANÇAMENTO | VALOR NF | CÁLCULO | RECEBIDO | BOLETOS | BOLETOS | OBS">⬆ Importar planilha Excel</button><input type="file" id="lgInXls" accept=".xlsx,.xls,.csv" class="hide" onchange="if(this.files[0]) lgLerPlanilha(this.files[0]); this.value=''"></div>
-  <div class="card sl-form${ed?' sl-edit':''}" id="lgForm">
+  <div class="rel-topo lg-topo"><div class="card sl-form${ed?' sl-edit':''}" id="lgForm">
     ${ed?`<div class="sl-banner">✎ EDITANDO: <b>${esc(r.FORNECEDOR)}</b>${r.NOTA_FISCAL?' · NF '+esc(r.NOTA_FISCAL):''} — altere os campos e clique em <b>Salvar</b></div>`:''}
     ${f('Fornecedor',`<div class="acw"><input id="lgForn" autocomplete="off" value="${esc(r.FORNECEDOR||'')}" placeholder="Digite…"><div class="sugbox"></div></div>`,'w-forn')}
     ${f('Filial',`<div class="acw"><input id="lgFil" autocomplete="off" value="${esc(r.FILIAL||'')}" placeholder="Digite…"><div class="sugbox"></div></div>`,'w-fil')}
@@ -1321,8 +1351,8 @@ function vLogistica(){
     <select onchange="LG.f.bol=this.value;LG.lim=0;lgAtualizar()" title="Filtrar pelo OK dos boletos" style="font-weight:600"><option value="">Boletos: todos</option><option value="recpend" ${F.bol==='recpend'?'selected':''}>NF recebida · boleto SEM OK</option><option value="pend" ${F.bol==='pend'?'selected':''}>Só SEM OK</option><option value="ok" ${F.bol==='ok'?'selected':''}>Só com OK</option></select>
     <span id="lgResumo">${lgResumo()}</span>
     <span class="sp"></span><button class="btn sec sm" onclick="lgExportar()">Excel</button><button class="btn sec sm" onclick="exportarPDF(lgExportar,'Controle de Logística')">PDF</button>
-  </div>
-  <div class="tw sl-tab"><table id="tbLog">${lgTabela()}</table></div>
+  </div></div>
+  <div class="tw sl-tab rel-tw"><table id="tbLog">${lgTabela()}</table></div>
   <datalist id="dlForn">${nomesLog('FORNECEDOR').map(n=>`<option value="${esc(n)}">`).join('')}</datalist><datalist id="dlFil">${nomesLog('FILIAL').map(n=>`<option value="${esc(n)}">`).join('')}</datalist>${document.getElementById('lgCalcLista')?'':`<datalist id="lgCalcLista">${CALCULOS.map(([c])=>`<option value="${c}">`).join('')}</datalist>`}
   </div>`;
 }
@@ -1497,7 +1527,7 @@ function rrCorpo(){
   const fil=rrOrdenar(rrTodasFiliais(rrMatriz(L,cols,r=>rrNome(r.FILIAL))));
   const totM={}; let tot=0, n=0; fil.forEach(f=>{ cols.forEach(c=>totM[c]=(totM[c]||0)+(f.m[c]||0)); tot+=f.tot; n+=f.n; });
   const cel=v=>v?fR(v):'<span class="muted">·</span>';
-  const qk=x=>esc(x).replace(/'/g,"\\'");
+  const qk=x=>escJs(x);
   // layout: Filial (à esquerda) | jan | fev | ... | Total — o nome da filial também aparece pequeno em cima de cada valor
   const ord=RR.ordem||'';
   const seta=k=>ord===k?' ▼':'';
@@ -1793,7 +1823,7 @@ function faTabela(){
   const totPed={}; lista.forEach(f=>cols.forEach(c=>{ totPed[c]=(totPed[c]||0)+(f.meses[c]||0); }));
   const valorTot=lista.reduce((s,f)=>s+f.valor,0);
   const cel=v=>v?fR(v):'';
-  const k=n=>esc(n).replace(/'/g,"\\'");
+  const k=n=>escJs(n);
   return `<thead><tr><th>Fornecedor</th><th class="n">Pedido</th>${cols.map(c=>`<th class="n">${mesNome(c)}</th>`).join('')}</tr></thead>
   <tbody>
     <tr class="fa-tot fa-total"><td><b>TOTAL</b></td><td></td>${cols.map(c=>`<td class="n"><b>${cel(totPed[c]||0)}</b></td>`).join('')}</tr>
@@ -1937,7 +1967,10 @@ async function fnRecarregar(){ if(S.finFresco){ S.finFresco=false; return; } awa
 const fin = () => { const f=(S.dados&&S.dados.fin) || {contas:[],lanc:[],extrato:[],importacoes:[],categorias:[]}; f.centros=f.centros||[]; return f; };
 const hojeISO = () => { const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
 const fnConta = id => fin().contas.find(c=>String(c.ID)===String(id));
-const fnLanc = id => fin().lanc.find(l=>String(l.ID)===String(id));
+// busca de lançamento pelo ID com índice (antes percorria os 130 mil a cada chamada); o índice é conferido e refeito se a lista mudou
+let _lIdx=null, _lIdxArr=null, _lIdxN=-1;
+const fnLanc = id => { const L=fin().lanc, k=String(id); if(_lIdxArr!==L||_lIdxN!==L.length){ _lIdx=new Map(); L.forEach((l,i)=>_lIdx.set(String(l.ID),i)); _lIdxArr=L; _lIdxN=L.length; }
+  let i=_lIdx.get(k); if(i!=null&&L[i]&&String(L[i].ID)===k) return L[i]; i=L.findIndex(l=>String(l.ID)===k); if(i>=0){ _lIdx.set(k,i); return L[i]; } return undefined; };
 const fnVal = v => `<span class="${v<0?'bad':'ok'}" style="font-weight:700">${fR(v)}</span>`;
 // saldo da conta = saldo inicial (no fim do dia "Data do saldo") + movimentos do extrato DEPOIS dessa data (os de antes já estão dentro do saldo inicial)
 const fnConta0 = c => isoBR(c.DATA_SALDO)||'';
@@ -1947,9 +1980,11 @@ function fnSaldo(c){ return (+c.SALDO_INICIAL||0) + fin().extrato.filter(e=>Stri
 const FIN_ICON={inicio:'📊',contas:'🏦',receb:'↑',pagar:'↓',rel:'📄',config:'⚙'};
 // ao navegar no Financeiro (no máximo a cada 3 min): confere se outro computador mudou algo e, se mudou, traz o financeiro novo.
 // Antes, um computador aberto desde cedo não via as baixas/conciliações feitas em outro (ex.: Contas pagas vazia num computador e cheia no outro).
+// com a sincronização por diferença a conferência é leve: também roda sozinha a cada 2 min enquanto o Financeiro está aberto na tela
+setInterval(()=>{ if(!document.hidden&&S.view==='financeiro') fnChecarNuvem(); },120000);
 async function fnChecarNuvem(){ const pend=()=>filaLer().some(x=>!x.env&&!x.recusado);
-  if(S._checando||!S.dados||!fnFinOk(S.dados.fin)||pend()||Date.now()-(S._ultChec||0)<180000) return; S._checando=true; S._ultChec=Date.now();
-  try{ const g=S.finGen||0; const r=await finBaixar({ver:S.finVer||'0',idade:Date.now()-(S.finVerT||0)});
+  if(S._checando||!S.dados||!fnFinOk(S.dados.fin)||pend()||Date.now()-(S._ultChec||0)<90000) return; S._checando=true; S._ultChec=Date.now();
+  try{ const g=S.finGen||0; const r=await finBaixar({ver:S.finVer||'0',idade:Date.now()-(S.finVerT||0)},S.dados&&S.dados.fin);
     if(!r) return; if(r.mesma){ S.finVer=r.ver; S.finVerT=Date.now(); return; }
     if(r.fin&&fnFinOk(r.fin)&&(S.finGen||0)===g&&!pend()){ S.dados.fin=r.fin; S.finVer=r.ver; S.finVerT=Date.now(); FN._nomeIdx=null; FN._sugIdx=null; finGuardar();
       const a=document.activeElement, ocupado=document.querySelector('#fnDrawer .fnd')||document.querySelector('.mbg')||(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName));
@@ -2601,7 +2636,7 @@ async function fnConfirmarImpLanc(){
 // o campo perdia o cursor e ficava com o ano 0002 (não achava nada). Ano com 2 dígitos (26) vira 2026 ao sair do campo.
 function fnDataFiltro(el,set,saiu){ let v=el.value||''; if(v){ let y=+v.slice(0,4); if(saiu&&y<100){ y+=2000; v=y+v.slice(4); el.value=v; } if(y<1990) return; }
   if(el.dataset.ap===v) return; el.dataset.ap=v; set(v); FN.lim=0; fnAtualizar(); }
-function fnSemFiltro(sub){ return sub==='pagas'&&!String(FN.q||'').trim()&&!FN.de&&!FN.ate&&!FN.cat&&!FN.cc; }
+function fnSemFiltro(sub){ return (sub==='pagas'||sub==='apagar')&&!String(FN.q||'').trim()&&!FN.de&&!FN.ate&&!FN.cat&&!FN.cc; }
 function fnFiltrados(sub){
   const quit=(sub==='pagas'||sub==='recebidas'), tipo=(sub==='areceber'||sub==='recebidas')?'RECEBER':'PAGAR'; const q=semAcento(FN.q).trim();
   if(fnSemFiltro(sub)) return []; // contas pagas: a tela abre vazia, só mostra o que for buscado/filtrado
@@ -2615,7 +2650,7 @@ function fnFiltrados(sub){
 function fnRelatorio(sub){
   const quit=(sub==='pagas'||sub==='recebidas'), tipo=(sub==='areceber'||sub==='recebidas')?'RECEBER':'PAGAR';
   const L=fnFiltrados(sub); const hoje=hojeISO(); const vencidos=quit?[]:L.filter(l=>fnVencido(l,hoje));
-  return `<div class="sl-filtros">
+  return `<div class="rel-topo"><div class="sl-filtros">
     <input type="search" class="w-q" value="${esc(FN.q)}" placeholder="Buscar nome, descrição, NF, valor…" oninput="FN.q=this.value;FN.lim=0;clearTimeout(window._fq);window._fq=setTimeout(fnAtualizar,250)">
     <span class="muted small">${quit?(tipo==='RECEBER'?'recebido':'pago'):'vencimento'} de</span><input type="date" value="${FN.de}" onchange="fnDataFiltro(this,v=>FN.de=v)" onblur="fnDataFiltro(this,v=>FN.de=v,1)"><span class="muted small">a</span><input type="date" value="${FN.ate}" onchange="fnDataFiltro(this,v=>FN.ate=v)" onblur="fnDataFiltro(this,v=>FN.ate=v,1)">
     <select onchange="FN.cat=this.value;fnAtualizar()" style="max-width:220px"><option value="">Categoria: todas</option>${fnCats(tipo).map(c=>`<option ${c===FN.cat?'selected':''}>${esc(c)}</option>`).join('')}</select>
@@ -2623,7 +2658,7 @@ function fnRelatorio(sub){
     <button class="btn ghost sm" onclick="FN.q='';FN.de='';FN.ate='';FN.cat='';FN.cc='';fnAtualizar()">limpar</button>
     ${L.length?(()=>{ FN.sel=FN.sel||new Set(); const todos=L.every(l=>FN.sel.has(l.ID)); return todos?`<button class="btn ghost sm" onclick="FN.selVis=fnFiltrados(FN.sub.rel).map(l=>l.ID);fnSelTodos(false)">☐ Desmarcar todos</button>`:`<button class="btn ghost sm" onclick="FN.selVis=fnFiltrados(FN.sub.rel).map(l=>l.ID);fnSelTodos(true)" title="Marca todos os lançamentos filtrados (inclusive os que não aparecem na tela)">☑ Selecionar todos (${L.length})</button>`; })():''}
     ${vencidos.length?`<span class="tag t-bad">${vencidos.length} vencido(s) · ${fR(vencidos.reduce((s,l)=>s+(+l.VALOR||0),0))}</span>`:''}
-  </div>${fnSemFiltro(sub)?`<div class="card muted" style="padding:22px;text-align:center">🔎 Use o campo <b>Buscar</b> ou os filtros (data de pagamento, categoria, centro de custo) para ver as contas pagas.</div>`:fnBarraSel(L)+fnTabelaLanc(L,quit,true)}`;
+  </div>${fnSemFiltro(sub)?'':fnBarraSel(L)}</div>${fnSemFiltro(sub)?`<div class="card muted" style="padding:22px;text-align:center">🔎 Use o campo <b>Buscar</b> ou os filtros (${FN.sub.rel==='apagar'?'vencimento':'data de pagamento'}, categoria, centro de custo) para ver as ${FN.sub.rel==='apagar'?'contas a pagar':'contas pagas'}.</div>`:fnTabelaLanc(L,quit,true).replace('<div class="tw sl-tab">','<div class="tw sl-tab rel-tw">')}`;
 }
 function fnExportar(){ const sub=FN.sub.rel, quit=(sub==='pagas'||sub==='recebidas');
   const rows=fnFiltrados(sub).map(l=>({'Vencimento':l.VENCIMENTO,'Pago/recebido em':l.DATA_PAGAMENTO||'','Nome':l.NOME,'Descrição':l.DESCRICAO,'Nota fiscal':l.NOTA_FISCAL,'Categoria':l.CATEGORIA,'Centro de custo':l.CENTRO_CUSTO||'','Forma de pagamento':l.FORMA_PAGAMENTO||'CONTA CORRENTE','Observações':l.OBS||'','Código de barras':l.COD_BARRAS?fnFmtCB(l.COD_BARRAS):'','Valor':+l.VALOR,'Valor pago':quit?+l.VALOR_PAGO:'','Conta':(fnConta(l.CONTA_ID)||{}).NOME||'','Conciliado':l.EXTRATO_ID?'SIM':''}));
@@ -2836,7 +2871,7 @@ let FN_ARR=null, FN_ULTCK=null;
 function fnSelAplicar(box,v){ box.checked=v; v?FN.sel.add(box.dataset.id):FN.sel.delete(box.dataset.id); const tr=box.closest('tr'); if(tr) tr.classList.toggle('fn-sel',v); }
 function fnSelIntervalo(a,b,v){ const T=a.closest('tbody'); if(!T||T!==b.closest('tbody')) return fnSelAplicar(b,v); const all=[...T.querySelectorAll('input.fn-ck')], i=all.indexOf(a), j=all.indexOf(b); if(i<0||j<0) return fnSelAplicar(b,v);
   for(let k=Math.min(i,j);k<=Math.max(i,j);k++) fnSelAplicar(all[k],v); }
-function fnSelBarraAtualizar(){ const L=fnFiltrados(FN.sub.rel); const bar=document.getElementById('fnSelBar'); if(bar) bar.outerHTML=fnBarraSel(L); }
+function fnSelBarraAtualizar(){ setTimeout(fnFixarTopo,0); const L=fnFiltrados(FN.sub.rel); const bar=document.getElementById('fnSelBar'); if(bar) bar.outerHTML=fnBarraSel(L); }
 document.addEventListener('mousedown',e=>{ if(e.button!==0) return; const td=e.target.closest&&e.target.closest('td'); const box=td&&td.querySelector('input.fn-ck'); if(!box) return;
   e.preventDefault(); FN.sel=FN.sel||new Set(); const v=!box.checked;
   if(e.shiftKey&&FN_ULTCK&&document.body.contains(FN_ULTCK)) fnSelIntervalo(FN_ULTCK,box,v); else fnSelAplicar(box,v);
@@ -3154,7 +3189,7 @@ function fnCadastroFaltando(cat,cc){ if(S.master) return '';
 
 /* ---------- fila de envio para a nuvem (guardada neste computador até o Google confirmar) ---------- */
 function filaLer(){ try{ return JSON.parse(LS.get('mc_fila_'+(S.usuario||''))||'[]'); }catch(e){ return []; } }
-function filaGravar(F){ LS.set('mc_fila_'+(S.usuario||''),JSON.stringify(F)); filaBadge(); }
+function filaGravar(F){ if(!LS.set('mc_fila_'+(S.usuario||''),JSON.stringify(F))&&!S._avisoLS){ S._avisoLS=1; toast('⚠ O navegador não conseguiu guardar a fila de envios neste computador (memória cheia). Os envios continuam, mas NÃO feche o sistema até sumir o aviso de pendentes.',12000); } filaBadge(); }
 const FILA_SES=Date.now().toString(36)+Math.random().toString(36).slice(2,6); // esta aba do navegador
 function filaAdd(acao,dados,rotulo){ const F=filaLer(); const it={ses:FILA_SES,cli:Date.now().toString(36)+Math.random().toString(36).slice(2,8),acao,dados,rotulo:rotulo||acao,em:new Date().toLocaleString('pt-BR'),tent:0,erro:'',env:true}; F.push(it); filaGravar(F); return it; }
 function filaTirar(cli){ filaGravar(filaLer().filter(x=>x.cli!==cli)); }
@@ -3347,7 +3382,7 @@ function fnAtrasados(){
   const NC=T.filter(x=>!x.ch); const tot=sm(NC); const dias=d=>Math.round((new Date(hoje+'T12:00')-new Date(d+'T12:00'))/864e5);
   const chip=(k,rot,G)=>`<button class="dc-chq${FN.atrCh===k?' on':''}" onclick="FN.atrCh=FN.atrCh==='${k}'?'':'${k}';fnAtualizar()" title="${FN.atrCh===k?'Mostrar todos os atrasados':'Mostrar só estes na lista'}">${rot} <b>${fR(sm(G))}</b> <span class="muted">· ${G.length}</span></button>`;
   return `<div class="card dc-atr"><div class="dc-rh"><h3>⚠ Pagamentos atrasados <span class="muted small">— em aberto e já vencidos</span></h3><span class="sp"></span><b class="bad" style="font-size:18px" title="Sem os cheques (que aparecem separados logo abaixo)">${NC.length} · ${fR(tot)}</b></div>
-  <div class="dc-chqs">${chip('cheque','🧾 Cheques vencidos',CH)}${chip('enviar','✉️ Enviar cheques vencidos',EN)}${FN.atrCh?`<span class="small muted">mostrando só ${FN.atrCh==='enviar'?'"enviar cheques"':'cheques'} · <a href="#" onclick="event.preventDefault();FN.atrCh='';fnAtualizar()">ver todos</a></span>`:''}</div>
+  <div class="dc-chqs">${chip('cheque','🧾 Cheques vencidos',CH)}${chip('enviar','✉️ Enviar cheques vencidos',EN)}${(()=>{ const B=fin().lanc.filter(l=>l.TIPO==='PAGAR'&&l.STATUS!=='QUITADO'&&!fnTipoCheque(l)); return `<span class="dc-chq dc-bol" title="Todos os pagamentos em aberto (vencidos e a vencer), sem cheques e sem enviar cheques">📄 BOLETOS EM ABERTO <b>${fR(B.reduce((s,l)=>s+(+l.VALOR||0),0))}</b> <span class="muted">· ${B.length}</span></span>`; })()}${FN.atrCh?`<span class="small muted">mostrando só ${FN.atrCh==='enviar'?'"enviar cheques"':'cheques'} · <a href="#" onclick="event.preventDefault();FN.atrCh='';fnAtualizar()">ver todos</a></span>`:''}</div>
   <div class="tw sl-tab" style="max-height:${FN.atrTodos?'none':'260px'};overflow:auto"><table><thead><tr><th>Vencimento</th><th class="n">Atraso</th><th>Nome</th><th>Descrição</th><th>Categoria</th><th class="n">Valor</th><th></th></tr></thead><tbody>
   ${L.map(({l,d,ch})=>`<tr><td>${esc(l.VENCIMENTO)}</td><td class="n"><span class="tag t-bad">${dias(d)} dia(s)</span></td><td><b>${esc(l.NOME)}</b></td><td>${esc(l.DESCRICAO)}${ch?` <span class="tag ${ch==='enviar'?'t-warn':'t-mut'}">${ch==='enviar'?'enviar cheque':'cheque'}</span>`:''}</td><td>${esc(l.CATEGORIA)}</td><td class="n"><b class="bad">${fR(+l.VALOR||0)}</b></td>
     <td class="c" style="white-space:nowrap">${l.COD_BARRAS?`<button class="ib" title="Copiar código de barras" onclick="fnCopiarCB('${esc(l.COD_BARRAS)}')">📋</button>`:''}<button class="ib" title="Abrir lançamento" onclick="fnAbrirLanc('${esc(l.ID)}')">✎</button></td></tr>`).join('')||'<tr><td colspan="7" class="muted">Nenhum desse tipo.</td></tr>'}</tbody></table></div></div>`;
