@@ -220,6 +220,7 @@ tr.fn-bok td{background:#eef7ef}
 .cc-corpo{background:#fff;border-radius:0 8px 8px 8px;padding:10px 12px;min-height:74px}
 .cc-form{display:grid;grid-template-columns:1fr 1.4fr;gap:8px}.cc-form>*{min-width:0}.cc-form .cc-desc-in{grid-column:1}.cc-form select,.cc-form input{width:100%}
 .cc-form{grid-template-columns:1fr 1fr 1fr}.cc-form select{grid-column:1}.cc-form .cc-nome{grid-column:2/4}
+.fnd-parc{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:6px}.fnd-parc.hide{display:none}
 .cc-nomew{display:flex;gap:6px;align-items:center}.cc-nomew input{flex:1;min-width:0}.cc-nomew .cc-novo{white-space:nowrap;flex:none}
 .cc-det{display:inline-block;margin-top:8px}
 .cc-sugs{display:flex;flex-direction:column;gap:6px}.cc-sug{display:flex;gap:8px;align-items:flex-start;padding:6px 8px;border:1px solid var(--line);border-radius:7px;cursor:pointer;font-size:13.5px}.cc-sug span{flex:1}.cc-sug:has(input:checked){border-color:var(--ok);background:var(--ok-soft)}.cc-sv{white-space:nowrap}
@@ -2314,8 +2315,8 @@ function fnAbrirLanc(id,tipo,pre,exId){
       ${!rec&&!id?`<label class="fnd-drop fnd-bol" id="fmBolDrop" ondragover="event.preventDefault();this.classList.add('on')" ondragleave="this.classList.remove('on')" ondrop="event.preventDefault();this.classList.remove('on');if(event.dataTransfer.files[0]) fnDrBoleto(event.dataTransfer.files[0])">
         <input type="file" accept=".pdf,image/jpeg,image/png,image/webp" class="hide" onchange="if(this.files[0]) fnDrBoleto(this.files[0]); this.value=''">🧾 <b>Arraste aqui o boleto (PDF ou foto)</b> <span class="muted">ou clique para escolher — preenche nome, vencimento, valor, categoria e centro de custo</span></label>
       <div id="fmBolInfo"></div>`:''}
-      <div class="fnd-r1">${f('Vencimento',`<input type="date" id="fmVenc" value="${isoBR(l.VENCIMENTO)||(id?'':fnHojeISO())}">`,'flex:0 0 170px')}
-        ${f('Forma de pagamento',`<div class="fnd-fp">${['CONTA CORRENTE','CARTÃO DE CRÉDITO'].map(o=>`<label><input type="radio" name="fmFP" value="${o}" ${(/CART/i.test(l.FORMA_PAGAMENTO||'')?'CARTÃO DE CRÉDITO':'CONTA CORRENTE')===o?'checked':''}><span>${o==='CONTA CORRENTE'?'🏦':'💳'} ${o}</span></label>`).join('')}</div>`,'flex:0 0 auto')}<span class="sp"></span>
+      <div class="fnd-r1">${f('Vencimento',`<input type="date" id="fmVenc" value="${isoBR(l.VENCIMENTO)||(id?'':fnHojeISO())}" oninput="fnDrFP()">`,'flex:0 0 170px')}
+        ${f('Forma de pagamento',`<div class="fnd-fp" onchange="fnDrFP()">${['CONTA CORRENTE','CARTÃO DE CRÉDITO'].map(o=>`<label><input type="radio" name="fmFP" value="${o}" ${(/CART/i.test(l.FORMA_PAGAMENTO||'')?'CARTÃO DE CRÉDITO':'CONTA CORRENTE')===o?'checked':''}><span>${o==='CONTA CORRENTE'?'🏦':'💳'} ${o}</span></label>`).join('')}</div>`,'flex:0 0 auto')}${!rec&&!exId?`<div class="fnd-parc hide" id="fmParcW"><label class="sf" style="margin:0"><span>Parcelas</span><input type="number" id="fmParc" min="1" max="60" value="1" ${id?'disabled title="Para mudar as parcelas, exclua e lance de novo"':''} oninput="fnDrFP()" style="width:80px"></label><div class="small" id="fmParcInfo"></div></div>`:''}<span class="sp"></span>
         <div class="fnd-tot"><span>Total a ${rec?'receber':'pagar'}</span><b id="fmTotTop">${fR(+l.VALOR||0)}</b></div></div>
       <div class="fnd-g">
         ${f('Nome',`<input id="fmNome" list="dlFnNome${tipo}" value="${esc(l.NOME||'')}" placeholder="${rec?'Cliente / origem':'Fornecedor / favorecido'}" oninput="fnDrNomeAuto(this.value,'${tipo}',false)" onchange="fnDrNomeAuto(this.value,'${tipo}',true);const nf=document.getElementById('fmNF'); if(nf&&nf.value.trim()) fnDrNFDist(nf.value)">`)}
@@ -2345,7 +2346,7 @@ function fnAbrirLanc(id,tipo,pre,exId){
       <button class="btn" id="fmSalvar" onclick="fnSalvarLancDr()">${exId?'Criar e conciliar':id?'Salvar':'Agendar'}</button></div>
   </div>
   <datalist id="dlFnNome${tipo}">${fnNomes(tipo).map(n=>`<option value="${esc(n)}">`).join('')}</datalist><datalist id="dlFnCat${tipo}">${fnCats(tipo).map(n=>`<option value="${esc(n)}">`).join('')}</datalist><datalist id="dlFnCC">${fnCentros().map(n=>`<option value="${esc(n)}">`).join('')}</datalist>`;
-  requestAnimationFrame(()=>dr.classList.add('on')); fnDrRecalc();
+  requestAnimationFrame(()=>dr.classList.add('on')); fnDrRecalc(); fnDrFP();
   setTimeout(()=>{ const e=document.getElementById(l.VENCIMENTO&&!l._dup?'fmNome':'fmVenc'); if(e) e.focus(); },120);
 }
 function fnDrLinhaCC(c){ return `<div class="fnd-ccl${c.cod?' cod':''}${c.cod&&!c.nome?' falta':''}" ${c.pct!=null&&c.pct!==''&&isFinite(+c.pct)?`data-pct="${+c.pct}"`:''} ${c.cod?`data-cod="${esc(c.cod)}" data-ini="${esc(c.nome||'')}"`:''}><div class="cc-nw">${c.cod?`<span class="cc-cod" title="Código no anexo">${esc(c.cod)}</span>`:''}<input class="cc-n" list="dlFnCC" value="${esc(c.nome||'')}" placeholder="${c.cod?'Escolha o centro de custo de “'+esc(c.cod)+'”…':'Selecione ou digite um centro de custo…'}" oninput="this.closest('.fnd-ccl').classList.toggle('falta',!this.value.trim()&&!!this.closest('.fnd-ccl').dataset.cod)"></div>
@@ -2365,7 +2366,7 @@ function fnDrRecalc(src){
     else { if(src===p) delete r.dataset.pct; if(src!==v){ const pc=r.dataset.pct!=null?+r.dataset.pct:(numBR(p.value)||0); v.value=p.value!==''&&tot?fN(tot*pc/100,2):''; } } });
   const soma=[...document.querySelectorAll('#fmCCs .cc-p')].reduce((s,i)=>s+(numBR(i.value)||0),0); const el=document.getElementById('fmCCSoma');
   const comNome=[...document.querySelectorAll('#fmCCs .cc-n')].some(i=>i.value.trim());
-  if(el) el.innerHTML=!comNome?'<span class="muted">Sem centro de custo.</span>':Math.abs(soma-100)<0.01?`<span class="ok">✓ 100% distribuído</span>`:`<span class="bad">Soma: ${fN(soma,2)}% — ${soma<100?'faltam '+fN(100-soma,2):'passou '+fN(soma-100,2)}%</span>`;
+  if(el) el.innerHTML=!comNome?'<span class="muted">Sem centro de custo.</span>':Math.abs(soma-100)<0.01?`<span class="ok">✓ 100% distribuído</span>`:`<span class="bad">Soma: ${fN(soma,2)}% — ${soma<100?'faltam '+fN(100-soma,2):'passou '+fN(soma-100,2)}%</span>`; if(typeof fnDrFP==='function') fnDrFP();
 }
 // PDF/Excel de distribuição (ex.: PRATCASA) → centros de custo com o % de cada filial
 // siglas das filiais usadas nas distribuições → centro de custo
@@ -2474,6 +2475,16 @@ async function fnDrBoleto(f){
   }catch(e){ toast(f.name+': '+e.message,7000); }
   FN.bolProg=null; box.classList.remove('lendo'); box.innerHTML=txt;
 }
+// 💳 cartão de crédito (pagamento): sempre entra como JÁ PAGO; com parcelas, divide o valor e cria uma conta paga por mês a partir do vencimento
+function fnAddMesBR(br,k){ const m=String(br||'').match(/^(\d{2})\/(\d{2})\/(\d{4})/); if(!m) return br; let y=+m[3], mo=+m[2]-1+k; y+=Math.floor(mo/12); mo=((mo%12)+12)%12;
+  const ult=new Date(y,mo+1,0).getDate(), d=Math.min(+m[1],ult); return String(d).padStart(2,'0')+'/'+String(mo+1).padStart(2,'0')+'/'+y; }
+function fnParcelas(total,n){ const c=Math.round(total*100), b=Math.floor(c/n), r=c-b*n; return Array.from({length:n},(_,i)=>(b+(i===0?r:0))/100); } // centavos que sobram vão na 1ª
+function fnDrCartao(){ return FN.dr&&FN.dr.tipo==='PAGAR'&&!FN.dr.exId&&/CART/i.test((document.querySelector('input[name=fmFP]:checked')||{}).value||''); }
+function fnDrFP(){ const w=document.getElementById('fmParcW'); if(!w) return; const on=fnDrCartao(); w.classList.toggle('hide',!on);
+  const bt=document.getElementById('fmSalvar'); if(bt&&!FN.dr.id) bt.textContent=on?'Lançar como pago':'Agendar'; if(!on) return;
+  const n=Math.max(1,Math.min(60,parseInt((document.getElementById('fmParc')||{}).value)||1)), tot=numBR((document.getElementById('fmValor')||{}).value||'')||0, v1=brISO((document.getElementById('fmVenc')||{}).value||'');
+  const P=fnParcelas(tot,n), info=document.getElementById('fmParcInfo');
+  if(info) info.innerHTML=`<span class="ok">✓ Entra como <b>já pago</b> (contas pagas)</span>${tot&&v1&&!FN.dr.id?` · ${n}x de <b>${fR(P[n-1])}</b>${P[0]!==P[n-1]?` (1ª ${fR(P[0])})`:''} · ${esc(v1)}${n>1?' a '+esc(fnAddMesBR(v1,n-1)):''}`:''}`; }
 async function fnSalvarLancDr(){
   const {id,tipo,exId}=FN.dr; const g=i=>document.getElementById(i).value.trim();
   const d={tipo,vencimento:brISO(g('fmVenc')),nome:g('fmNome'),descricao:g('fmDesc'),notaFiscal:g('fmNF'),categoria:g('fmCat'),valor:numBR(g('fmValor')),formaPagamento:(document.querySelector('input[name=fmFP]:checked')||{}).value||'CONTA CORRENTE',obs:g('fmObs'),codBarras:soDig(g('fmCB'))};
@@ -2495,6 +2506,19 @@ async function fnSalvarLancDr(){
         ok:r=>{ if(!r.jaGravado) toast(`✓ ${r.importados} parcela(s) gravada(s)`,4000); }, erro:()=>{ const t=new Set(tmps); fin().lanc=fin().lanc.filter(l=>!t.has(l.ID)); }});
       toast(`${lista.length} parcela(s) agendada(s) — gravando no Google`,4000); return; }
   if(B.length===1&&!d.codBarras&&B[0].linha) d.codBarras=B[0].linha;
+  if(!exId&&tipo==='PAGAR'&&/CART/i.test(d.formaPagamento)){ // 💳 cartão: já pago, em parcelas mensais
+    if(id){ const l=fnLanc(id); d.id=id; d.quitado=true; d.dataPagamento=(l&&l.DATA_PAGAMENTO)||d.vencimento; d.valorPago=d.valor; d.contaId=(l&&l.CONTA_ID)||'';
+      fnFecharLanc(); fnBg('finSalvarLanc',d,{rotulo:`Editar pagamento (cartão): ${d.nome} · ${fR(d.valor)}`,local:()=>{ const x=fnLanc(id); if(x) Object.assign(x,{VENCIMENTO:d.vencimento,NOME:d.nome,DESCRICAO:d.descricao,NOTA_FISCAL:d.notaFiscal,CATEGORIA:d.categoria,CENTRO_CUSTO:d.centroCusto,FORMA_PAGAMENTO:'CARTÃO DE CRÉDITO',OBS:d.obs,VALOR:d.valor,STATUS:'QUITADO',DATA_PAGAMENTO:d.dataPagamento,VALOR_PAGO:d.valor}); }});
+      toast('Lançamento salvo (pago no cartão)'); return; }
+    const n=Math.max(1,Math.min(60,parseInt((document.getElementById('fmParc')||{}).value)||1)), P=fnParcelas(d.valor,n);
+    const cont=FN.continuar; if(cont) fnAbrirLanc(null,tipo); else fnFecharLanc();
+    P.forEach((val,i)=>{ const venc=fnAddMesBR(d.vencimento,i), tmp=fnIdCli('PGC'), desc=n>1?((d.descricao?d.descricao+' ':'')+`(${i+1}/${n})`):d.descricao;
+      const x=Object.assign({},d,{vencimento:venc,valor:val,descricao:desc,codBarras:'',quitado:true,dataPagamento:venc,valorPago:val,idNovo:tmp});
+      fnBg('finSalvarLanc',x,{rotulo:`Pago no cartão: ${d.nome}${n>1?` · parcela ${i+1}/${n}`:''} · ${fR(val)} · ${venc}`,
+        local:()=>fin().lanc.push({ID:tmp,TIPO:'PAGAR',STATUS:'QUITADO',CRIADO_EM:'',VENCIMENTO:venc,NOME:d.nome,DESCRICAO:desc,NOTA_FISCAL:d.notaFiscal,CATEGORIA:d.categoria,CENTRO_CUSTO:d.centroCusto,FORMA_PAGAMENTO:'CARTÃO DE CRÉDITO',OBS:d.obs,COD_BARRAS:'',VALOR:val,DATA_PAGAMENTO:venc,VALOR_PAGO:val}),
+        ok:()=>{ if(i===0&&aliases.length) api('finSalvarAliasCC',{lista:aliases}).catch(()=>{}); },
+        erro:()=>{ const F=fin(); F.lanc=F.lanc.filter(y=>y.ID!==tmp); }}); });
+    toast(n>1?`💳 ${n} parcelas lançadas como pagas — gravando no Google`:'💳 Lançado como pago — gravando no Google',4000); return; }
   if(!exId){ // grava em segundo plano: fecha o painel na hora
     if(id){ d.id=id; const l=fnLanc(id); if(l&&l.STATUS==='QUITADO'){ d.quitado=true; d.dataPagamento=l.DATA_PAGAMENTO; d.valorPago=l.VALOR_PAGO; d.contaId=l.CONTA_ID; } }
     const reg={TIPO:tipo,VENCIMENTO:d.vencimento,NOME:d.nome,DESCRICAO:d.descricao,NOTA_FISCAL:d.notaFiscal,CATEGORIA:d.categoria,CENTRO_CUSTO:d.centroCusto,FORMA_PAGAMENTO:d.formaPagamento,OBS:d.obs,COD_BARRAS:d.codBarras,VALOR:d.valor};
