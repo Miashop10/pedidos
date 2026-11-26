@@ -220,6 +220,7 @@ tr.fn-bok td{background:#eef7ef}
 .cc-corpo{background:#fff;border-radius:0 8px 8px 8px;padding:10px 12px;min-height:74px}
 .cc-form{display:grid;grid-template-columns:1fr 1.4fr;gap:8px}.cc-form>*{min-width:0}.cc-form .cc-desc-in{grid-column:1}.cc-form select,.cc-form input{width:100%}
 .cc-form{grid-template-columns:1fr 1fr 1fr}.cc-form select{grid-column:1}.cc-form .cc-nome{grid-column:2/4}
+.cc-nomew{display:flex;gap:6px;align-items:center}.cc-nomew input{flex:1;min-width:0}.cc-nomew .cc-novo{white-space:nowrap;flex:none}
 .cc-det{display:inline-block;margin-top:8px}
 .cc-sugs{display:flex;flex-direction:column;gap:6px}.cc-sug{display:flex;gap:8px;align-items:flex-start;padding:6px 8px;border:1px solid var(--line);border-radius:7px;cursor:pointer;font-size:13.5px}.cc-sug span{flex:1}.cc-sug:has(input:checked){border-color:var(--ok);background:var(--ok-soft)}.cc-sv{white-space:nowrap}
 .cc-vazio{padding:8px 0}
@@ -3778,7 +3779,7 @@ function fnConcCard(e){
     :`<div class="muted small cc-vazio">Nenhum lançamento em aberto com o mesmo valor e vencimento. Use <a href="#" onclick="event.preventDefault();FN.concTab['${id}']='nova';fnConcRedesenhar('${id}')">Nova transação</a> ou <a href="#" onclick="event.preventDefault();fnBuscarLanc('${id}')">Buscar / Criar vários</a>.</div>`;
   else corpo=`<div class="cc-form">
       <select disabled><option>${ent?'Recebimento':'Pagamento'}</option></select>
-      <input class="cc-nome" list="dlCcNome" placeholder="Nome" onchange="fnConcNome(this)">
+      <div class="cc-nome cc-nomew"><input class="cc-nome-in" list="dlCcNome" placeholder="Nome" oninput="fnConcNomeNovo(this)" onchange="fnConcNome(this);fnConcNomeNovo(this)"><button type="button" class="btn sec sm cc-novo hide" onclick="fnConcAddNome(this)" title="Esse nome ainda não existe no sistema — cria e usa neste lançamento">+ adicionar novo nome</button></div>
       <input class="cc-desc-in" value="${esc(e.DESCRICAO)}" placeholder="Descrição">
       <input class="cc-cat" list="dlCcCat${tipo}" placeholder="Categoria">
       <input class="cc-cc" list="dlCcCC" placeholder="Centro de custo">
@@ -3797,6 +3798,14 @@ function fnConcContador(){ const sel=document.querySelector('select[onchange^="F
 function fnConcTirarSug(lancIds,exceto){ const ids=new Set([].concat(lancIds).filter(Boolean).map(String)); if(!ids.size) return;
   document.querySelectorAll('.cc-card').forEach(c=>{ const ex=c.id.slice(3); if(ex===exceto) return; if([...c.querySelectorAll('.cc-sugs input[type=radio]')].some(r=>ids.has(r.value))) fnConcRedesenhar(ex); }); }
 // nome escolhido: completa categoria e centro de custo com os do último lançamento desse nome
+// nome digitado que ainda não existe no sistema: aparece "+ adicionar novo nome" ao lado (cria o nome e segue para a categoria)
+function fnConcNomesSet(){ const L=fin().lanc; if(FN._nmSet&&FN._nmSetN===L.length) return FN._nmSet; const st=new Set(FN._nmExtra||[]); L.forEach(l=>{ const n=up(String(l.NOME||'').trim()); if(n) st.add(n); }); FN._nmSet=st; FN._nmSetN=L.length; return st; }
+function fnConcNomeNovo(inp){ const b=inp.parentNode.querySelector('.cc-novo'); if(!b) return; const n=up(inp.value.trim()); b.classList.toggle('hide',!n||fnConcNomesSet().has(n)); }
+function fnConcAddNome(btn){ const inp=btn.parentNode.querySelector('input'); const nome=inp.value.trim().replace(/\s+/g,' '); if(!nome) return;
+  FN._nmExtra=FN._nmExtra||[]; FN._nmExtra.push(up(nome)); if(FN._nmSet) FN._nmSet.add(up(nome));
+  const dl=document.getElementById('dlCcNome'); if(dl){ const o=document.createElement('option'); o.value=nome; dl.appendChild(o); }
+  inp.value=nome; btn.classList.add('hide'); toast('Novo nome "'+nome+'" adicionado — complete a categoria e clique em OK',3500);
+  const c=btn.closest('.cc-card'), cat=c&&c.querySelector('.cc-cat'); if(cat) cat.focus(); }
 function fnConcNome(inp){ const card=inp.closest('.cc-card'); const n=up(inp.value.trim()); if(!n) return; const L=fin().lanc; let ult=null;
   for(let i=L.length-1;i>=0;i--) if(up(String(L[i].NOME||'').trim())===n){ ult=L[i]; break; } if(!ult) return;
   const cat=card.querySelector('.cc-cat'), cc=card.querySelector('.cc-cc'); if(cat&&!cat.value&&ult.CATEGORIA) cat.value=ult.CATEGORIA; if(cc&&!cc.value&&ult.CENTRO_CUSTO&&fnCCParse(ult.CENTRO_CUSTO).length===1) cc.value=fnCCParse(ult.CENTRO_CUSTO)[0].nome; }
@@ -3806,8 +3815,8 @@ function fnConcOK(exId){
     fnConcEnfileirar({extratoId:exId,lancId},'Conciliar extrato',()=>{ e.LANC_ID=lancId; const l=fnLanc(lancId); if(l){ l.STATUS='QUITADO'; l.DATA_PAGAMENTO=e.DATA; l.VALOR_PAGO=Math.abs(+e.VALOR); l.CONTA_ID=e.CONTA_ID; l.EXTRATO_ID=exId; } });
     fnConcTirarSug(lancId,exId);
   } else {
-    const nome=card.querySelector('.cc-nome').value.trim(), desc=card.querySelector('.cc-desc-in').value.trim(), cat=card.querySelector('.cc-cat').value.trim(), cc=card.querySelector('.cc-cc').value.trim();
-    if(!nome){ toast('Preencha o nome'); card.querySelector('.cc-nome').focus(); return; }
+    const nome=card.querySelector('.cc-nome-in').value.trim(), desc=card.querySelector('.cc-desc-in').value.trim(), cat=card.querySelector('.cc-cat').value.trim(), cc=card.querySelector('.cc-cc').value.trim();
+    if(!nome){ toast('Preencha o nome'); card.querySelector('.cc-nome-in').focus(); return; }
     if(cc&&!fnCentros().some(n=>up(n)===up(cc))&&!S.master){ toast('Centro de custo não cadastrado'); return; }
     fnBg('finConciliar',{extratoId:exId,novo:{nome,descricao:desc,categoria:cat,centroCusto:cc,vencimento:e.DATA,formaPagamento:'CONTA CORRENTE'}},{rotulo:'Criar lançamento e conciliar',leve:true,local:()=>{ e.LANC_ID='…'; },ok:()=>fnConcRedesenhar(exId),erro:()=>{ if(e.LANC_ID==='…') e.LANC_ID=''; fnConcRedesenhar(exId); }});
   }
