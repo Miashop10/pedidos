@@ -96,6 +96,8 @@ td.lg-obs input:hover,td.lg-obs input:focus{border-color:var(--line);background:
 .okb.sm{height:22px;min-width:40px;font-size:11.5px;border-radius:6px;padding:0 6px}
 .sl-filtros{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
 .dc-chq.dc-bol{cursor:default}
+/* Financeiro: o título da tela (Financeiro · Relatórios / Contas a receber / + Agendar…) também fica fixo */
+.fn-top{position:sticky;top:var(--hdTop,0px);z-index:16;background:var(--bg);padding-top:6px;padding-bottom:6px;margin-top:-6px}
 /* relatórios: filtros + cabeçalho da tabela ficam fixos ao rolar */
 .rel-topo{position:sticky;top:var(--relTop,0px);z-index:15;background:var(--bg);padding-top:6px;margin-top:-6px}
 .rel-topo .sl-filtros{margin-bottom:6px}
@@ -987,8 +989,10 @@ function render(){
 function ajustarTabelas(raiz){ (raiz||document).querySelectorAll('.tw > table, .dre-wrap > table').forEach(t=>{ t.style.zoom=''; t.style.removeProperty('--z'); const w=t.parentElement.clientWidth, sw=t.scrollWidth;
   if(sw>w+2 && w>0){ const z=Math.max(0.6, (w-2)/sw); t.style.zoom=z.toFixed(3); t.style.setProperty('--z',z.toFixed(3)); } }); fnFixarTopo(); }
 // altura do cabeçalho do sistema e da barra de filtros (para a tabela parar logo abaixo deles)
-function fnFixarTopo(){ const t=document.querySelector('.rel-topo'); if(!t) return; const hd=document.querySelector('header');
-  const top=hd&&getComputedStyle(hd).position==='sticky'?hd.offsetHeight:0; const r=document.documentElement.style; r.setProperty('--relTop',top+'px'); r.setProperty('--relH',t.offsetHeight+'px'); }
+function fnFixarTopo(){ const hd=document.querySelector('header'), r=document.documentElement.style;
+  const hTop=hd&&getComputedStyle(hd).position==='sticky'?hd.offsetHeight:0; r.setProperty('--hdTop',hTop+'px');
+  const ft=document.querySelector('.fn-top'), top=hTop+(ft?ft.offsetHeight:0);
+  const t=document.querySelector('.rel-topo'); r.setProperty('--relTop',top+'px'); r.setProperty('--relH',(t?t.offsetHeight:0)+'px'); }
 let _rz; window.addEventListener('resize',()=>{ clearTimeout(_rz); _rz=setTimeout(()=>ajustarTabelas(),150); });
 /* =================== MODAIS =================== */
 function modal(html){ fecharModal(); const d=document.createElement('div'); d.className='mbg'; d.innerHTML=`<div class="modal">${html}</div>`; d.addEventListener('mousedown',e=>{ if(e.target===d) fecharModal(); }); document.body.appendChild(d); setTimeout(()=>ajustarTabelas(d),0); return d; }
@@ -2193,6 +2197,17 @@ function fnContaSel(id,rot,chave){ chave=chave||'mc_contaRec'; const C=fin().con
   <select id="${id}" onchange="LS.set('${chave}',this.value);document.querySelectorAll('select[data-conta-ch=${chave}]').forEach(s=>s.value=this.value)" data-conta-ch="${chave}"><option value="">— escolha a conta —</option>${C.map(c=>`<option value="${esc(c.ID)}" ${String(c.ID)===ult?'selected':''}>${esc(c.NOME)}${c.BANCO?' · '+esc(c.BANCO):''}</option>`).join('')}</select></label>`; }
 function fnContaLida(id,rot){ const el=document.getElementById(id); const v=el?el.value:''; if(!v){ toast('Escolha a '+(rot||'conta de recebimento'),5000); if(el){ el.focus(); el.style.borderColor='var(--bad)'; } return null; } return v; }
 function fnAvisoSheetsApi(){ return S.sheetsApi===false?`<div class="card" style="padding:10px 12px;margin-bottom:10px;border-color:var(--warn,#d97706)"><b>⚡ Conciliação lenta?</b> <span class="small">A API do Google Sheets está desligada. No Apps Script: menu da esquerda <b>Serviços → + → Google Sheets API → Adicionar</b> e publique uma nova versão. As conciliações passam a gravar várias linhas numa chamada só.</span></div>`:''; }
+// DESCRIÇÃO: ao digitar o começo de uma descrição já usada, o sistema completa o resto (selecionado) — Tab, Enter ou → aceita; continuar digitando substitui
+function fnDescIdx(){ const L=fin().lanc; if(FN._descIdx&&FN._descIdxN===L.length) return FN._descIdx; const m=new Map();
+  L.forEach(l=>{ const d=String(l.DESCRICAO||'').trim(); if(d.length<3) return; const k=semAcento(d).toUpperCase(), o=m.get(k); if(o) o.n++; else m.set(k,{d,k,n:1}); });
+  FN._descIdx=[...m.values()].sort((a,b)=>b.n-a.n); FN._descIdxN=L.length; return FN._descIdx; }
+document.addEventListener('input',e=>{ const el=e.target; if(!el||!el.matches||!el.matches('.cc-desc-in, #fmDesc')) return;
+  if(!/^insert/.test(e.inputType||'')) return; // apagando: não completa
+  const v=el.value; if(v.length<2||el.selectionStart!==v.length) return; const k=semAcento(v).toUpperCase();
+  const o=fnDescIdx().find(x=>x.k.length>k.length&&x.k.startsWith(k)); if(!o) return;
+  el.value=o.d; el.setSelectionRange(v.length,el.value.length); }); // fica com a grafia já usada (maiúsculas/acentos)
+document.addEventListener('keydown',e=>{ const el=e.target; if(!el||!el.matches||!el.matches('.cc-desc-in, #fmDesc')) return;
+  if((e.key==='Tab'||e.key==='Enter'||e.key==='ArrowRight')&&el.selectionStart<el.selectionEnd&&el.selectionEnd===el.value.length){ if(e.key!=='Tab') e.preventDefault(); el.setSelectionRange(el.value.length,el.value.length); } });
 function fnConciliacao(){
   const C=fin().contas; if(!C.length) return '<div class="card muted">Cadastre uma conta bancária e importe o extrato em Excel para conciliar.</div>';
   if(!FN.conta||!fnConta(FN.conta)) FN.conta=C[0].ID;
@@ -2209,7 +2224,7 @@ function fnConciliacao(){
   const vis=new Set(LL.filter(e=>!e.LANC_ID).map(e=>e.ID)); [...FN.concSel].forEach(id=>{ if(!vis.has(id)) FN.concSel.delete(id); });
   const nSel=FN.concSel.size, nSelSug=[...FN.concSel].filter(id=>FN.concPar[id]).length, nPend=vis.size; const limC=FN.lim||100;
   const totF=LL.reduce((s,e)=>s+(+e.VALOR||0),0);
-  return fnAvisoSheetsApi()+`<div class="sl-filtros">
+  return fnAvisoSheetsApi()+`<div class="rel-topo conc-topo"><div class="sl-filtros">
     <select style="max-width:220px" onchange="FN.conta=this.value;fnAtualizar()">${C.map(x=>`<option value="${esc(x.ID)}" ${x.ID===FN.conta?'selected':''}>${esc(x.NOME)}</option>`).join('')}</select>
     <select onchange="FN.concFiltro=this.value;fnAtualizar()"><option value="pend" ${FN.concFiltro==='pend'?'selected':''}>Pendentes (${pend.length})</option><option value="conc" ${FN.concFiltro==='conc'?'selected':''}>Conciliadas (${E.length-pend.length})</option><option value="todas" ${FN.concFiltro==='todas'?'selected':''}>Todas (${E.length})</option></select>
     <span class="muted small">de</span><input type="date" value="${CF.de}" onchange="fnDataFiltro(this,v=>FN.cf.de=v)" onblur="fnDataFiltro(this,v=>FN.cf.de=v,1)"><span class="muted small">a</span><input type="date" value="${CF.ate}" onchange="fnDataFiltro(this,v=>FN.cf.ate=v)" onblur="fnDataFiltro(this,v=>FN.cf.ate=v,1)">
@@ -2222,7 +2237,7 @@ function fnConciliacao(){
   ${nPend?`<div class="fn-selbar" id="fnConcBar"><label class="fnd-rd" style="margin:0"><input type="checkbox" ${nSel&&nSel===nPend?'checked':''} onchange="fnConcTodos(this.checked)"> Marcar todas as pendentes da lista (${nPend})</label>
     <span class="sp"></span>${nSel?`<span class="small"><b>${nSel}</b> marcada(s)</span>`:''}
     ${(()=>{ const n=fnConcTodosPares().length; return `<button class="btn" ${n?'':'disabled'} onclick="fnConciliarTodos()" title="Concilia todos os créditos do extrato desta conta com a conta a receber de valor e vencimento exatos (débitos/contas a pagar não entram)">✓ Conciliar todos${n?' ('+n+')':''}</button>`; })()}
-    <button class="btn ghost sm" ${nSel?'':'disabled'} onclick="fnIgnorarMarcados()" title="Sem lançamento (ex.: transferência entre contas)">Ignorar marcados</button></div>`:''}
+    <button class="btn ghost sm" ${nSel?'':'disabled'} onclick="fnIgnorarMarcados()" title="Sem lançamento (ex.: transferência entre contas)">Ignorar marcados</button></div>`:''}</div>
   ${fnConcListas()}
   <div class="cc-list">${LL.slice(0,limC).map(fnConcCard).join('')||`<div class="card muted">${E.length?(FN.concFiltro==='pend'&&!pend.length?'Tudo conciliado nesta conta. ✓':'Nada com esses filtros.'):'Nenhum extrato importado nesta conta. Use "📋 Colar extrato" ou "⬆ Importar extrato (Excel)".'}</div>`}</div>
   ${LL.length>limC?`<div class="c" style="margin:10px 0">Mostrando ${limC} de ${LL.length} · <button class="btn ghost sm" onclick="FN.lim=(FN.lim||100)+200;fnAtualizar()">Mostrar mais</button></div>`:''}`;
@@ -2262,7 +2277,7 @@ function fnNomes(tipo){ return [...new Set(fin().lanc.filter(l=>!tipo||l.TIPO===
 function fnCCParse(t){ t=String(t||'').trim(); if(!t) return [];
   return t.split(';').map(x=>x.trim()).filter(Boolean).map(x=>{ const m=x.match(/^(.*?)\s*\(\s*([\d.,]+)\s*%\s*\)$/); return m?{nome:m[1].trim(),pct:numBR(m[2])}:{nome:x,pct:null}; })
     .map((c,_,a)=>({nome:c.nome,pct:c.pct==null?(a.length===1?100:Math.round(10000/a.length)/100):c.pct})); }
-function fnCCTexto(a){ a=(a||[]).filter(c=>c.nome); if(!a.length) return ''; if(a.length===1&&Math.abs(a[0].pct-100)<0.005) return a[0].nome; return a.map(c=>`${c.nome} (${fN(c.pct,2).replace(/,00$/,'')}%)`).join('; '); }
+function fnCCTexto(a){ a=(a||[]).filter(c=>c.nome); if(!a.length) return ''; if(a.length===1&&Math.abs(a[0].pct-100)<0.005) return a[0].nome; return a.map(c=>`${c.nome} (${String(Math.round(c.pct*1e6)/1e6).replace('.',',')}%)`).join('; '); } // até 6 casas: 2.000 de 3.500 = 57,142857% (com 2 casas virava 1.999,90)
 function fnCCPeso(l,cc){ const c=fnCCParse(l.CENTRO_CUSTO).filter(x=>up(x.nome)===up(cc)); return c.reduce((s,x)=>s+x.pct,0)/100; }
 function fnCCHtml(t,valor){ const a=fnCCParse(t); if(!a.length) return '<span class="muted">—</span>'; if(a.length===1) return esc(a[0].nome);
   // vários centros: linha fina "N centros de custo ⓘ"; passando o mouse mostra todos com o %
@@ -2332,7 +2347,7 @@ function fnAbrirLanc(id,tipo,pre,exId){
   requestAnimationFrame(()=>dr.classList.add('on')); fnDrRecalc();
   setTimeout(()=>{ const e=document.getElementById(l.VENCIMENTO&&!l._dup?'fmNome':'fmVenc'); if(e) e.focus(); },120);
 }
-function fnDrLinhaCC(c){ return `<div class="fnd-ccl${c.cod?' cod':''}${c.cod&&!c.nome?' falta':''}" ${c.cod?`data-cod="${esc(c.cod)}" data-ini="${esc(c.nome||'')}"`:''}><div class="cc-nw">${c.cod?`<span class="cc-cod" title="Código no anexo">${esc(c.cod)}</span>`:''}<input class="cc-n" list="dlFnCC" value="${esc(c.nome||'')}" placeholder="${c.cod?'Escolha o centro de custo de “'+esc(c.cod)+'”…':'Selecione ou digite um centro de custo…'}" oninput="this.closest('.fnd-ccl').classList.toggle('falta',!this.value.trim()&&!!this.closest('.fnd-ccl').dataset.cod)"></div>
+function fnDrLinhaCC(c){ return `<div class="fnd-ccl${c.cod?' cod':''}${c.cod&&!c.nome?' falta':''}" ${c.pct!=null&&c.pct!==''&&isFinite(+c.pct)?`data-pct="${+c.pct}"`:''} ${c.cod?`data-cod="${esc(c.cod)}" data-ini="${esc(c.nome||'')}"`:''}><div class="cc-nw">${c.cod?`<span class="cc-cod" title="Código no anexo">${esc(c.cod)}</span>`:''}<input class="cc-n" list="dlFnCC" value="${esc(c.nome||'')}" placeholder="${c.cod?'Escolha o centro de custo de “'+esc(c.cod)+'”…':'Selecione ou digite um centro de custo…'}" oninput="this.closest('.fnd-ccl').classList.toggle('falta',!this.value.trim()&&!!this.closest('.fnd-ccl').dataset.cod)"></div>
   <div class="fnd-pv"><input class="cc-p" inputmode="decimal" value="${c.pct!=null&&c.pct!==''?fN(+c.pct,2):''}" placeholder="0,00" oninput="fnDrRecalc(this)"><i>%</i></div>
   <div class="fnd-pv"><i>R$</i><input class="cc-v" inputmode="decimal" placeholder="0,00" oninput="fnDrRecalc(this)"></div>
   <button class="ib del" title="Remover" onclick="this.parentNode.remove();fnDrRecalc()">✕</button></div>`; }
@@ -2344,8 +2359,9 @@ function fnDrRecalc(src){
   const modo=(FN.dr||{}).modo||'pct';
   document.querySelectorAll('#fmCCs .fnd-ccl').forEach(r=>{ const p=r.querySelector('.cc-p'), v=r.querySelector('.cc-v');
     p.readOnly=modo!=='pct'; v.readOnly=modo!=='val'; p.parentNode.classList.toggle('ro',modo!=='pct'); v.parentNode.classList.toggle('ro',modo!=='val');
-    if(modo==='val'&&src===v){ p.value=tot?fN((numBR(v.value)||0)/tot*100,2):''; }
-    else if(src!==v){ v.value=p.value!==''&&tot?fN(tot*(numBR(p.value)||0)/100,2):''; } });
+    if(modo==='val'){ // por VALOR: o que foi digitado em R$ nunca é recalculado (antes, digitar na 2ª filial refazia a 1ª pelo % arredondado: 2.000,00 virava 2.000,05)
+      if(v.value!==''&&tot){ const x=(numBR(v.value)||0)/tot*100; p.value=fN(x,2); r.dataset.pct=String(Math.round(x*1e6)/1e6); } else { if(src===v||!v.value){ p.value=v.value===''?'':p.value; } delete r.dataset.pct; } }
+    else { if(src===p) delete r.dataset.pct; if(src!==v){ const pc=r.dataset.pct!=null?+r.dataset.pct:(numBR(p.value)||0); v.value=p.value!==''&&tot?fN(tot*pc/100,2):''; } } });
   const soma=[...document.querySelectorAll('#fmCCs .cc-p')].reduce((s,i)=>s+(numBR(i.value)||0),0); const el=document.getElementById('fmCCSoma');
   const comNome=[...document.querySelectorAll('#fmCCs .cc-n')].some(i=>i.value.trim());
   if(el) el.innerHTML=!comNome?'<span class="muted">Sem centro de custo.</span>':Math.abs(soma-100)<0.01?`<span class="ok">✓ 100% distribuído</span>`:`<span class="bad">Soma: ${fN(soma,2)}% — ${soma<100?'faltam '+fN(100-soma,2):'passou '+fN(soma-100,2)}%</span>`;
@@ -2405,7 +2421,7 @@ async function fnDrPdf(f){
   }catch(e){ toast(f.name+': '+e.message,7000); }
   box.classList.remove('lendo'); box.innerHTML=txt;
 }
-function fnDrLerCC(){ const m={}; [...document.querySelectorAll('#fmCCs .fnd-ccl')].map(r=>({nome:r.querySelector('.cc-n').value.trim(),pct:numBR(r.querySelector('.cc-p').value)||0})).filter(c=>c.nome).forEach(c=>{ const k=up(c.nome); if(m[k]) m[k].pct=Math.round((m[k].pct+c.pct)*100)/100; else m[k]=c; }); const a=Object.values(m);
+function fnDrLerCC(){ const m={}; [...document.querySelectorAll('#fmCCs .fnd-ccl')].map(r=>({nome:r.querySelector('.cc-n').value.trim(),pct:r.dataset.pct!=null&&r.querySelector('.cc-p').value!==''?+r.dataset.pct:(numBR(r.querySelector('.cc-p').value)||0)})).filter(c=>c.nome).forEach(c=>{ const k=up(c.nome); if(m[k]) m[k].pct=Math.round((m[k].pct+c.pct)*1e6)/1e6; else m[k]=c; }); const a=Object.values(m);
   if(a.length===1&&!a[0].pct) a[0].pct=100; return a; }
 function fnFecharLanc(){ const d=document.getElementById('fnDrawer'); if(!d) return; d.classList.remove('on'); setTimeout(()=>{ if(!d.classList.contains('on')) d.innerHTML=''; },220); FN.dr=null; }
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&FN.dr&&!document.querySelector('.mbg')) fnFecharLanc(); });
@@ -3302,20 +3318,22 @@ function fnDashDia(tipo,iso){ const L=(FN.dashDias[tipo]||{})[iso]||[]; const dt
 function fnDataLanc(l){ const c=String(l.CRIADO_EM||'').trim(); if(c) return c.slice(0,16); const m=String(l.ID||'').match(/^[A-Z]{2}(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/); if(m) return `${m[3]}/${m[2]}/20${m[1]} ${m[4]}:${m[5]}`; return String(l.ATUALIZADO_EM||'').slice(0,16); }
 function fnCriadoChave(t){ const m=String(t||'').match(/^(\d{2})\/(\d{2})\/(\d{4})\s*(\d{2}:\d{2}(:\d{2})?)?/); return m?m[3]+m[2]+m[1]+(m[4]||''):''; }
 function fnHistBoletos(){
-  const q=semAcento(FN.bq||'').trim(); const hojeBRs=hojeBR();
-  const ok=l=>String(l.BANCO_OK||'').trim(); const some=l=>ok(l)&&ok(l)!==hojeBRs; // marcado em dia anterior: some da lista
-  const T=fin().lanc.filter(l=>l.TIPO==='PAGAR'&&soDig(l.COD_BARRAS)); const ocultos=T.filter(some).length;
-  const L=T.filter(l=>(FN.bTodos||!some(l))&&(!q||semAcento([fnDataLanc(l),l.VENCIMENTO,l.NOME,l.DESCRICAO,l.NOTA_FISCAL,fN(+l.VALOR,2),l.COD_BARRAS].join(' ')).includes(q)))
+  // ficam só os lançados HOJE e ONTEM: o que foi lançado no dia 10 sai desta lista no dia 12
+  const q=semAcento(FN.bq||'').trim(); const d=new Date(); d.setDate(d.getDate()-1);
+  const corte=d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');
+  const dia=l=>(fnCriadoChave(fnDataLanc(l))||'').slice(0,8); const velho=l=>{ const k=dia(l); return !k||k<corte; };
+  const T=fin().lanc.filter(l=>l.TIPO==='PAGAR'&&soDig(l.COD_BARRAS)); const ocultos=T.filter(velho).length;
+  const L=T.filter(l=>(FN.bTodos||!velho(l))&&(!q||semAcento([fnDataLanc(l),l.VENCIMENTO,l.NOME,l.DESCRICAO,l.NOTA_FISCAL,fN(+l.VALOR,2),l.COD_BARRAS].join(' ')).includes(q)))
     .map(l=>({l,k:fnCriadoChave(fnDataLanc(l))||String(l.ID)})).sort((a,b)=>b.k.localeCompare(a.k)).map(x=>x.l);
   const lim=FN.blim||300, tot=L.reduce((s,l)=>s+(+l.VALOR||0),0);
   return `<div class="sl-filtros"><input type="search" class="w-q" value="${esc(FN.bq||'')}" placeholder="Buscar nome, valor, vencimento, código…" oninput="FN.bq=this.value;FN.blim=0;clearTimeout(window._fq);window._fq=setTimeout(fnAtualizar,250)">
-    <span class="muted small">Marque ✓ quando o boleto já foi lançado no banco — no dia seguinte ele sai desta lista.</span><span class="sp"></span>
-    ${ocultos?`<label class="fnd-rd" style="margin:0"><input type="checkbox" ${FN.bTodos?'checked':''} onchange="FN.bTodos=this.checked;fnAtualizar()"> mostrar também os ${ocultos} já lançados no banco</label>`:''}</div>
-  <div class="tw sl-tab"><table><thead><tr><th style="width:62px" class="c">No banco</th><th style="width:150px">Data do lançamento</th><th style="width:105px">Vencimento</th><th>Nome</th><th class="n" style="width:120px">Valor</th><th>Código de barras</th><th style="width:90px"></th></tr></thead><tbody>
-  ${L.slice(0,lim).map(l=>`<tr class="${ok(l)?'fn-bok':''}"><td class="c"><button class="fn-chk${ok(l)?' on':''}" title="${ok(l)?'Lançado no banco em '+esc(ok(l))+' — clique para desmarcar':'Marcar como lançado no banco'}" onclick="fnMarcarBanco('${esc(l.ID)}',${ok(l)?'false':'true'})">${ok(l)?'✓':''}</button></td>
+    <span class="muted small">Boletos lançados hoje e ontem — depois de 2 dias saem sozinhos desta lista.</span><span class="sp"></span>
+    ${ocultos?`<label class="fnd-rd" style="margin:0"><input type="checkbox" ${FN.bTodos?'checked':''} onchange="FN.bTodos=this.checked;fnAtualizar()"> mostrar também os ${ocultos} mais antigos</label>`:''}</div>
+  <div class="tw sl-tab"><table><thead><tr><th style="width:150px">Data do lançamento</th><th style="width:105px">Vencimento</th><th>Nome</th><th class="n" style="width:120px">Valor</th><th>Código de barras</th><th style="width:90px"></th></tr></thead><tbody>
+  ${L.slice(0,lim).map(l=>`<tr>
     <td>${esc(fnDataLanc(l))}</td><td>${esc(l.VENCIMENTO)}${l.STATUS==='QUITADO'?' <span class="tag t-ok" title="Pago em '+esc(l.DATA_PAGAMENTO)+'">pago</span>':''}</td><td><b>${esc(l.NOME)}</b>${l.DESCRICAO?`<div class="muted small">${esc(l.DESCRICAO)}</div>`:''}</td><td class="n"><b>${fR(+l.VALOR||0)}</b></td>
-    <td><span class="fn-cbtxt">${esc(fnFmtCB(l.COD_BARRAS))}</span></td><td class="c" style="white-space:nowrap"><button class="btn sec sm" onclick="fnCopiarCB('${esc(l.COD_BARRAS)}')">📋 Copiar</button><button class="ib" title="Abrir lançamento" onclick="fnAbrirLanc('${esc(l.ID)}')">✎</button></td></tr>`).join('')||'<tr><td colspan="7" class="muted">Nenhum boleto pendente de lançar no banco. ✓</td></tr>'}
-  </tbody><tfoot>${L.length>lim?`<tr><td colspan="7" class="c" style="background:var(--card);font-weight:400">Mostrando ${lim} de ${L.length} · <button class="btn ghost sm" onclick="FN.blim=1e9;fnAtualizar()">Mostrar todos</button></td></tr>`:''}<tr><td colspan="4">TOTAL · ${L.length} boleto(s)</td><td class="n">${fR(tot)}</td><td colspan="2"></td></tr></tfoot></table></div>`;
+    <td><span class="fn-cbtxt">${esc(fnFmtCB(l.COD_BARRAS))}</span></td><td class="c" style="white-space:nowrap"><button class="btn sec sm" onclick="fnCopiarCB('${esc(l.COD_BARRAS)}')">📋 Copiar</button><button class="ib" title="Abrir lançamento" onclick="fnAbrirLanc('${esc(l.ID)}')">✎</button></td></tr>`).join('')||'<tr><td colspan="6" class="muted">Nenhum boleto lançado hoje ou ontem.</td></tr>'}
+  </tbody><tfoot>${L.length>lim?`<tr><td colspan="6" class="c" style="background:var(--card);font-weight:400">Mostrando ${lim} de ${L.length} · <button class="btn ghost sm" onclick="FN.blim=1e9;fnAtualizar()">Mostrar todos</button></td></tr>`:''}<tr><td colspan="3">TOTAL · ${L.length} boleto(s)</td><td class="n">${fR(tot)}</td><td colspan="2"></td></tr></tfoot></table></div>`;
 }
 function fnMarcarBanco(id,on){ const hoje=hojeBR();
   fnBg('finMarcarBanco',{id,ok:on},{rotulo:`${on?'Marcar':'Desmarcar'} boleto lançado no banco`,local:()=>{ const l=fnLanc(id); if(l) l.BANCO_OK=on?hoje:''; }}); }
@@ -3378,11 +3396,11 @@ function fnAtrasados(){
     .map(l=>({l,d:fnDiaUtil(isoBR(l.VENCIMENTO)),ch:fnTipoCheque(l)})).sort((a,b)=>a.d.localeCompare(b.d));
   if(!T.length) return `<div class="card dc-atr ok"><b>✓ Nenhum pagamento atrasado</b></div>`;
   const grp=k=>T.filter(x=>x.ch===k), sm=L=>L.reduce((s,x)=>s+(+x.l.VALOR||0),0); const CH=grp('cheque'), EN=grp('enviar');
-  const L=FN.atrCh?T.filter(x=>x.ch===FN.atrCh):T;
+  const L=FN.atrCh==='bol'?T.filter(x=>!x.ch):FN.atrCh?T.filter(x=>x.ch===FN.atrCh):T; // 'bol' = vencidos sem cheques
   const NC=T.filter(x=>!x.ch); const tot=sm(NC); const dias=d=>Math.round((new Date(hoje+'T12:00')-new Date(d+'T12:00'))/864e5);
   const chip=(k,rot,G)=>`<button class="dc-chq${FN.atrCh===k?' on':''}" onclick="FN.atrCh=FN.atrCh==='${k}'?'':'${k}';fnAtualizar()" title="${FN.atrCh===k?'Mostrar todos os atrasados':'Mostrar só estes na lista'}">${rot} <b>${fR(sm(G))}</b> <span class="muted">· ${G.length}</span></button>`;
   return `<div class="card dc-atr"><div class="dc-rh"><h3>⚠ Pagamentos atrasados <span class="muted small">— em aberto e já vencidos</span></h3><span class="sp"></span><b class="bad" style="font-size:18px" title="Sem os cheques (que aparecem separados logo abaixo)">${NC.length} · ${fR(tot)}</b></div>
-  <div class="dc-chqs">${chip('cheque','🧾 Cheques vencidos',CH)}${chip('enviar','✉️ Enviar cheques vencidos',EN)}${(()=>{ const B=fin().lanc.filter(l=>l.TIPO==='PAGAR'&&l.STATUS!=='QUITADO'&&!fnTipoCheque(l)); return `<span class="dc-chq dc-bol" title="Todos os pagamentos em aberto (vencidos e a vencer), sem cheques e sem enviar cheques">📄 BOLETOS EM ABERTO <b>${fR(B.reduce((s,l)=>s+(+l.VALOR||0),0))}</b> <span class="muted">· ${B.length}</span></span>`; })()}${FN.atrCh?`<span class="small muted">mostrando só ${FN.atrCh==='enviar'?'"enviar cheques"':'cheques'} · <a href="#" onclick="event.preventDefault();FN.atrCh='';fnAtualizar()">ver todos</a></span>`:''}</div>
+  <div class="dc-chqs">${chip('cheque','🧾 Cheques vencidos',CH)}${chip('enviar','✉️ Enviar cheques vencidos',EN)}${chip('bol','📄 BOLETOS EM ABERTO',NC)}${FN.atrCh?`<span class="small muted">mostrando só ${FN.atrCh==='bol'?'boletos (sem cheques)':FN.atrCh==='enviar'?'"enviar cheques"':'cheques'} · <a href="#" onclick="event.preventDefault();FN.atrCh='';fnAtualizar()">ver todos</a></span>`:''}</div>
   <div class="tw sl-tab" style="max-height:${FN.atrTodos?'none':'260px'};overflow:auto"><table><thead><tr><th>Vencimento</th><th class="n">Atraso</th><th>Nome</th><th>Descrição</th><th>Categoria</th><th class="n">Valor</th><th></th></tr></thead><tbody>
   ${L.map(({l,d,ch})=>`<tr><td>${esc(l.VENCIMENTO)}</td><td class="n"><span class="tag t-bad">${dias(d)} dia(s)</span></td><td><b>${esc(l.NOME)}</b></td><td>${esc(l.DESCRICAO)}${ch?` <span class="tag ${ch==='enviar'?'t-warn':'t-mut'}">${ch==='enviar'?'enviar cheque':'cheque'}</span>`:''}</td><td>${esc(l.CATEGORIA)}</td><td class="n"><b class="bad">${fR(+l.VALOR||0)}</b></td>
     <td class="c" style="white-space:nowrap">${l.COD_BARRAS?`<button class="ib" title="Copiar código de barras" onclick="fnCopiarCB('${esc(l.COD_BARRAS)}')">📋</button>`:''}<button class="ib" title="Abrir lançamento" onclick="fnAbrirLanc('${esc(l.ID)}')">✎</button></td></tr>`).join('')||'<tr><td colspan="7" class="muted">Nenhum desse tipo.</td></tr>'}</tbody></table></div></div>`;
